@@ -1,0 +1,20 @@
+{
+  "name": "shnoor-parking-workspace",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "database"
+  ],
+  "scripts": {
+    "init-db": "npm run init --workspace=database",
+    "server": "npm run start --workspace=backend",
+    "start": "npm run dev --workspace=frontend",
+    "dev": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=frontend",
+    "lint": "npm run lint --workspace=frontend"
+  },
+  "dependencies": {
+    "react-router-dom": "^7.18.3"
+  }
+}
