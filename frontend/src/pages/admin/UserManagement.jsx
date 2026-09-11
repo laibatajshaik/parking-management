@@ -320,127 +320,129 @@ export default function UserManagement({
         </div>
       </div>
 
-      <div className="pw-users-header-row">
-        <span style={{ minWidth: "170px" }}>User Profile</span>
-        <span style={{ minWidth: "180px" }}>Email & Phone</span>
-        <span style={{ minWidth: "110px" }}>Registration Date</span>
-        <span style={{ minWidth: "90px" }}>Status</span>
-        <span style={{ marginLeft: "auto", textAlign: "right" }}>Actions</span>
-      </div>
+      <div className="pw-users-table-scroll-container">
+        <div className="pw-users-header-row pw-mgmt-grid-row pw-user-mgmt-grid">
+          <span>User Profile</span>
+          <span>Email & Phone</span>
+          <span>Registration Date</span>
+          <span>Status</span>
+          <span style={{ textAlign: "right" }}>Actions</span>
+        </div>
 
-      <div className="pw-user-cards-stack">
-        {filteredUsers.length > 0 ? (
-          filteredUsers.map((u) => {
-            const currentStatus = u.status || "Active";
-            const isActive = currentStatus.toLowerCase() === "active";
-            const roleKey = (u.role || "customer").toLowerCase();
-            const initials = u.name
-              ? u.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()
-              : "U";
+        <div className="pw-user-cards-stack">
+          {filteredUsers.length > 0 ? (
+            filteredUsers.map((u) => {
+              const currentStatus = u.status || "Active";
+              const isActive = currentStatus.toLowerCase() === "active";
+              const roleKey = (u.role || "customer").toLowerCase();
+              const initials = u.name
+                ? u.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()
+                : "U";
 
-            return (
-              <div key={u.id} className="pw-user-card-box">
-                <div className="pw-user-card-main-col">
-                  <div className="pw-user-avatar-small">{initials}</div>
-                  <div>
-                    <div className="pw-user-name-bold">{u.name}</div>
-                    <span className={`pw-role-badge ${roleKey}`} style={{ marginTop: "4px" }}>
-                      {u.role ? u.role.toUpperCase() : "CUSTOMER"}
+              return (
+                <div key={u.id} className="pw-user-card-box pw-mgmt-grid-row pw-user-mgmt-grid">
+                  <div className="pw-user-card-main-col">
+                    <div className="pw-user-avatar-small">{initials}</div>
+                    <div>
+                      <div className="pw-user-name-bold">{u.name}</div>
+                      <span className={`pw-role-badge ${roleKey}`} style={{ marginTop: "4px" }}>
+                        {u.role ? u.role.toUpperCase() : "CUSTOMER"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pw-user-card-contact-col">
+                    <div className="pw-contact-cell">
+                      <Mail size={13} className="pw-cell-icon" />
+                      <span>{u.email}</span>
+                    </div>
+                    <div className="pw-contact-cell">
+                      <Phone size={13} className="pw-cell-icon" />
+                      <span>{u.phone || "+91 98765 43210"}</span>
+                    </div>
+                  </div>
+
+                  <div className="pw-user-card-date-col">
+                    <span className="pw-user-col-label">Registered</span>
+                    <span className="pw-user-col-value">{formatDate(u.created_at)}</span>
+                  </div>
+
+                  <div className="pw-user-card-status-col">
+                    <span className="pw-user-col-label">Status</span>
+                    <span className={`pw-user-status-pill ${isActive ? "active" : "inactive"}`}>
+                      <span className="pw-status-dot"></span>
+                      {currentStatus}
                     </span>
                   </div>
-                </div>
 
-                <div className="pw-user-card-contact-col">
-                  <div className="pw-contact-cell">
-                    <Mail size={13} className="pw-cell-icon" />
-                    <span>{u.email}</span>
+                  <div className="pw-user-card-actions-col">
+                    <button
+                      type="button"
+                      className="pw-btn-action-view"
+                      onClick={() => setSelectedUser(u)}
+                      title="View Full User Details"
+                    >
+                      <Eye size={13} />
+                      <span>View</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pw-btn-action-edit"
+                      onClick={() => openEditModal(u)}
+                      title="Edit User Profile"
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`pw-btn-action-toggle ${isActive ? "deactivate" : "activate"}`}
+                      onClick={() => handleToggleUserStatus(u)}
+                      disabled={isUpdatingStatus}
+                      title={isActive ? "Deactivate User Account" : "Activate User Account"}
+                    >
+                      {isActive ? (
+                        <>
+                          <XCircle size={13} />
+                          <span>Deactivate</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={13} />
+                          <span>Activate</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pw-btn-action-delete"
+                      onClick={() => setUserToDelete(u)}
+                      title="Delete User Account"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
-                  <div className="pw-contact-cell">
-                    <Phone size={13} className="pw-cell-icon" />
-                    <span>{u.phone || "+91 98765 43210"}</span>
-                  </div>
                 </div>
-
-                <div className="pw-user-card-date-col">
-                  <span className="pw-user-col-label">Registered</span>
-                  <span className="pw-user-col-value">{formatDate(u.created_at)}</span>
-                </div>
-
-                <div className="pw-user-card-status-col">
-                  <span className="pw-user-col-label">Status</span>
-                  <span className={`pw-user-status-pill ${isActive ? "active" : "inactive"}`}>
-                    <span className="pw-status-dot"></span>
-                    {currentStatus}
-                  </span>
-                </div>
-
-                <div className="pw-user-card-actions-col">
-                  <button
-                    type="button"
-                    className="pw-btn-action-view"
-                    onClick={() => setSelectedUser(u)}
-                    title="View Full User Details"
-                  >
-                    <Eye size={13} />
-                    <span>View</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="pw-btn-action-edit"
-                    onClick={() => openEditModal(u)}
-                    title="Edit User Profile"
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`pw-btn-action-toggle ${isActive ? "deactivate" : "activate"}`}
-                    onClick={() => handleToggleUserStatus(u)}
-                    disabled={isUpdatingStatus}
-                    title={isActive ? "Deactivate User Account" : "Activate User Account"}
-                  >
-                    {isActive ? (
-                      <>
-                        <XCircle size={13} />
-                        <span>Deactivate</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle size={13} />
-                        <span>Activate</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="pw-btn-action-delete"
-                    onClick={() => setUserToDelete(u)}
-                    title="Delete User Account"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              );
+            })
+          ) : (
+            <div className="pw-empty-users-card">
+              <div className="pw-empty-state">
+                <Users size={32} className="pw-empty-icon" />
+                <h4>No users match your filters</h4>
+                <p>Try clearing search or changing role and status filters.</p>
               </div>
-            );
-          })
-        ) : (
-          <div className="pw-empty-users-card">
-            <div className="pw-empty-state">
-              <Users size={32} className="pw-empty-icon" />
-              <h4>No users match your filters</h4>
-              <p>Try clearing search or changing role and status filters.</p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="pw-users-table-footer">

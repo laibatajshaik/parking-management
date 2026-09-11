@@ -21,20 +21,31 @@ import ParkingOccupancy from "./ParkingOccupancy.jsx";
 import ParkingSlotManagement from "./ParkingSlotManagement.jsx";
 import VehicleManagement from "./VehicleManagement.jsx";
 import UserManagement from "./UserManagement.jsx";
+import ActiveParkingSessions from "./ActiveParkingSessions.jsx";
+import TodaysRevenue from "./TodaysRevenue.jsx";
+import ParkingRecords from "./ParkingRecords.jsx";
+import BookingsReservations from "./BookingsReservations.jsx";
+import PricingPlans from "./PricingPlans.jsx";
+import ParkingLocations from "./ParkingLocations.jsx";
+import ReportsAnalytics from "./ReportsAnalytics.jsx";
+import SystemSettings from "./SystemSettings.jsx";
+import SupportAuditLogs from "./SupportAuditLogs.jsx";
 
 const ADMIN_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard, isWorking: true },
+  { id: "bookings-reservations", label: "Bookings & Reservations", icon: CalendarCheck, isWorking: true },
+  { id: "pricing-plans", label: "Pricing & Plans", icon: CreditCard, isWorking: true },
+  { id: "parking-records", label: "Parking Records", icon: CalendarCheck, isWorking: true },
+  { id: "active-parking-sessions", label: "Active Parking Sessions", icon: Car, isWorking: true },
+  { id: "payments-revenue", label: "Today's Revenue", icon: CreditCard, isWorking: true },
   { id: "parking-occupancy", label: "Parking Occupancy", icon: Car, isWorking: true },
   { id: "slot-management", label: "Slot Management", icon: Car, isWorking: true },
   { id: "vehicle-management", label: "Vehicle Management", icon: Car, isWorking: true },
   { id: "user-management", label: "User Management", icon: Users, isWorking: true },
-  { id: "parking-locations", label: "Parking Locations", icon: MapPin, isWorking: false },
-  { id: "bookings-reservations", label: "Bookings & Reservations", icon: CalendarCheck, isWorking: false },
-  { id: "pricing-plans", label: "Pricing & Plans", icon: CreditCard, isWorking: false },
-  { id: "payments-revenue", label: "Payments & Revenue", icon: CreditCard, isWorking: false },
-  { id: "reports-analytics", label: "Reports & Analytics", icon: BarChart3, isWorking: false },
-  { id: "system-settings", label: "System Settings", icon: Settings, isWorking: false },
-  { id: "support-logs", label: "Support & Audit Logs", icon: HelpCircle, isWorking: false },
+  { id: "parking-locations", label: "Parking Locations", icon: MapPin, isWorking: true },
+  { id: "reports-analytics", label: "Reports & Analytics", icon: BarChart3, isWorking: true },
+  { id: "system-settings", label: "System Settings", icon: Settings, isWorking: true },
+  { id: "support-logs", label: "Support & Audit Logs", icon: HelpCircle, isWorking: true },
 ];
 
 const INITIAL_24_SLOTS = [
@@ -208,18 +219,36 @@ export default function AdminDashboard({ setView }) {
   };
 
   const getPageTitle = () => {
+    if (activeTab === "pricing-plans") return "Pricing & Plans Management";
+    if (activeTab === "bookings-reservations") return "Bookings & Reservations";
+    if (activeTab === "parking-records") return "Parking Records & History";
+    if (activeTab === "active-parking-sessions") return "Active Parking Sessions";
+    if (activeTab === "payments-revenue") return "Today's Revenue & Payments";
     if (activeTab === "parking-occupancy") return "Parking Occupancy";
     if (activeTab === "slot-management") return "Slot Management";
     if (activeTab === "vehicle-management") return "Vehicle Management";
     if (activeTab === "user-management") return "User Management";
+    if (activeTab === "parking-locations") return "Parking Locations & Branches";
+    if (activeTab === "reports-analytics") return "Reports & Business Intelligence";
+    if (activeTab === "system-settings") return "System Settings & Configuration";
+    if (activeTab === "support-logs") return "Support Tickets & Security Audit Logs";
     return "Dashboard Overview";
   };
 
   const getPageSubtitle = () => {
+    if (activeTab === "pricing-plans") return "";
+    if (activeTab === "bookings-reservations") return "Comprehensive schedule of all reserved parking slots, advance customer bookings, and gate check-ins";
+    if (activeTab === "parking-records") return "Comprehensive audit trail of all active and historical parking sessions";
+    if (activeTab === "active-parking-sessions") return "Real-time oversight of all currently parked vehicles in the facility";
+    if (activeTab === "payments-revenue") return "Live revenue breakdown and parking payment transactions collected today";
     if (activeTab === "parking-occupancy") return "Live spatial slot management: Available (Green), Occupied (Red), Reserved (Blue)";
     if (activeTab === "slot-management") return "";
     if (activeTab === "vehicle-management") return "";
     if (activeTab === "user-management") return "";
+    if (activeTab === "parking-locations") return "Configure physical parking facilities, branches, total bays, and site staff allocation";
+    if (activeTab === "reports-analytics") return "Financial metrics, peak-hour turnover heatmaps, and payment channel reconciliation";
+    if (activeTab === "system-settings") return "Operational parameters, GST compliance, IoT RFID gate barriers, and database management";
+    if (activeTab === "support-logs") return "Resolve customer assistance inquiries and monitor administrative audit trails";
     return "Welcome back, Taj. Here is what's happening today.";
   };
 
@@ -323,6 +352,36 @@ export default function AdminDashboard({ setView }) {
             />
           )}
 
+          {activeTab === "bookings-reservations" && (
+            <BookingsReservations
+              setStatusActionMessage={setStatusActionMessage}
+            />
+          )}
+
+          {activeTab === "pricing-plans" && (
+            <PricingPlans
+              setStatusActionMessage={setStatusActionMessage}
+            />
+          )}
+
+          {activeTab === "parking-records" && (
+            <ParkingRecords
+              setStatusActionMessage={setStatusActionMessage}
+            />
+          )}
+
+          {activeTab === "active-parking-sessions" && (
+            <ActiveParkingSessions
+              setStatusActionMessage={setStatusActionMessage}
+            />
+          )}
+
+          {activeTab === "payments-revenue" && (
+            <TodaysRevenue
+              setStatusActionMessage={setStatusActionMessage}
+            />
+          )}
+
           {activeTab === "parking-occupancy" && (
             <ParkingOccupancy
               slots={slots}
@@ -365,6 +424,22 @@ export default function AdminDashboard({ setView }) {
               formatDate={formatDate}
               setStatusActionMessage={setStatusActionMessage}
             />
+          )}
+
+          {activeTab === "parking-locations" && (
+            <ParkingLocations />
+          )}
+
+          {activeTab === "reports-analytics" && (
+            <ReportsAnalytics />
+          )}
+
+          {activeTab === "system-settings" && (
+            <SystemSettings />
+          )}
+
+          {activeTab === "support-logs" && (
+            <SupportAuditLogs />
           )}
         </div>
       </div>

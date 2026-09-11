@@ -294,101 +294,103 @@ export default function ParkingSlotManagement({
         </div>
       </div>
 
-      <div className="pw-users-header-row">
-        <span style={{ minWidth: "170px" }}>Slot Bay & Zone</span>
-        <span style={{ minWidth: "140px" }}>Slot Type</span>
-        <span style={{ minWidth: "120px" }}>Hourly Rate</span>
-        <span style={{ minWidth: "140px" }}>Current Status</span>
-        <span style={{ marginLeft: "auto", textAlign: "right" }}>Actions</span>
-      </div>
+      <div className="pw-users-table-scroll-container">
+        <div className="pw-users-header-row pw-mgmt-grid-row pw-slot-mgmt-grid">
+          <span>Slot Bay & Zone</span>
+          <span>Slot Type</span>
+          <span>Hourly Rate</span>
+          <span>Current Status</span>
+          <span style={{ textAlign: "right" }}>Actions</span>
+        </div>
 
-      <div className="pw-user-cards-stack">
-        {filteredSlotManagerSlots.length > 0 ? (
-          filteredSlotManagerSlots.map((s) => {
-            const state = getSlotState(s);
-            const typeKey = (s.slot_type || "Standard").toLowerCase().includes("vip") ? "vip" : (s.slot_type || "").toLowerCase().includes("bike") ? "bike" : "standard";
+        <div className="pw-user-cards-stack">
+          {filteredSlotManagerSlots.length > 0 ? (
+            filteredSlotManagerSlots.map((s) => {
+              const state = getSlotState(s);
+              const typeKey = (s.slot_type || "Standard").toLowerCase().includes("vip") ? "vip" : (s.slot_type || "").toLowerCase().includes("bike") ? "bike" : "standard";
 
-            return (
-              <div key={s.id} className="pw-user-card-box">
-                <div className="pw-user-card-main-col">
-                  <div className={`pw-slot-avatar-small ${state}`}>
-                    {s.slot_number}
+              return (
+                <div key={s.id} className="pw-user-card-box pw-mgmt-grid-row pw-slot-mgmt-grid">
+                  <div className="pw-user-card-main-col">
+                    <div className={`pw-slot-avatar-small ${state}`}>
+                      {s.slot_number}
+                    </div>
+                    <div>
+                      <div className="pw-user-name-bold">Bay {s.slot_number}</div>
+                      <span className="pw-role-badge customer" style={{ marginTop: "4px" }}>
+                        {s.zone}
+                      </span>
+                    </div>
                   </div>
+
                   <div>
-                    <div className="pw-user-name-bold">Bay {s.slot_number}</div>
-                    <span className="pw-role-badge customer" style={{ marginTop: "4px" }}>
-                      {s.zone}
+                    <span className={`pw-slot-type-badge ${typeKey}`}>
+                      {s.slot_type || "Standard"}
                     </span>
                   </div>
+
+                  <div className="pw-user-card-date-col">
+                    <span className="pw-user-col-label">Hourly Rate</span>
+                    <span className="pw-user-col-value">₹{s.hourly_rate || "50"}/hr</span>
+                  </div>
+
+                  <div>
+                    <span
+                      className={`pw-tile-status-chip ${state === "available" ? "avail" : state === "occupied" ? "occ" : "reserved"}`}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => {
+                        const nextStatus = state === "available" ? "occupied" : state === "occupied" ? "reserved" : "available";
+                        handleSlotStatusChange(s.slot_number, nextStatus);
+                      }}
+                      title="Click to cycle status"
+                    >
+                      {state === "available" ? "🟢 Free" : state === "occupied" ? "🔴 Occupied" : "🔵 Reserved"}
+                    </span>
+                  </div>
+
+                  <div className="pw-user-card-actions-col">
+                    <button
+                      type="button"
+                      className="pw-btn-action-view"
+                      onClick={() => setSelectedSlotModal(s)}
+                      title="View Slot Details"
+                    >
+                      <Eye size={13} />
+                      <span>Details</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pw-btn-action-edit"
+                      onClick={() => openEditSlotModal(s)}
+                      title="Edit Slot Parameters"
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pw-btn-action-delete"
+                      onClick={() => setSlotToDelete(s)}
+                      title="Delete Slot"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
-
-                <div style={{ minWidth: "140px" }}>
-                  <span className={`pw-slot-type-badge ${typeKey}`}>
-                    {s.slot_type || "Standard"}
-                  </span>
-                </div>
-
-                <div className="pw-user-card-date-col">
-                  <span className="pw-user-col-label">Hourly Rate</span>
-                  <span className="pw-user-col-value">₹{s.hourly_rate || "50"}/hr</span>
-                </div>
-
-                <div style={{ minWidth: "140px" }}>
-                  <span
-                    className={`pw-tile-status-chip ${state === "available" ? "avail" : state === "occupied" ? "occ" : "reserved"}`}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => {
-                      const nextStatus = state === "available" ? "occupied" : state === "occupied" ? "reserved" : "available";
-                      handleSlotStatusChange(s.slot_number, nextStatus);
-                    }}
-                    title="Click to cycle status"
-                  >
-                    {state === "available" ? "🟢 Free" : state === "occupied" ? "🔴 Occupied" : "🔵 Reserved"}
-                  </span>
-                </div>
-
-                <div className="pw-user-card-actions-col">
-                  <button
-                    type="button"
-                    className="pw-btn-action-view"
-                    onClick={() => setSelectedSlotModal(s)}
-                    title="View Slot Details"
-                  >
-                    <Eye size={13} />
-                    <span>Details</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="pw-btn-action-edit"
-                    onClick={() => openEditSlotModal(s)}
-                    title="Edit Slot Parameters"
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="pw-btn-action-delete"
-                    onClick={() => setSlotToDelete(s)}
-                    title="Delete Slot"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              );
+            })
+          ) : (
+            <div className="pw-empty-users-card">
+              <div className="pw-empty-state">
+                <Car size={32} className="pw-empty-icon" />
+                <h4>No slots match your filters</h4>
+                <p>Try clearing search or adjusting zone and status filters.</p>
               </div>
-            );
-          })
-        ) : (
-          <div className="pw-empty-users-card">
-            <div className="pw-empty-state">
-              <Car size={32} className="pw-empty-icon" />
-              <h4>No slots match your filters</h4>
-              <p>Try clearing search or adjusting zone and status filters.</p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="pw-users-table-footer">

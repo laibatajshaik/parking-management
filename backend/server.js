@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import pool from "./db.js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -171,6 +172,129 @@ const initDbSchema = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        transaction_id VARCHAR(50) UNIQUE NOT NULL,
+        vehicle_number VARCHAR(50) NOT NULL,
+        customer_name VARCHAR(100) NOT NULL,
+        customer_email VARCHAR(150),
+        customer_phone VARCHAR(50),
+        slot_number VARCHAR(20) NOT NULL,
+        entry_time TIMESTAMP NOT NULL,
+        exit_time TIMESTAMP NOT NULL,
+        duration VARCHAR(50) NOT NULL,
+        amount NUMERIC(10, 2) NOT NULL,
+        payment_method VARCHAR(50) NOT NULL,
+        payment_status VARCHAR(50) DEFAULT 'Completed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS vehicle_number VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_name VARCHAR(100);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_email VARCHAR(150);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS slot_number VARCHAR(20);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS entry_time TIMESTAMP;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS exit_time TIMESTAMP;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS duration VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS amount NUMERIC(10, 2);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS method VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Completed';
+      ALTER TABLE payments ALTER COLUMN method DROP NOT NULL;
+    `);
+
+    const payCountRes = await pool.query("SELECT COUNT(*) FROM payments WHERE transaction_id IS NOT NULL");
+    if (parseInt(payCountRes.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO payments (transaction_id, vehicle_number, customer_name, customer_email, customer_phone, slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at)
+        VALUES
+          ('TXN-8041', 'KA03 EF 9012', 'Taj', 'admin@shnoor.com', '+91 98765 43212', 'C-03', CURRENT_TIMESTAMP - INTERVAL '5 hours', CURRENT_TIMESTAMP - INTERVAL '15 minutes', '4 hrs 45 mins', 380.00, 'UPI', 'UPI', 'Completed', CURRENT_TIMESTAMP - INTERVAL '15 minutes'),
+          ('TXN-8040', 'KA01 AB 1234', 'Laiba', 'customer@shnoor.com', '+91 98765 43210', 'A-05', CURRENT_TIMESTAMP - INTERVAL '6 hours', CURRENT_TIMESTAMP - INTERVAL '1 hour', '5 hrs 00 mins', 250.00, 'Credit Card', 'Credit Card', 'Completed', CURRENT_TIMESTAMP - INTERVAL '1 hour'),
+          ('TXN-8039', 'KA04 GH 3456', 'Laiba', 'customer@shnoor.com', '+91 98765 43210', 'D-02', CURRENT_TIMESTAMP - INTERVAL '7 hours', CURRENT_TIMESTAMP - INTERVAL '2 hours', '5 hrs 00 mins', 125.00, 'Cash', 'Cash', 'Completed', CURRENT_TIMESTAMP - INTERVAL '2 hours'),
+          ('TXN-8038', 'KA02 CD 5678', 'Laiba Taj', 'staff@shnoor.com', '+91 98765 43211', 'B-04', CURRENT_TIMESTAMP - INTERVAL '8 hours', CURRENT_TIMESTAMP - INTERVAL '3 hours', '5 hrs 00 mins', 250.00, 'Net Banking', 'Net Banking', 'Completed', CURRENT_TIMESTAMP - INTERVAL '3 hours'),
+          ('TXN-8037', 'KA03 EF 9012', 'Taj', 'admin@shnoor.com', '+91 98765 43212', 'C-01', CURRENT_TIMESTAMP - INTERVAL '9 hours', CURRENT_TIMESTAMP - INTERVAL '5 hours', '4 hrs 00 mins', 320.00, 'UPI', 'UPI', 'Completed', CURRENT_TIMESTAMP - INTERVAL '5 hours'),
+          ('TXN-8036', 'KA05 IJ 7890', 'Laiba Taj', 'staff@shnoor.com', '+91 98765 43211', 'A-01', CURRENT_TIMESTAMP - INTERVAL '10 hours', CURRENT_TIMESTAMP - INTERVAL '6 hours', '4 hrs 00 mins', 200.00, 'Debit Card', 'Debit Card', 'Completed', CURRENT_TIMESTAMP - INTERVAL '6 hours');
+      `);
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reservations (
+        id SERIAL PRIMARY KEY,
+        booking_id VARCHAR(50) UNIQUE NOT NULL,
+        customer_name VARCHAR(100) NOT NULL,
+        customer_email VARCHAR(150),
+        customer_phone VARCHAR(50),
+        vehicle_number VARCHAR(50) NOT NULL,
+        vehicle_type VARCHAR(50) DEFAULT 'Car',
+        model VARCHAR(100) DEFAULT 'Standard',
+        slot_number VARCHAR(20) NOT NULL,
+        zone VARCHAR(50) DEFAULT 'Zone A',
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP NOT NULL,
+        duration_hours NUMERIC(5, 2) DEFAULT 2.00,
+        total_amount NUMERIC(10, 2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'Confirmed',
+        validation_code VARCHAR(50) NOT NULL,
+        validated_at TIMESTAMP,
+        validated_by VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const resCountRes = await pool.query("SELECT COUNT(*) FROM reservations");
+    if (parseInt(resCountRes.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO reservations (
+          booking_id, customer_name, customer_email, customer_phone, vehicle_number,
+          vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
+          total_amount, status, validation_code, created_at
+        ) VALUES
+          ('BK-12345', 'Laiba', 'customer@shnoor.com', '+91 98765 43210', 'KA01 AB 1234', 'Car', 'Hyundai Creta', 'A-03', 'Zone A', CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP + INTERVAL '4 hours', 3, 150.00, 'Confirmed', 'VAL-1042', CURRENT_TIMESTAMP - INTERVAL '2 hours'),
+          ('BK-12344', 'Laiba Taj', 'staff@shnoor.com', '+91 98765 43211', 'KA02 CD 5678', 'SUV', 'Tata Harrier', 'B-05', 'Zone B', CURRENT_TIMESTAMP + INTERVAL '2 hours', CURRENT_TIMESTAMP + INTERVAL '5 hours', 3, 180.00, 'Pending', 'VAL-1043', CURRENT_TIMESTAMP - INTERVAL '3 hours'),
+          ('BK-12343', 'Taj', 'admin@shnoor.com', '+91 98765 43212', 'KA03 EF 9012', 'EV', 'Tata Nexon EV', 'C-02', 'Zone C', CURRENT_TIMESTAMP - INTERVAL '1 hour', CURRENT_TIMESTAMP + INTERVAL '1 hour', 2, 160.00, 'Checked In', 'VAL-1044', CURRENT_TIMESTAMP - INTERVAL '4 hours'),
+          ('BK-12342', 'Akash', 'customer@shnoor.com', '+91 98765 43210', 'TS01 AP 1310', 'Bike', 'Yamaha MT-15', 'D-03', 'Zone D', CURRENT_TIMESTAMP + INTERVAL '3 hours', CURRENT_TIMESTAMP + INTERVAL '6 hours', 3, 75.00, 'Confirmed', 'VAL-1045', CURRENT_TIMESTAMP - INTERVAL '5 hours'),
+          ('BK-12341', 'Laiba', 'customer@shnoor.com', '+91 98765 43210', 'KA04 GH 3456', 'Bike', 'Royal Enfield Hunter 350', 'D-06', 'Zone D', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP - INTERVAL '21 hours', 3, 75.00, 'Completed', 'VAL-1041', CURRENT_TIMESTAMP - INTERVAL '1 day')
+        ON CONFLICT (booking_id) DO NOTHING;
+      `);
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pricing_plans (
+        id SERIAL PRIMARY KEY,
+        plan_code VARCHAR(50) UNIQUE NOT NULL,
+        plan_name VARCHAR(100) NOT NULL,
+        vehicle_type VARCHAR(50) NOT NULL,
+        billing_type VARCHAR(50) NOT NULL,
+        rate NUMERIC(10, 2) NOT NULL,
+        duration_hours NUMERIC(5, 2) DEFAULT 1.00,
+        description TEXT,
+        features TEXT[],
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50);
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS plan_name VARCHAR(100);
+    `);
+
+    const planCountRes = await pool.query("SELECT COUNT(*) FROM pricing_plans");
+    if (parseInt(planCountRes.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO pricing_plans (plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active)
+        VALUES
+          ('PLAN-CAR-HR', 'Standard Car Hourly', 'Car', 'Hourly', 50.00, 1.00, 'Standard hourly parking rate for sedan and hatchback cars in Zone A & B.', ARRAY['Zone A / B Covered Parking', 'CCTV 24/7 Monitoring', 'Automated Boom Barrier Access'], true),
+          ('PLAN-SUV-HR', 'SUV / Large Vehicle Hourly', 'SUV', 'Hourly', 60.00, 1.00, 'Spacious high-clearance parking bay designed for large SUVs in Zone B.', ARRAY['Extra Wide Bay Spacing', 'High Clearance Zone B', 'Dedicated Security Warden'], true),
+          ('PLAN-EV-HR', 'EV Fast Charging Hourly', 'EV', 'Hourly', 80.00, 1.00, 'Premium EV parking bay with 60kW DC fast charging included in Zone C.', ARRAY['Zone C VIP Electric Bay', '60kW Fast DC Charging', 'Priority Gate Entry / Exit'], true),
+          ('PLAN-BIKE-HR', 'Two-Wheeler Hourly', 'Bike', 'Hourly', 25.00, 1.00, 'Dedicated compact parking bay for motorcycles and scooters in Zone D.', ARRAY['Zone D Dedicated Bike Bay', 'Helmet Storage Facility', 'Quick Exit Lane Access'], true),
+          ('PLAN-CAR-DAY', 'Full Day Car Pass', 'Car', 'Daily', 350.00, 24.00, 'Unlimited 24-hour in-and-out parking privileges for cars.', ARRAY['24-Hour Multi-Entry Access', 'Guaranteed Reserved Bay', 'Complimentary Car Wash Token'], true),
+          ('PLAN-BIKE-DAY', 'Two-Wheeler Daily Pass', 'Bike', 'Daily', 150.00, 24.00, '24-hour daily parking pass for two-wheelers in Zone D.', ARRAY['24-Hour Secure Parking', 'Zone D Reserved Bay', 'Zero Surcharge on Re-entry'], true),
+          ('PLAN-EV-DAY', 'EV Full Day & Supercharge Pass', 'EV', 'Daily', 550.00, 24.00, 'Full day premium parking with unlimited EV fast charging.', ARRAY['Full Day Zone C VIP Bay', 'Unlimited EV Fast Charging', 'Valet Assistance on Request'], true),
+          ('PLAN-WEEKEND', 'Weekend Special Flat Rate', 'Car', 'Flat', 250.00, 8.00, 'Flat rate for 8-hour weekend shopping and leisure parking.', ARRAY['Flat 8-Hour Coverage', 'Zone A & B Access', 'Weekend Saver Discount'], false)
+        ON CONFLICT (plan_code) DO NOTHING;
+      `);
+    }
   } catch (err) {
     console.error("Schema init error:", err);
   }
@@ -452,6 +576,235 @@ app.get("/api/admin/vehicles/:vehicleNumber/history", async (req, res) => {
   }
 });
 
+app.post("/api/staff/vehicle-entry", async (req, res) => {
+  const { vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, slot_number, entry_time } = req.body;
+
+  if (!vehicle_number || !vehicle_type || !owner_name || !slot_number) {
+    return res.status(400).json({ error: "Vehicle number, type, customer name, and slot are required" });
+  }
+
+  const vPlate = vehicle_number.toUpperCase().trim();
+  const vType = vehicle_type;
+  const vModel = model || "Standard";
+  const vOwner = owner_name.trim();
+  const vEmail = owner_email || "customer@shnoor.com";
+  const vPhone = owner_phone || "+91 98765 43210";
+  const vSlot = slot_number;
+  const vEntryTime = entry_time ? new Date(entry_time) : new Date();
+
+  try {
+    const slotCheck = await pool.query("SELECT * FROM parking_slots WHERE slot_number = $1", [vSlot]);
+    if (slotCheck.rowCount === 0) {
+      return res.status(400).json({ error: `Slot ${vSlot} does not exist` });
+    }
+    if (slotCheck.rows[0].status === "occupied") {
+      return res.status(400).json({ error: `Slot ${vSlot} is already occupied` });
+    }
+
+    const existVeh = await pool.query("SELECT * FROM vehicles WHERE vehicle_number = $1", [vPlate]);
+    let vehicleData;
+    if (existVeh.rowCount > 0) {
+      const updateVeh = await pool.query(
+        "UPDATE vehicles SET vehicle_type = $1, model = $2, owner_name = $3, owner_phone = $4, status = 'Parked', current_slot = $5 WHERE vehicle_number = $6 RETURNING *",
+        [vType, vModel, vOwner, vPhone, vSlot, vPlate]
+      );
+      vehicleData = updateVeh.rows[0];
+    } else {
+      const insertVeh = await pool.query(
+        "INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot) VALUES ($1, $2, $3, $4, $5, $6, 'Parked', $7) RETURNING *",
+        [vPlate, vType, vModel, vOwner, vEmail, vPhone, vSlot]
+      );
+      vehicleData = insertVeh.rows[0];
+    }
+
+    await pool.query(
+      "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
+      [vSlot]
+    );
+
+    const historyInsert = await pool.query(
+      "INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, duration, fee, status) VALUES ($1, $2, $3, 'Ongoing', '₹50.00', 'Parked') RETURNING *",
+      [vPlate, vSlot, vEntryTime]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Vehicle ${vPlate} checked in successfully at Bay ${vSlot}`,
+      entry: {
+        id: `#ENT-${historyInsert.rows[0].id + 1040}`,
+        vehicle_number: vPlate,
+        vehicle_type: vType,
+        model: vModel,
+        owner_name: vOwner,
+        owner_phone: vPhone,
+        slot_number: vSlot,
+        entry_time: vEntryTime,
+        status: "Parked"
+      },
+      vehicle: vehicleData
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error registering vehicle entry" });
+  }
+});
+
+app.get("/api/staff/vehicle-entries", async (req, res) => {
+  try {
+    const entriesRes = await pool.query(`
+      SELECT 
+        vh.id,
+        vh.vehicle_number,
+        vh.slot_number,
+        vh.entry_time,
+        vh.exit_time,
+        vh.duration,
+        vh.fee,
+        vh.status,
+        COALESCE(v.vehicle_type, 'Car') AS vehicle_type,
+        COALESCE(v.model, 'Standard') AS model,
+        COALESCE(v.owner_name, 'Customer') AS owner_name,
+        COALESCE(v.owner_phone, '+91 98765 43210') AS owner_phone
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
+      ORDER BY vh.entry_time DESC
+    `);
+    res.json({ success: true, entries: entriesRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching vehicle entries" });
+  }
+});
+
+const sendVehicleRegistrationEmail = async (vehicle) => {
+  try {
+    let transporter;
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || "smtp.gmail.com",
+        port: parseInt(process.env.SMTP_PORT || "587", 10),
+        secure: process.env.SMTP_PORT === "465",
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+    } else {
+      const testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass
+        }
+      });
+    }
+
+    const emailSubject = `ParkSafe - Vehicle Registration Confirmation (${vehicle.vehicle_number})`;
+    const emailHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a; }
+    .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06); }
+    .header { background: #0f3b43; color: #ffffff; padding: 28px 24px; text-align: center; }
+    .brand-name { font-size: 24px; font-weight: 800; letter-spacing: 0.5px; color: #2dd4bf; margin: 0 0 6px 0; }
+    .header-title { font-size: 16px; font-weight: 600; color: #ffffff; margin: 0; opacity: 0.95; }
+    .content { padding: 28px 24px; }
+    .greeting { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
+    .description { font-size: 13.5px; line-height: 1.6; color: #475569; margin-bottom: 22px; }
+    .plate-card { background: #0f172a; border-radius: 12px; padding: 16px 20px; text-align: center; margin-bottom: 24px; }
+    .plate-number { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: 2px; font-family: monospace; }
+    .plate-meta { font-size: 12px; color: #2dd4bf; font-weight: 600; margin-top: 4px; }
+    .details-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .details-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    .details-table td.label { font-weight: 600; color: #64748b; width: 40%; }
+    .details-table td.value { font-weight: 700; color: #0f172a; width: 60%; text-align: right; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    .badge.bay { background: #f0fdfa; color: #0f766e; border-color: #ccfbf1; font-weight: 800; font-size: 12px; }
+    .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 24px; text-align: center; font-size: 11.5px; color: #94a3b8; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand-name">PARKSAFE</div>
+      <p class="header-title">Official Vehicle Registration Pass</p>
+    </div>
+    <div class="content">
+      <p class="greeting">Hello ${vehicle.owner_name},</p>
+      <p class="description">Your vehicle has been successfully registered in the ParkSafe Smart Parking System. Below are the full registration details for your records:</p>
+      
+      <div class="plate-card">
+        <div class="plate-number">${vehicle.vehicle_number}</div>
+        <div class="plate-meta">${vehicle.model} • ${vehicle.vehicle_type}</div>
+      </div>
+
+      <table class="details-table">
+        <tr>
+          <td class="label">Owner / Customer</td>
+          <td class="value">${vehicle.owner_name}</td>
+        </tr>
+        <tr>
+          <td class="label">Customer Email</td>
+          <td class="value">${vehicle.owner_email}</td>
+        </tr>
+        <tr>
+          <td class="label">Contact Phone</td>
+          <td class="value">${vehicle.owner_phone}</td>
+        </tr>
+        <tr>
+          <td class="label">Vehicle Type</td>
+          <td class="value">${vehicle.vehicle_type}</td>
+        </tr>
+        <tr>
+          <td class="label">Vehicle Model</td>
+          <td class="value">${vehicle.model}</td>
+        </tr>
+        <tr>
+          <td class="label">Assigned Parking Bay</td>
+          <td class="value"><span class="badge bay">Bay ${vehicle.current_slot}</span></td>
+        </tr>
+        <tr>
+          <td class="label">Current Status</td>
+          <td class="value"><span class="badge">${vehicle.status}</span></td>
+        </tr>
+        <tr>
+          <td class="label">Registration Date</td>
+          <td class="value">${new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</td>
+        </tr>
+      </table>
+
+      <p style="font-size: 12.5px; color: #64748b; line-height: 1.5; margin: 0;">
+        Please present this confirmation or your vehicle license plate at the automated entry gate for seamless RFID or optical recognition parking access.
+      </p>
+    </div>
+    <div class="footer">
+      <p style="margin: 0 0 4px 0;">ParkSafe Smart Parking Systems • Automated Notification</p>
+      <p style="margin: 0;">If you did not register this vehicle, please contact ParkSafe Support immediately.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"ParkSafe Parking System" <no-reply@parksafe.com>',
+      to: vehicle.owner_email,
+      subject: emailSubject,
+      html: emailHtml
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    return { success: true, messageId: info.messageId, previewUrl: previewUrl || null };
+  } catch (emailErr) {
+    console.error("Email notification error:", emailErr);
+    return { success: false, error: emailErr.message };
+  }
+};
+
 app.post("/api/admin/vehicles", async (req, res) => {
   const { vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot } = req.body;
 
@@ -480,7 +833,18 @@ app.post("/api/admin/vehicles", async (req, res) => {
       [vehicle_number.toUpperCase(), vSlot, vStatus]
     );
 
-    res.status(201).json({ success: true, vehicle: insertRes.rows[0], message: "Vehicle registered successfully" });
+    const emailResult = await sendVehicleRegistrationEmail(insertRes.rows[0]);
+
+    res.status(201).json({
+      success: true,
+      vehicle: insertRes.rows[0],
+      emailSent: emailResult.success,
+      emailError: emailResult.error || null,
+      previewUrl: emailResult.previewUrl,
+      message: emailResult.success
+        ? `Vehicle ${vehicle_number.toUpperCase()} registered successfully & confirmation email sent to ${owner_email}`
+        : `Vehicle ${vehicle_number.toUpperCase()} registered successfully (Email not delivered: ${emailResult.error})`
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error registering vehicle" });
@@ -692,6 +1056,1348 @@ app.get("/api/admin/messages", async (req, res) => {
   }
 });
 
+const handleActiveSessions = async (req, res) => {
+  try {
+    const activeVehiclesRes = await pool.query(`
+      SELECT 
+        v.id,
+        v.vehicle_number,
+        v.vehicle_type,
+        v.model,
+        v.owner_name,
+        v.owner_email,
+        v.owner_phone,
+        v.status,
+        v.current_slot,
+        v.created_at,
+        ps.zone,
+        ps.slot_type,
+        COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
+        (
+          SELECT entry_time 
+          FROM vehicle_history 
+          WHERE vehicle_number = v.vehicle_number 
+          ORDER BY entry_time DESC 
+          LIMIT 1
+        ) as entry_time
+      FROM vehicles v
+      LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
+      WHERE LOWER(v.status) = 'parked'
+      ORDER BY v.id DESC
+    `);
+
+    const now = new Date();
+    const sessions = activeVehiclesRes.rows.map((row) => {
+      const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at);
+      const diffMs = Math.max(0, now - entryDate);
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+      const rate = parseFloat(row.hourly_rate) || 50;
+      const totalFee = (billedHours * rate).toFixed(2);
+
+      return {
+        id: row.id,
+        vehicle_number: row.vehicle_number,
+        vehicle_type: row.vehicle_type,
+        model: row.model || "Standard",
+        owner_name: row.owner_name,
+        owner_email: row.owner_email,
+        owner_phone: row.owner_phone,
+        current_slot: row.current_slot,
+        zone: row.zone || "Zone A",
+        slot_type: row.slot_type || "Standard",
+        hourly_rate: rate,
+        entry_time: entryDate.toISOString(),
+        duration: durationStr,
+        billed_hours: billedHours,
+        calculated_fee: `₹${totalFee}`,
+        fee_numeric: parseFloat(totalFee),
+        status: "Parked"
+      };
+    });
+
+    res.json({ success: true, count: sessions.length, sessions, vehicles: sessions });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching active parking sessions" });
+  }
+};
+
+app.get("/api/parking/active-sessions", handleActiveSessions);
+app.get("/api/admin/active-sessions", handleActiveSessions);
+app.get("/api/staff/active-vehicles", handleActiveSessions);
+
+app.get("/api/payments/today", async (req, res) => {
+  try {
+    const paymentsRes = await pool.query("SELECT * FROM payments ORDER BY created_at DESC");
+    const allPayments = paymentsRes.rows;
+
+    let totalRevenue = 0;
+    const methodsBreakdown = {
+      UPI: 0,
+      "Credit Card": 0,
+      "Debit Card": 0,
+      Cash: 0,
+      "Net Banking": 0
+    };
+
+    allPayments.forEach((p) => {
+      const amt = parseFloat(p.amount) || 0;
+      totalRevenue += amt;
+      const method = p.payment_method || "UPI";
+      if (methodsBreakdown[method] !== undefined) {
+        methodsBreakdown[method] += amt;
+      } else {
+        methodsBreakdown[method] = amt;
+      }
+    });
+
+    const completedCount = allPayments.length;
+    const avgTicket = completedCount > 0 ? (totalRevenue / completedCount).toFixed(2) : "0.00";
+
+    res.json({
+      success: true,
+      summary: {
+        totalRevenue: `₹${totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        totalRevenueNumeric: totalRevenue,
+        completedCount,
+        avgTicket: `₹${parseFloat(avgTicket).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        methodsBreakdown
+      },
+      payments: allPayments
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching today's revenue" });
+  }
+});
+
+app.get("/api/payments", async (req, res) => {
+  const { search, method } = req.query;
+  try {
+    let query = "SELECT * FROM payments WHERE 1=1";
+    const params = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      query += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(customer_name) LIKE $${params.length} OR LOWER(transaction_id) LIKE $${params.length})`;
+    }
+
+    if (method && method !== "ALL") {
+      params.push(method);
+      query += ` AND payment_method = $${params.length}`;
+    }
+
+    query += " ORDER BY created_at DESC, id DESC";
+
+    const paymentsRes = await pool.query(query, params);
+    res.json({ success: true, payments: paymentsRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching payments" });
+  }
+});
+
+app.get("/api/customer/payments", async (req, res) => {
+  const { email, name, search, method } = req.query;
+  try {
+    let query = "SELECT * FROM payments WHERE 1=1";
+    const params = [];
+
+    if (email) {
+      params.push(`%${email.toLowerCase().trim()}%`);
+      query += ` AND (LOWER(COALESCE(customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(customer_name, '')) LIKE $${params.length})`;
+    } else if (name) {
+      params.push(`%${name.toLowerCase().trim()}%`);
+      query += ` AND LOWER(COALESCE(customer_name, '')) LIKE $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.toLowerCase().trim()}%`);
+      query += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(transaction_id) LIKE $${params.length} OR LOWER(slot_number) LIKE $${params.length})`;
+    }
+
+    if (method && method !== "ALL") {
+      params.push(method);
+      query += ` AND payment_method = $${params.length}`;
+    }
+
+    query += " ORDER BY created_at DESC, id DESC";
+
+    const paymentsRes = await pool.query(query, params);
+
+    if (paymentsRes.rowCount === 0 && (email || name)) {
+      const allRes = await pool.query("SELECT * FROM payments ORDER BY created_at DESC, id DESC LIMIT 25");
+      return res.json({ success: true, payments: allRes.rows });
+    }
+
+    res.json({ success: true, payments: paymentsRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching customer payments" });
+  }
+});
+
+app.post("/api/staff/process-payment", async (req, res) => {
+  const {
+    vehicle_number,
+    slot_number,
+    customer_name,
+    customer_email,
+    customer_phone,
+    entry_time,
+    exit_time,
+    duration,
+    amount,
+    payment_method
+  } = req.body;
+
+  if (!vehicle_number || !slot_number || !customer_name || amount === undefined) {
+    return res.status(400).json({ error: "Vehicle, slot, customer name, and amount are required" });
+  }
+
+  const txnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
+  const exitDate = exit_time ? new Date(exit_time) : new Date();
+  const entryDate = entry_time ? new Date(entry_time) : new Date(Date.now() - 3600000);
+  const payMethod = payment_method || "UPI";
+  const numAmount = parseFloat(amount) || 50.00;
+  const dur = duration || "1h 00m";
+
+  try {
+    const paymentInsert = await pool.query(
+      `INSERT INTO payments (
+        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
+      [
+        txnId,
+        vehicle_number.toUpperCase(),
+        customer_name,
+        customer_email || "customer@shnoor.com",
+        customer_phone || "+91 98765 43210",
+        slot_number,
+        entryDate,
+        exitDate,
+        dur,
+        numAmount,
+        payMethod
+      ]
+    );
+
+    await pool.query(
+      "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
+      [slot_number]
+    );
+
+    await pool.query(
+      "UPDATE vehicles SET status = 'Checked Out' WHERE vehicle_number = $1",
+      [vehicle_number.toUpperCase()]
+    );
+
+    await pool.query(
+      `UPDATE vehicle_history 
+       SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
+       WHERE vehicle_number = $4 AND (exit_time IS NULL OR status = 'Parked')`,
+      [exitDate, dur, `₹${numAmount.toFixed(2)}`, vehicle_number.toUpperCase()]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Payment of ₹${numAmount.toFixed(2)} processed successfully for ${vehicle_number.toUpperCase()}`,
+      receipt: paymentInsert.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error processing payment" });
+  }
+});
+
+app.get("/api/customer/my-parking", async (req, res) => {
+  const { email, name } = req.query;
+  try {
+    let query = `
+      SELECT 
+        v.id,
+        v.vehicle_number,
+        v.vehicle_type,
+        v.model,
+        v.owner_name,
+        v.owner_email,
+        v.owner_phone,
+        v.status,
+        v.current_slot,
+        v.created_at,
+        ps.zone,
+        ps.slot_type,
+        COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
+        (
+          SELECT entry_time 
+          FROM vehicle_history 
+          WHERE vehicle_number = v.vehicle_number 
+          ORDER BY entry_time DESC 
+          LIMIT 1
+        ) as entry_time
+      FROM vehicles v
+      LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
+      WHERE LOWER(v.status) = 'parked'
+    `;
+    const params = [];
+
+    if (email) {
+      params.push(email.toLowerCase());
+      query += ` AND LOWER(v.owner_email) = $${params.length}`;
+    } else if (name) {
+      params.push(`%${name.toLowerCase()}%`);
+      query += ` AND LOWER(v.owner_name) LIKE $${params.length}`;
+    }
+
+    query += " ORDER BY v.id DESC LIMIT 1";
+
+    const vehRes = await pool.query(query, params);
+
+    if (vehRes.rowCount === 0) {
+      return res.json({ success: true, session: null, message: "No active parking session found" });
+    }
+
+    const row = vehRes.rows[0];
+    const now = new Date();
+    const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at);
+    const diffMs = Math.max(0, now - entryDate);
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+    const rate = parseFloat(row.hourly_rate) || 50;
+    const totalFee = (billedHours * rate).toFixed(2);
+
+    res.json({
+      success: true,
+      session: {
+        id: row.id,
+        vehicle_number: row.vehicle_number,
+        vehicle_type: row.vehicle_type,
+        model: row.model || "Standard",
+        owner_name: row.owner_name,
+        owner_email: row.owner_email,
+        owner_phone: row.owner_phone,
+        current_slot: row.current_slot,
+        zone: row.zone || "Zone A",
+        slot_type: row.slot_type || "Standard",
+        hourly_rate: rate,
+        entry_time: entryDate.toISOString(),
+        duration: durationStr,
+        billed_hours: billedHours,
+        calculated_fee: `₹${totalFee}`,
+        fee_numeric: parseFloat(totalFee),
+        status: "Parked"
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching customer parking session" });
+  }
+});
+
+app.get("/api/admin/parking-records", async (req, res) => {
+  const { search, status, type } = req.query;
+  try {
+    let query = `
+      SELECT 
+        vh.id,
+        vh.vehicle_number,
+        vh.slot_number,
+        vh.entry_time,
+        vh.exit_time,
+        vh.duration,
+        vh.fee,
+        vh.status,
+        vh.created_at,
+        COALESCE(v.vehicle_type, 'Car') as vehicle_type,
+        COALESCE(v.model, 'Standard') as model,
+        COALESCE(v.owner_name, 'Laiba') as customer_name,
+        COALESCE(v.owner_email, 'customer@shnoor.com') as customer_email,
+        COALESCE(v.owner_phone, '+91 98765 43210') as customer_phone,
+        COALESCE(ps.zone, 'Zone A') as zone,
+        COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
+        p.transaction_id,
+        p.payment_method,
+        COALESCE(p.payment_status, CASE WHEN vh.status = 'Completed' THEN 'Paid' ELSE 'Pending' END) as payment_status
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
+      LEFT JOIN parking_slots ps ON vh.slot_number = ps.slot_number
+      LEFT JOIN payments p ON vh.vehicle_number = p.vehicle_number AND (
+        (vh.exit_time IS NOT NULL AND ABS(EXTRACT(EPOCH FROM (p.exit_time - vh.exit_time))) < 3600) OR
+        (p.slot_number = vh.slot_number)
+      )
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      query += ` AND (LOWER(vh.vehicle_number) LIKE $${params.length} OR LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(vh.slot_number) LIKE $${params.length} OR LOWER(COALESCE(p.transaction_id, '')) LIKE $${params.length})`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      query += ` AND LOWER(vh.status) = $${params.length}`;
+    }
+
+    if (type && type !== "ALL") {
+      params.push(type.toLowerCase());
+      query += ` AND LOWER(COALESCE(v.vehicle_type, 'car')) = $${params.length}`;
+    }
+
+    query += " ORDER BY vh.entry_time DESC";
+
+    const histRes = await pool.query(query, params);
+
+    const now = new Date();
+    const seenMap = new Map();
+    histRes.rows.forEach((row) => {
+      if (!seenMap.has(row.id)) {
+        const isParked = (row.status || "").toLowerCase() === "parked";
+        let duration = row.duration;
+        let fee = row.fee;
+
+        if (isParked && row.entry_time) {
+          const entryDate = new Date(row.entry_time);
+          const diffMs = Math.max(0, now - entryDate);
+          const diffMins = Math.floor(diffMs / (1000 * 60));
+          const hours = Math.floor(diffMins / 60);
+          const mins = diffMins % 60;
+          duration = hours > 0 ? `${hours}h ${mins}m (Ongoing)` : `${mins}m (Ongoing)`;
+          const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+          const rate = parseFloat(row.hourly_rate) || 50;
+          fee = `₹${(billedHours * rate).toFixed(2)}`;
+        }
+
+        seenMap.set(row.id, {
+          ...row,
+          duration: duration || "1h 00m",
+          fee: fee || "₹50.00",
+          payment_status: row.payment_status || (isParked ? "Pending" : "Paid")
+        });
+      }
+    });
+
+    const records = Array.from(seenMap.values());
+    res.json({ success: true, count: records.length, records });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching parking records" });
+  }
+});
+
+app.post("/api/staff/vehicle-exit", async (req, res) => {
+  const {
+    vehicle_number,
+    slot_number,
+    exit_time,
+    duration,
+    fee,
+    payment_method,
+    customer_name,
+    customer_email,
+    customer_phone
+  } = req.body;
+
+  if (!vehicle_number) {
+    return res.status(400).json({ error: "Vehicle number is required for checkout" });
+  }
+
+  const exitDate = exit_time ? new Date(exit_time) : new Date();
+  const dur = duration || "1h 00m";
+  const rawFee = typeof fee === "string" ? parseFloat(fee.replace(/[^0-9.]/g, "")) : parseFloat(fee) || 50.00;
+  const payMethod = payment_method || "Cash";
+  const txnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
+
+  try {
+    let slotToFree = slot_number;
+    let ownerName = customer_name;
+    let ownerEmail = customer_email;
+    let ownerPhone = customer_phone;
+    let entryDate = new Date(Date.now() - 3600000);
+
+    const vehQuery = await pool.query("SELECT * FROM vehicles WHERE vehicle_number = $1", [vehicle_number.toUpperCase()]);
+    if (vehQuery.rowCount > 0) {
+      const v = vehQuery.rows[0];
+      slotToFree = slotToFree || v.current_slot;
+      ownerName = ownerName || v.owner_name;
+      ownerEmail = ownerEmail || v.owner_email;
+      ownerPhone = ownerPhone || v.owner_phone;
+    }
+
+    const histQuery = await pool.query(
+      "SELECT * FROM vehicle_history WHERE vehicle_number = $1 AND (exit_time IS NULL OR status = 'Parked') ORDER BY entry_time DESC LIMIT 1",
+      [vehicle_number.toUpperCase()]
+    );
+    if (histQuery.rowCount > 0) {
+      entryDate = new Date(histQuery.rows[0].entry_time);
+      slotToFree = slotToFree || histQuery.rows[0].slot_number;
+    }
+
+    if (slotToFree) {
+      await pool.query(
+        "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
+        [slotToFree]
+      );
+    }
+
+    await pool.query(
+      "UPDATE vehicles SET status = 'Checked Out' WHERE vehicle_number = $1",
+      [vehicle_number.toUpperCase()]
+    );
+
+    await pool.query(
+      `UPDATE vehicle_history 
+       SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
+       WHERE vehicle_number = $4 AND (exit_time IS NULL OR status = 'Parked')`,
+      [exitDate, dur, `₹${rawFee.toFixed(2)}`, vehicle_number.toUpperCase()]
+    );
+
+    const paymentInsert = await pool.query(
+      `INSERT INTO payments (
+        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
+      [
+        txnId,
+        vehicle_number.toUpperCase(),
+        ownerName || "Customer",
+        ownerEmail || "customer@shnoor.com",
+        ownerPhone || "+91 98765 43210",
+        slotToFree || "A-01",
+        entryDate,
+        exitDate,
+        dur,
+        rawFee,
+        payMethod,
+        payMethod
+      ]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Vehicle ${vehicle_number.toUpperCase()} checked out successfully. Bay ${slotToFree || ''} is now available.`,
+      exitRecord: {
+        transaction_id: txnId,
+        vehicle_number: vehicle_number.toUpperCase(),
+        slot_number: slotToFree,
+        customer_name: ownerName,
+        entry_time: entryDate.toISOString(),
+        exit_time: exitDate.toISOString(),
+        duration: dur,
+        fee: `₹${rawFee.toFixed(2)}`,
+        payment_method: payMethod,
+        status: "Completed"
+      },
+      receipt: paymentInsert.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error completing vehicle exit" });
+  }
+});
+
+app.post("/api/parking/calculate-fee", async (req, res) => {
+  const { vehicle_type, zone, entry_time, exit_time, duration_hours } = req.body;
+  try {
+    let hourlyRate = 50;
+    const vType = (vehicle_type || "car").toLowerCase();
+    const zName = (zone || "zone a").toLowerCase();
+
+    if (vType === "bike" || zName.includes("zone d") || zName.includes("bike")) {
+      hourlyRate = 25;
+    } else if (vType === "ev" || vType === "vip" || zName.includes("zone c") || zName.includes("ev")) {
+      hourlyRate = 80;
+    } else if (vType === "suv") {
+      hourlyRate = 60;
+    }
+
+    let billedHours = 1;
+    let durationStr = "1h 00m";
+
+    if (duration_hours !== undefined && duration_hours !== null && duration_hours !== "") {
+      billedHours = Math.max(1, Math.ceil(parseFloat(duration_hours) || 1));
+      const totalMins = Math.round(parseFloat(duration_hours) * 60);
+      const h = Math.floor(totalMins / 60);
+      const m = totalMins % 60;
+      durationStr = `${h}h ${m}m`;
+    } else if (entry_time) {
+      const entry = new Date(entry_time);
+      const exit = exit_time ? new Date(exit_time) : new Date();
+      const diffMs = Math.max(0, exit - entry);
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      billedHours = Math.max(1, Math.ceil(diffMins / 60));
+    }
+
+    const subtotal = billedHours * hourlyRate;
+    const gstAmount = parseFloat((subtotal * 0.18).toFixed(2));
+    const totalPayable = parseFloat((subtotal + gstAmount).toFixed(2));
+
+    res.json({
+      success: true,
+      calculation: {
+        vehicle_type: vehicle_type || "Car",
+        zone: zone || "Zone A",
+        hourly_rate: hourlyRate,
+        hourly_rate_display: `₹${hourlyRate}.00 / hr`,
+        billed_hours: billedHours,
+        duration: durationStr,
+        base_fare: subtotal,
+        base_fare_display: `₹${subtotal.toFixed(2)}`,
+        gst_rate: "18%",
+        gst_amount: gstAmount,
+        gst_amount_display: `₹${gstAmount.toFixed(2)}`,
+        total_payable: totalPayable,
+        total_payable_display: `₹${totalPayable.toFixed(2)}`,
+        standard_total_display: `₹${subtotal.toFixed(2)}`
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error calculating fee" });
+  }
+});
+
+app.get("/api/customer/parking-history", async (req, res) => {
+  const { email, name } = req.query;
+  try {
+    let query = `
+      SELECT 
+        vh.id,
+        vh.vehicle_number,
+        vh.slot_number,
+        vh.entry_time,
+        vh.exit_time,
+        vh.duration,
+        vh.fee,
+        vh.status,
+        vh.created_at,
+        COALESCE(v.vehicle_type, 'Car') as vehicle_type,
+        COALESCE(v.model, 'Standard') as model,
+        COALESCE(v.owner_name, 'Laiba') as owner_name,
+        COALESCE(v.owner_email, 'customer@shnoor.com') as owner_email,
+        COALESCE(ps.zone, 'Zone A') as zone,
+        COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
+        p.transaction_id,
+        p.payment_method
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
+      LEFT JOIN parking_slots ps ON vh.slot_number = ps.slot_number
+      LEFT JOIN payments p ON vh.vehicle_number = p.vehicle_number
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (email) {
+      params.push(email.toLowerCase());
+      query += ` AND (LOWER(COALESCE(v.owner_email, '')) = $${params.length} OR LOWER(COALESCE(p.customer_email, '')) = $${params.length})`;
+    } else if (name) {
+      params.push(`%${name.toLowerCase()}%`);
+      query += ` AND (LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
+    }
+
+    query += " ORDER BY vh.entry_time DESC";
+
+    const histRes = await pool.query(query, params);
+    const rows = histRes.rows;
+
+    const uniqueRows = [];
+    const seenIds = new Set();
+    rows.forEach((r) => {
+      if (!seenIds.has(r.id)) {
+        seenIds.add(r.id);
+        uniqueRows.push(r);
+      }
+    });
+
+    res.json({ success: true, count: uniqueRows.length, history: uniqueRows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching customer parking history" });
+  }
+});
+
+app.get("/api/bookings", async (req, res) => {
+  const { search, status } = req.query;
+  try {
+    let query = "SELECT * FROM reservations WHERE 1=1";
+    const params = [];
+
+    if (search) {
+      params.push(`%${search.toLowerCase().trim()}%`);
+      query += ` AND (LOWER(booking_id) LIKE $${params.length} OR LOWER(customer_name) LIKE $${params.length} OR LOWER(vehicle_number) LIKE $${params.length} OR LOWER(slot_number) LIKE $${params.length} OR LOWER(validation_code) LIKE $${params.length})`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status);
+      query += ` AND LOWER(status) = LOWER($${params.length})`;
+    }
+
+    query += " ORDER BY id DESC";
+
+    const result = await pool.query(query, params);
+    const allRes = await pool.query("SELECT * FROM reservations");
+    const allRows = allRes.rows;
+
+    const total = allRows.length;
+    const confirmed = allRows.filter((r) => (r.status || "").toLowerCase() === "confirmed").length;
+    const pending = allRows.filter((r) => (r.status || "").toLowerCase() === "pending").length;
+    const checkedIn = allRows.filter((r) => (r.status || "").toLowerCase().includes("check") || (r.status || "").toLowerCase() === "validated").length;
+    const totalRevenue = allRows.reduce((sum, r) => sum + (parseFloat(r.total_amount) || 0), 0);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      bookings: result.rows,
+      stats: {
+        total,
+        confirmed,
+        pending,
+        checkedIn,
+        totalRevenue: `₹${totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        totalRevenueNumeric: totalRevenue
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching bookings" });
+  }
+});
+
+app.get("/api/customer/reservations", async (req, res) => {
+  const { email, name } = req.query;
+  try {
+    let query = "SELECT * FROM reservations WHERE 1=1";
+    const params = [];
+
+    if (email) {
+      params.push(email.toLowerCase().trim());
+      query += ` AND (LOWER(COALESCE(customer_email, '')) = $${params.length} OR LOWER(COALESCE(customer_name, '')) = $${params.length})`;
+    } else if (name) {
+      params.push(`%${name.toLowerCase().trim()}%`);
+      query += ` AND LOWER(COALESCE(customer_name, '')) LIKE $${params.length}`;
+    }
+
+    query += " ORDER BY id DESC";
+    const result = await pool.query(query, params);
+
+    if (result.rowCount === 0 && (email || name)) {
+      const allRes = await pool.query("SELECT * FROM reservations ORDER BY id DESC LIMIT 10");
+      return res.json({ success: true, count: allRes.rows.length, reservations: allRes.rows });
+    }
+
+    res.json({ success: true, count: result.rows.length, reservations: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching customer reservations" });
+  }
+});
+
+app.post("/api/customer/reserve-slot", async (req, res) => {
+  const {
+    customer_name,
+    customer_email,
+    customer_phone,
+    vehicle_number,
+    vehicle_type,
+    model,
+    slot_number,
+    zone,
+    start_time,
+    end_time,
+    duration_hours,
+    total_amount,
+    plan_code,
+    plan_name
+  } = req.body;
+
+  if (!customer_name || !vehicle_number || !slot_number) {
+    return res.status(400).json({ error: "Customer name, vehicle plate, and slot are required" });
+  }
+
+  const bookingId = `BK-${Math.floor(10000 + Math.random() * 90000)}`;
+  const valCode = `VAL-${Math.floor(1000 + Math.random() * 9000)}`;
+  const vPlate = vehicle_number.trim().toUpperCase();
+  const vType = vehicle_type || "Car";
+  const vModel = model || "Standard";
+  const sTime = start_time ? new Date(start_time) : new Date();
+  const durHours = parseFloat(duration_hours) || 2;
+  const eTime = end_time ? new Date(end_time) : new Date(sTime.getTime() + durHours * 3600000);
+  const amountNum = parseFloat(total_amount) || (durHours * 50);
+
+  try {
+    const insertRes = await pool.query(
+      `INSERT INTO reservations (
+        booking_id, customer_name, customer_email, customer_phone, vehicle_number,
+        vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
+        total_amount, status, validation_code, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Confirmed', $14, CURRENT_TIMESTAMP) RETURNING *`,
+      [
+        bookingId,
+        customer_name,
+        customer_email || "customer@shnoor.com",
+        customer_phone || "+91 98765 43210",
+        vPlate,
+        vType,
+        vModel,
+        slot_number,
+        zone || "Zone A",
+        sTime,
+        eTime,
+        durHours,
+        amountNum,
+        valCode,
+        plan_code || "PLAN-STD",
+        plan_name || "Standard Parking"
+      ]
+    );
+
+    await pool.query(
+      "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
+      [slot_number]
+    );
+
+    const existVeh = await pool.query("SELECT * FROM vehicles WHERE vehicle_number = $1", [vPlate]);
+    if (existVeh.rowCount === 0) {
+      await pool.query(
+        "INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot) VALUES ($1, $2, $3, $4, $5, $6, 'Reserved', $7)",
+        [vPlate, vType, vModel, customer_name, customer_email || "customer@shnoor.com", customer_phone || "+91 98765 43210", slot_number]
+      );
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Reservation confirmed for ${vPlate} at slot ${slot_number}`,
+      booking: insertRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error creating reservation" });
+  }
+});
+
+app.post("/api/staff/validate-reservation", async (req, res) => {
+  const { booking_id, validation_code, vehicle_number, validated_by } = req.body;
+
+  if (!booking_id && !validation_code && !vehicle_number) {
+    return res.status(400).json({ error: "Booking ID, validation code, or vehicle plate is required" });
+  }
+
+  try {
+    let query = "SELECT * FROM reservations WHERE 1=1";
+    const params = [];
+
+    if (booking_id) {
+      params.push(booking_id.trim());
+      query += ` AND LOWER(booking_id) = LOWER($${params.length})`;
+    } else if (validation_code) {
+      params.push(validation_code.trim());
+      query += ` AND LOWER(validation_code) = LOWER($${params.length})`;
+    } else if (vehicle_number) {
+      params.push(vehicle_number.trim());
+      query += ` AND LOWER(vehicle_number) = LOWER($${params.length}) AND LOWER(status) != 'cancelled'`;
+    }
+
+    query += " ORDER BY id DESC LIMIT 1";
+
+    const findRes = await pool.query(query, params);
+    if (findRes.rowCount === 0) {
+      return res.status(404).json({ error: "Reservation not found or invalid validation credentials" });
+    }
+
+    const booking = findRes.rows[0];
+
+    if ((booking.status || "").toLowerCase() === "checked in") {
+      return res.json({
+        success: true,
+        alreadyValidated: true,
+        message: `Booking ${booking.booking_id} was already validated & checked in.`,
+        validatedBooking: booking
+      });
+    }
+
+    const now = new Date();
+    const updatedRes = await pool.query(
+      `UPDATE reservations 
+       SET status = 'Checked In', validated_at = $1, validated_by = $2 
+       WHERE id = $3 RETURNING *`,
+      [now, validated_by || "Staff Operator", booking.id]
+    );
+
+    await pool.query(
+      "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
+      [booking.slot_number]
+    );
+
+    await pool.query(
+      `UPDATE vehicles 
+       SET status = 'Parked', current_slot = $1, owner_name = $2, owner_email = $3, owner_phone = $4, vehicle_type = $5 
+       WHERE vehicle_number = $6`,
+      [booking.slot_number, booking.customer_name, booking.customer_email, booking.customer_phone, booking.vehicle_type, booking.vehicle_number]
+    );
+
+    await pool.query(
+      `INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, exit_time, duration, fee, status)
+       VALUES ($1, $2, $3, NULL, 'Ongoing', $4, 'Parked')`,
+      [booking.vehicle_number, booking.slot_number, now, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
+    );
+
+    res.json({
+      success: true,
+      message: `Reservation ${booking.booking_id} validated successfully. Vehicle ${booking.vehicle_number} checked in to bay ${booking.slot_number}.`,
+      validatedBooking: updatedRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error validating reservation" });
+  }
+});
+
+app.put("/api/admin/bookings/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: "Status is required" });
+  }
+
+  try {
+    const updateRes = await pool.query(
+      "UPDATE reservations SET status = $1 WHERE id = $2 RETURNING *",
+      [status, id]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: "Reservation not found" });
+    }
+
+    const updatedBooking = updateRes.rows[0];
+
+    if (status.toLowerCase() === "cancelled") {
+      await pool.query(
+        "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
+        [updatedBooking.slot_number]
+      );
+    } else if (status.toLowerCase() === "confirmed") {
+      await pool.query(
+        "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
+        [updatedBooking.slot_number]
+      );
+    } else if (status.toLowerCase() === "checked in") {
+      await pool.query(
+        "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
+        [updatedBooking.slot_number]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: `Booking ${updatedBooking.booking_id} status updated to ${status}`,
+      booking: updatedBooking
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error updating booking status" });
+  }
+});
+
+
+app.get("/api/pricing-plans", async (req, res) => {
+  const { active, vehicle_type, billing_type, search } = req.query;
+  try {
+    let query = "SELECT * FROM pricing_plans WHERE 1=1";
+    const params = [];
+
+    if (active === "true") {
+      query += " AND is_active = true";
+    } else if (active === "false") {
+      query += " AND is_active = false";
+    }
+
+    if (vehicle_type && vehicle_type !== "All") {
+      params.push(vehicle_type);
+      query += ` AND (LOWER(vehicle_type) = LOWER($${params.length}) OR LOWER(vehicle_type) = 'all')`;
+    }
+
+    if (billing_type && billing_type !== "All") {
+      params.push(billing_type);
+      query += ` AND LOWER(billing_type) = LOWER($${params.length})`;
+    }
+
+    if (search) {
+      params.push(`%${search.trim()}%`);
+      query += ` AND (plan_name ILIKE $${params.length} OR plan_code ILIKE $${params.length} OR description ILIKE $${params.length})`;
+    }
+
+    query += " ORDER BY id ASC";
+    const plansRes = await pool.query(query, params);
+
+    const statsRes = await pool.query(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN is_active = true THEN 1 END) as active,
+        COUNT(CASE WHEN is_active = false THEN 1 END) as inactive,
+        COUNT(CASE WHEN billing_type = 'Hourly' THEN 1 END) as hourly_count,
+        COUNT(CASE WHEN billing_type = 'Daily' THEN 1 END) as daily_count
+      FROM pricing_plans
+    `);
+
+    const stats = statsRes.rows[0] || {};
+
+    res.json({
+      success: true,
+      count: plansRes.rowCount,
+      plans: plansRes.rows,
+      stats: {
+        total: parseInt(stats.total) || 0,
+        active: parseInt(stats.active) || 0,
+        inactive: parseInt(stats.inactive) || 0,
+        hourlyCount: parseInt(stats.hourly_count) || 0,
+        dailyCount: parseInt(stats.daily_count) || 0
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching pricing plans" });
+  }
+});
+
+app.post("/api/pricing-plans", async (req, res) => {
+  const { plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active } = req.body;
+
+  if (!plan_name || !rate) {
+    return res.status(400).json({ error: "Plan name and rate are required" });
+  }
+
+  const pCode = plan_code || `PLAN-${(vehicle_type || "CAR").toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+  const pRate = parseFloat(rate) || 50.00;
+  const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
+  const pActive = is_active !== false;
+  const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];
+
+  try {
+    const insertRes = await pool.query(
+      `INSERT INTO pricing_plans (plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [pCode, plan_name, vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Pricing plan "${plan_name}" created successfully`,
+      plan: insertRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error creating pricing plan" });
+  }
+});
+
+app.put("/api/pricing-plans/:id", async (req, res) => {
+  const { id } = req.params;
+  const { plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active } = req.body;
+
+  try {
+    const pRate = parseFloat(rate) || 50.00;
+    const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
+    const pActive = is_active !== false;
+    const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];
+
+    const updateRes = await pool.query(
+      `UPDATE pricing_plans 
+       SET plan_code = $1, plan_name = $2, vehicle_type = $3, billing_type = $4, rate = $5, duration_hours = $6, description = $7, features = $8, is_active = $9
+       WHERE id = $10 RETURNING *`,
+      [plan_code, plan_name, vehicle_type, billing_type, pRate, pDur, description, pFeatures, pActive, id]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: "Pricing plan not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Pricing plan "${plan_name}" updated successfully`,
+      plan: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error updating pricing plan" });
+  }
+});
+
+app.patch("/api/pricing-plans/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { is_active } = req.body;
+
+  try {
+    const updateRes = await pool.query(
+      "UPDATE pricing_plans SET is_active = $1 WHERE id = $2 RETURNING *",
+      [Boolean(is_active), id]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: "Pricing plan not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Plan "${updateRes.rows[0].plan_name}" status updated to ${is_active ? "Active" : "Inactive"}`,
+      plan: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error updating plan status" });
+  }
+});
+
+app.delete("/api/pricing-plans/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const delRes = await pool.query("DELETE FROM pricing_plans WHERE id = $1 RETURNING *", [id]);
+    if (delRes.rowCount === 0) {
+      return res.status(404).json({ error: "Pricing plan not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Pricing plan "${delRes.rows[0].plan_name}" deleted successfully`
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error deleting pricing plan" });
+  }
+});
+
+
+app.get("/api/support-tickets", async (req, res) => {
+  const { email } = req.query;
+  try {
+    let query = "SELECT * FROM support_tickets";
+    const params = [];
+    if (email) {
+      params.push(email.toLowerCase());
+      query += " WHERE LOWER(customer_email) = $1";
+    }
+    query += " ORDER BY created_at DESC";
+    const result = await pool.query(query, params);
+    res.json({ success: true, tickets: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching support tickets" });
+  }
+});
+
+app.post("/api/support-tickets", async (req, res) => {
+  const { customer_name, customer_email, subject, category, description, priority } = req.body;
+  if (!subject || !customer_email) {
+    return res.status(400).json({ error: "Subject and customer email are required" });
+  }
+
+  try {
+    const ticket_code = `TCK-${Math.floor(8822 + Math.random() * 900)}`;
+    const nowStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    const initialMessages = [
+      {
+        sender: customer_name || "Customer",
+        text: description || subject,
+        time: nowStr
+      }
+    ];
+
+    const insertRes = await pool.query(
+      `INSERT INTO support_tickets (ticket_code, customer_name, customer_email, subject, category, description, priority, status, messages)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        ticket_code,
+        customer_name || "Customer",
+        customer_email,
+        subject,
+        category || "General Query",
+        description || "",
+        priority || "Normal",
+        "Open",
+        JSON.stringify(initialMessages)
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Support ticket created successfully",
+      ticket: insertRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error creating support ticket" });
+  }
+});
+
+app.put("/api/support-tickets/:id/status", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  try {
+    const updateRes = await pool.query(
+      "UPDATE support_tickets SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id::text = $2 OR ticket_code = $2 RETURNING *",
+      [status || "Resolved", id]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: "Support ticket not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Ticket status updated to ${status}`,
+      ticket: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error updating ticket status" });
+  }
+});
+
+app.put("/api/support-tickets/:id/priority", async (req, res) => {
+  const { id } = req.params;
+  const { priority } = req.body;
+
+  try {
+    const updateRes = await pool.query(
+      "UPDATE support_tickets SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id::text = $2 OR ticket_code = $2 RETURNING *",
+      [priority || "Normal", id]
+    );
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ error: "Support ticket not found" });
+    }
+
+    res.json({
+      success: true,
+      message: `Ticket priority updated to ${priority}`,
+      ticket: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error updating ticket priority" });
+  }
+});
+
+app.put("/api/support-tickets/:id", async (req, res) => {
+  const { id } = req.params;
+  const { status, priority, category, subject } = req.body;
+
+  try {
+    const findRes = await pool.query(
+      "SELECT * FROM support_tickets WHERE id::text = $1 OR ticket_code = $1",
+      [id]
+    );
+
+    if (findRes.rowCount === 0) {
+      return res.status(404).json({ error: "Support ticket not found" });
+    }
+
+    const current = findRes.rows[0];
+    const newStatus = status !== undefined ? status : current.status;
+    const newPriority = priority !== undefined ? priority : current.priority;
+    const newCategory = category !== undefined ? category : current.category;
+    const newSubject = subject !== undefined ? subject : current.subject;
+
+    const updateRes = await pool.query(
+      "UPDATE support_tickets SET status = $1, priority = $2, category = $3, subject = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *",
+      [newStatus, newPriority, newCategory, newSubject, current.id]
+    );
+
+    res.json({
+      success: true,
+      message: "Ticket updated successfully",
+      ticket: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error updating ticket" });
+  }
+});
+
+app.delete("/api/support-tickets/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const deleteRes = await pool.query(
+      "DELETE FROM support_tickets WHERE id::text = $1 OR ticket_code = $1 RETURNING *",
+      [id]
+    );
+
+    if (deleteRes.rowCount === 0) {
+      return res.status(404).json({ error: "Support ticket not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Ticket deleted successfully",
+      ticket: deleteRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error deleting ticket" });
+  }
+});
+
+app.post("/api/support-tickets/:id/reply", async (req, res) => {
+  const { id } = req.params;
+  const { sender, text } = req.body;
+
+  if (!text) {
+    return res.status(400).json({ error: "Reply text is required" });
+  }
+
+  try {
+    const findRes = await pool.query(
+      "SELECT * FROM support_tickets WHERE id::text = $1 OR ticket_code = $1",
+      [id]
+    );
+
+    if (findRes.rowCount === 0) {
+      return res.status(404).json({ error: "Support ticket not found" });
+    }
+
+    const ticket = findRes.rows[0];
+    const messages = Array.isArray(ticket.messages) ? ticket.messages : (typeof ticket.messages === "string" ? JSON.parse(ticket.messages) : []);
+    const nowStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+    messages.push({
+      sender: sender || "Admin Support",
+      text,
+      time: nowStr
+    });
+
+    const updateRes = await pool.query(
+      `UPDATE support_tickets 
+       SET messages = $1, status = CASE WHEN status = 'Open' THEN 'In Progress' ELSE status END, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 RETURNING *`,
+      [JSON.stringify(messages), ticket.id]
+    );
+
+    res.json({
+      success: true,
+      message: "Reply sent successfully",
+      ticket: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error sending reply" });
+  }
+});
+
 app.listen(port, () => {
+
   console.log(`Server running on port ${port}`);
 });

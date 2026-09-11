@@ -26,6 +26,9 @@ export default function Login({ setView }) {
       setIsLoading(false);
 
       if (response.ok) {
+        if (data.user) {
+          localStorage.setItem("shnoor_current_user", JSON.stringify(data.user));
+        }
         setMessage("Login successful!");
         setTimeout(() => {
           if (data.user && data.user.role === "admin") {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Car,
+  Bike,
   Search,
   Plus,
   Edit3,
@@ -12,7 +13,6 @@ import {
   Phone,
   History
 } from "lucide-react";
-import BikeTopView from "../../components/BikeTopView.jsx";
 
 export default function VehicleManagement({
   vehiclesList,
@@ -30,9 +30,9 @@ export default function VehicleManagement({
     vehicle_number: "",
     vehicle_type: "Car",
     model: "",
-    owner_name: "Laiba",
-    owner_email: "customer@shnoor.com",
-    owner_phone: "+91 98765 43210",
+    owner_name: "",
+    owner_email: "",
+    owner_phone: "",
     status: "Parked",
     current_slot: "A-01"
   });
@@ -112,15 +112,15 @@ export default function VehicleManagement({
       setIsAddingVehicle(false);
 
       if (res.ok && data.success) {
-        setStatusActionMessage(`Vehicle ${addVehicleFormData.vehicle_number} registered successfully`);
+        setStatusActionMessage(data.message || `Vehicle ${addVehicleFormData.vehicle_number} registered successfully & confirmation email sent to ${addVehicleFormData.owner_email}`);
         setIsAddVehicleModalOpen(false);
         setAddVehicleFormData({
           vehicle_number: "",
           vehicle_type: "Car",
           model: "",
-          owner_name: "Laiba",
-          owner_email: "customer@shnoor.com",
-          owner_phone: "+91 98765 43210",
+          owner_name: "",
+          owner_email: "",
+          owner_phone: "",
           status: "Parked",
           current_slot: "A-01"
         });
@@ -304,9 +304,9 @@ export default function VehicleManagement({
                 vehicle_number: "",
                 vehicle_type: "Car",
                 model: "",
-                owner_name: "Laiba",
-                owner_email: "customer@shnoor.com",
-                owner_phone: "+91 98765 43210",
+                owner_name: "",
+                owner_email: "",
+                owner_phone: "",
                 status: "Parked",
                 current_slot: "A-01"
               });
@@ -319,107 +319,111 @@ export default function VehicleManagement({
         </div>
       </div>
 
-      <div className="pw-users-header-row">
-        <span style={{ width: "210px", flexShrink: 0 }}>Vehicle Plate & Model</span>
-        <span style={{ width: "80px", flexShrink: 0 }}>Type</span>
-        <span style={{ flex: 1, minWidth: "170px" }}>Owner / Customer</span>
-        <span style={{ width: "110px", flexShrink: 0 }}>Registration Date</span>
-        <span style={{ width: "125px", flexShrink: 0 }}>Current Status</span>
-        <span style={{ marginLeft: "auto", textAlign: "right" }}>Actions</span>
-      </div>
+      <div className="pw-users-table-scroll-container">
+        <div className="pw-users-header-row pw-mgmt-grid-row pw-veh-mgmt-grid">
+          <span>Vehicle Plate & Model</span>
+          <span>Type</span>
+          <span>Owner / Customer</span>
+          <span>Registration Date</span>
+          <span>Current Status</span>
+          <span style={{ textAlign: "right" }}>Actions</span>
+        </div>
 
-      <div className="pw-user-cards-stack">
-        {filteredVehicles.length > 0 ? (
-          filteredVehicles.map((v) => {
-            const isParked = (v.status || "").toLowerCase() === "parked";
-            const typeKey = (v.vehicle_type || "Car").toLowerCase();
+        <div className="pw-user-cards-stack">
+          {filteredVehicles.length > 0 ? (
+            filteredVehicles.map((v) => {
+              const isParked = (v.status || "").toLowerCase() === "parked";
+              const typeKey = (v.vehicle_type || "Car").toLowerCase();
 
-            return (
-              <div key={v.id} className="pw-user-card-box">
-                <div style={{ width: "210px", flexShrink: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span className="pw-veh-plate-badge">
-                    {typeKey === "bike" ? <BikeTopView isSelected={false} /> : <Car size={13} />}
-                    <span>{v.vehicle_number}</span>
-                  </span>
-                  <div className="pw-user-name-bold" style={{ fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {v.model || "Vehicle"}
+              return (
+                <div key={v.id} className="pw-user-card-box pw-mgmt-grid-row pw-veh-mgmt-grid">
+                  <div className="pw-veh-plate-col">
+                    <div>
+                      <span className="pw-veh-plate-badge" style={{ display: "inline-flex" }}>
+                        {typeKey === "bike" ? <Bike size={13} /> : <Car size={13} />}
+                        <span>{v.vehicle_number}</span>
+                      </span>
+                    </div>
+                    <div className="pw-veh-model-sub">
+                      {v.model || "Vehicle"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className={`pw-veh-type-badge ${typeKey}`}>
+                      {v.vehicle_type || "Car"}
+                    </span>
+                  </div>
+
+                  <div className="pw-user-card-contact-col">
+                    <div className="pw-user-name-bold" style={{ fontSize: "0.82rem" }}>
+                      {v.owner_name}
+                    </div>
+                    <div className="pw-contact-cell">
+                      <Mail size={11} className="pw-cell-icon" />
+                      <span>{v.owner_email}</span>
+                    </div>
+                    <div className="pw-contact-cell">
+                      <Phone size={11} className="pw-cell-icon" />
+                      <span>{v.owner_phone || "+91 98765 43210"}</span>
+                    </div>
+                  </div>
+
+                  <div className="pw-user-card-date-col">
+                    <span className="pw-user-col-label">Registered</span>
+                    <span className="pw-user-col-value">{formatDate(v.created_at)}</span>
+                  </div>
+
+                  <div>
+                    <span className={`pw-veh-status-pill ${isParked ? "parked" : "checkedout"}`}>
+                      <span className="pw-status-dot"></span>
+                      {isParked ? `Parked (${v.current_slot || "Bay"})` : "Checked Out"}
+                    </span>
+                  </div>
+
+                  <div className="pw-user-card-actions-col">
+                    <button
+                      type="button"
+                      className="pw-btn-action-history"
+                      onClick={() => fetchVehicleHistory(v)}
+                      title="View Parking Sessions History"
+                    >
+                      <History size={13} />
+                      <span>History</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pw-btn-action-edit"
+                      onClick={() => openEditVehicleModal(v)}
+                      title="Edit Vehicle Details"
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pw-btn-action-delete"
+                      onClick={() => setVehicleToDelete(v)}
+                      title="Delete Vehicle Record"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
                 </div>
-
-                <div style={{ width: "80px", flexShrink: 0 }}>
-                  <span className={`pw-veh-type-badge ${typeKey}`}>
-                    {v.vehicle_type || "Car"}
-                  </span>
-                </div>
-
-                <div className="pw-user-card-contact-col" style={{ flex: 1, minWidth: "170px" }}>
-                  <div className="pw-user-name-bold" style={{ fontSize: "0.82rem" }}>
-                    {v.owner_name}
-                  </div>
-                  <div className="pw-contact-cell">
-                    <Mail size={12} className="pw-cell-icon" />
-                    <span>{v.owner_email}</span>
-                  </div>
-                  <div className="pw-contact-cell">
-                    <Phone size={12} className="pw-cell-icon" />
-                    <span>{v.owner_phone || "+91 98765 43210"}</span>
-                  </div>
-                </div>
-
-                <div className="pw-user-card-date-col" style={{ width: "110px", flexShrink: 0 }}>
-                  <span className="pw-user-col-label">Registered</span>
-                  <span className="pw-user-col-value">{formatDate(v.created_at)}</span>
-                </div>
-
-                <div style={{ width: "125px", flexShrink: 0 }}>
-                  <span className={`pw-veh-status-pill ${isParked ? "parked" : "checkedout"}`}>
-                    <span className="pw-status-dot"></span>
-                    {isParked ? `Parked (${v.current_slot || "Bay"})` : "Checked Out"}
-                  </span>
-                </div>
-
-                <div className="pw-user-card-actions-col">
-                  <button
-                    type="button"
-                    className="pw-btn-action-history"
-                    onClick={() => fetchVehicleHistory(v)}
-                    title="View Parking Sessions History"
-                  >
-                    <History size={13} />
-                    <span>History</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="pw-btn-action-edit"
-                    onClick={() => openEditVehicleModal(v)}
-                    title="Edit Vehicle Details"
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="pw-btn-action-delete"
-                    onClick={() => setVehicleToDelete(v)}
-                    title="Delete Vehicle Record"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              );
+            })
+          ) : (
+            <div className="pw-empty-users-card">
+              <div className="pw-empty-state">
+                <Car size={32} className="pw-empty-icon" />
+                <h4>No vehicles match your search or filter</h4>
+                <p>Try searching another license plate number or clearing filters.</p>
               </div>
-            );
-          })
-        ) : (
-          <div className="pw-empty-users-card">
-            <div className="pw-empty-state">
-              <Car size={32} className="pw-empty-icon" />
-              <h4>No vehicles match your search or filter</h4>
-              <p>Try searching another license plate number or clearing filters.</p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="pw-users-table-footer">
@@ -577,7 +581,6 @@ export default function VehicleManagement({
                       id="add-veh-owner"
                       type="text"
                       className="pw-form-input"
-                      placeholder="e.g. Laiba"
                       value={addVehicleFormData.owner_name}
                       onChange={(e) => setAddVehicleFormData({ ...addVehicleFormData, owner_name: e.target.value })}
                       required
@@ -590,7 +593,6 @@ export default function VehicleManagement({
                       id="add-veh-email"
                       type="email"
                       className="pw-form-input"
-                      placeholder="customer@shnoor.com"
                       value={addVehicleFormData.owner_email}
                       onChange={(e) => setAddVehicleFormData({ ...addVehicleFormData, owner_email: e.target.value })}
                       required
@@ -603,7 +605,6 @@ export default function VehicleManagement({
                       id="add-veh-phone"
                       type="text"
                       className="pw-form-input"
-                      placeholder="+91 98765 43210"
                       value={addVehicleFormData.owner_phone}
                       onChange={(e) => setAddVehicleFormData({ ...addVehicleFormData, owner_phone: e.target.value })}
                     />
