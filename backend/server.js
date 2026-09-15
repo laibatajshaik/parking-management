@@ -6,6 +6,10 @@ import pool from "./db.js";
 import dotenv from "dotenv";
 dotenv.config();
 
+app.get("/", (req, res) => {
+  res.send("Shnoor Parking Backend is running");
+});
+
 const app = express();
 const port = process.env.PORT || 5000;
 
