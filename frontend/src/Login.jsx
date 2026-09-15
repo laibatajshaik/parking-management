@@ -118,7 +118,7 @@ export default function Login({ setView }) {
             <button
               type="button"
               className="pw-text-link"
-              onClick={() => {}}
+              onClick={() => setView("forgot-password")}
             >
               Forgot Password?
             </button>

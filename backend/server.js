@@ -4,6 +4,12 @@ import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import pool from "./db.js";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 dotenv.config();
 
@@ -104,6 +110,16 @@ const initDbSchema = async () => {
         );
       }
     }
+
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(150) NOT NULL,
+        otp VARCHAR(10) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS vehicles (
@@ -372,6 +388,166 @@ app.post("/api/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error during login" });
+  }
+});
+
+const sendOtpEmail = async (toEmail, otp) => {
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="display: inline-block; background: #0f3b43; color: #ffffff; width: 44px; height: 44px; line-height: 44px; border-radius: 10px; font-weight: 800; font-size: 20px;">P</div>
+        <h2 style="color: #0f3b43; margin: 10px 0 4px 0;">ParkSafe Password Reset</h2>
+        <p style="color: #64748b; font-size: 14px; margin: 0;">Real-Time Verification Code</p>
+      </div>
+      <div style="background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 10px; padding: 18px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 13px; color: #0f766e; font-weight: 700; display: block; margin-bottom: 6px;">YOUR 6-DIGIT OTP</span>
+        <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0f3b43;">${otp}</span>
+      </div>
+      <p style="color: #475569; font-size: 14px; line-height: 1.5;">This verification code is valid for <strong>15 minutes</strong>. If you did not request a password reset, you can safely ignore this email.</p>
+      <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" />
+      <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">ParkSafe Smart Parking Management System</p>
+    </div>
+  `;
+
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "accept": "application/json",
+          "api-key": process.env.BREVO_API_KEY,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          sender: {
+            name: process.env.BREVO_SENDER_NAME || "ParkSafe Support",
+            email: process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com"
+          },
+          to: [{ email: toEmail }],
+          subject: "ParkSafe — Password Reset Verification Code",
+          htmlContent
+        })
+      });
+
+      if (brevoRes.ok) {
+        const brevoData = await brevoRes.json();
+        console.log(`Real OTP email dispatched via Brevo API to ${toEmail}. Message ID: ${brevoData.messageId}`);
+        return { success: true, messageId: brevoData.messageId };
+      }
+    } catch (err) {
+      console.error("Brevo API dispatch failed, attempting SMTP fallback:", err.message);
+    }
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
+      port: parseInt(process.env.SMTP_PORT || "587", 10),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_FROM || '"ParkSafe Support" <laibataj1306@gmail.com>',
+      to: toEmail,
+      subject: "ParkSafe — Password Reset Verification Code",
+      html: htmlContent
+    });
+
+    console.log(`Real OTP email dispatched via SMTP to ${toEmail}. Message ID: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (err) {
+    console.error("Real OTP email error:", err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+app.post("/api/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    const userRes = await pool.query("SELECT * FROM users WHERE email = $1", [email.toLowerCase().trim()]);
+    if (userRes.rowCount === 0) {
+      return res.status(404).json({ error: "No account found with this email address" });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    await pool.query("DELETE FROM password_resets WHERE email = $1", [email.toLowerCase().trim()]);
+    await pool.query(
+      "INSERT INTO password_resets (email, otp, expires_at) VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '15 minutes')",
+      [email.toLowerCase().trim(), otp]
+    );
+
+    const emailRes = await sendOtpEmail(email.toLowerCase().trim(), otp);
+
+    res.json({
+      success: true,
+      message: `Verification code sent to ${email}`,
+      emailSent: emailRes.success
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error processing request" });
+  }
+});
+
+app.post("/api/verify-reset-otp", async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: "Email and OTP code are required" });
+  }
+
+  try {
+    const resetRes = await pool.query(
+      "SELECT * FROM password_resets WHERE email = $1 AND otp = $2 AND expires_at > CURRENT_TIMESTAMP",
+      [email.toLowerCase().trim(), otp.trim()]
+    );
+
+    if (resetRes.rowCount === 0) {
+      return res.status(400).json({ error: "Invalid or expired verification code" });
+    }
+
+    res.json({ success: true, message: "Code verified successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error verifying code" });
+  }
+});
+
+app.post("/api/reset-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ error: "Email, OTP, and new password are required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long" });
+  }
+
+  try {
+    const resetRes = await pool.query(
+      "SELECT * FROM password_resets WHERE email = $1 AND otp = $2 AND expires_at > CURRENT_TIMESTAMP",
+      [email.toLowerCase().trim(), otp.trim()]
+    );
+
+    if (resetRes.rowCount === 0) {
+      return res.status(400).json({ error: "Invalid or expired verification code" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query("UPDATE users SET password = $1 WHERE email = $2", [hashedPassword, email.toLowerCase().trim()]);
+    await pool.query("DELETE FROM password_resets WHERE email = $1", [email.toLowerCase().trim()]);
+
+    res.json({ success: true, message: "Password reset successfully. You can now login with your new password." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error resetting password" });
   }
 });
 
