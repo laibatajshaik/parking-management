@@ -10,6 +10,7 @@ import ReserveParking from "./ReserveParking.jsx";
 import CustomerParkingPlans from "./CustomerParkingPlans.jsx";
 import CustomerProfile from "./CustomerProfile.jsx";
 import CustomerSupport from "./CustomerSupport.jsx";
+import ThemeToggle from "../../components/ThemeToggle.jsx";
 
 const CUSTOMER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
@@ -214,6 +215,7 @@ export default function CustomerDashboard({ setView }) {
           </div>
 
           <div className="pw-topbar-right">
+            <ThemeToggle />
             <div className="pw-topbar-bell">
               <Bell size={18} />
               <span className="pw-bell-dot" style={{ width: "8px", height: "8px", fontSize: "0.6rem", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", background: isPremiumActive ? "#C99A2E" : "#ef4444" }}>1</span>
@@ -244,15 +246,15 @@ export default function CustomerDashboard({ setView }) {
         <div className="pw-dashboard-body">
           <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0f172a" }}>{getPageTitle()}</h1>
+              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: isPremiumActive ? "#facc15" : "var(--text-primary, #0f172a)" }}>{getPageTitle()}</h1>
               {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "#64748b", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
             </div>
 
             {activeTab === "reserve-parking" && (
-              <div className="pw-top-location-badge" style={{ display: "flex", alignItems: "center", gap: "8px", background: "#ffffff", padding: "8px 14px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div className="pw-top-location-badge" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <MapPin size={16} style={{ color: isPremiumActive ? "#C99A2E" : "#0d9488" }} />
                 <div>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0f172a" }}>Downtown Plaza Garage</div>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Downtown Plaza Garage</div>
                   <div style={{ fontSize: "0.68rem", color: "#64748b" }}>24 Available Bays</div>
                 </div>
               </div>

@@ -243,7 +243,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <h3 style={{ fontSize: "1.12rem", fontWeight: 800, color: "#12233F", margin: 0 }}>
+              <h3 style={{ fontSize: "1.12rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>
                 Monthly VIP Premium Membership
               </h3>
               <span style={{ background: "#713F12", color: "#FEF08A", fontSize: "0.7rem", fontWeight: 800, padding: "2px 10px", borderRadius: "999px", letterSpacing: "0.5px" }}>
@@ -293,7 +293,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
           </span>
         </div>
 
-        <div className="pw-metric-card" style={{ background: "linear-gradient(180deg, #FFFCF5 0%, #FFFFFF 100%)", border: "1.5px solid #EAB308" }}>
+        <div className="pw-metric-card" className="pw-metric-card pw-vip-highlight-metric">
           <span className="pw-metric-label" style={{ color: "#854D0E" }}>VIP Premium Plan</span>
           <span className="pw-metric-value" style={{ color: "#713F12" }}>Best Value</span>
           <span className="pw-metric-trend positive">
@@ -302,7 +302,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
         </div>
       </div>
 
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div className="pw-plans-search-group" style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
           <div className="pw-search-box-pill" style={{ width: "300px" }}>
             <Search size={15} className="pw-search-icon" />
@@ -323,9 +323,9 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                 className={`pw-filter-pill ${vehicleFilter === v ? "active" : ""}`}
                 onClick={() => setVehicleFilter(v)}
                 style={{
-                  background: vehicleFilter === v ? "#0d9488" : "#f1f5f9",
-                  color: vehicleFilter === v ? "#ffffff" : "#475569",
-                  border: vehicleFilter === v ? "1px solid #0d9488" : "1px solid #cbd5e1",
+                  background: vehicleFilter === v ? "#0d9488" : "var(--bg-sub, #f1f5f9)",
+                  color: vehicleFilter === v ? "#ffffff" : "var(--text-secondary, #475569)",
+                  border: vehicleFilter === v ? "1px solid #0d9488" : "1px solid var(--border-color, #cbd5e1)",
                   borderRadius: "20px",
                   padding: "5px 14px",
                   fontSize: "0.8rem",
@@ -366,8 +366,8 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                 flexDirection: "column",
                 justifyContent: "space-between",
                 gap: "14px",
-                background: isMonthly ? "linear-gradient(180deg, #FFFDF7 0%, #FFFFFF 100%)" : "#ffffff",
-                border: isMonthly ? "2px solid #D4AF37" : "1.5px solid #e2e8f0",
+                background: isMonthly ? "var(--bg-vip, #FFFDF7)" : "var(--bg-card, #ffffff)",
+                border: isMonthly ? "2px solid #D4AF37" : "1.5px solid var(--border-color, #e2e8f0)",
                 boxShadow: isMonthly ? "0 8px 24px rgba(212, 175, 55, 0.18)" : "0 2px 8px rgba(15,23,42,0.04)",
                 position: "relative"
               }}
@@ -397,7 +397,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                   </div>
 
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "var(--bg-sub, #f8fafc)", color: "#475569", border: "1px solid var(--border-color, #cbd5e1)" }}>
                       {p.vehicle_type}
                     </span>
                     {isMonthly ? (
@@ -406,7 +406,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                         <span>VIP PASS</span>
                       </span>
                     ) : (
-                      <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "#f0fdfa", color: "#0f766e", border: "1px solid #ccfbf1" }}>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", border: "1px solid #ccfbf1" }}>
                         {p.billing_type}
                       </span>
                     )}
@@ -414,7 +414,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                 </div>
 
                 <div style={{ marginTop: "14px" }}>
-                  <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: isMonthly ? "#9A6B18" : "#12233F", margin: "0 0 4px 0" }}>
+                  <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: isMonthly ? "#facc15" : "var(--text-primary, #12233F)", margin: "0 0 4px 0" }}>
                     {p.plan_name}
                   </h3>
                   <p style={{ fontSize: "0.82rem", color: "#64748b", margin: 0, minHeight: "38px", lineHeight: 1.45 }}>
@@ -447,7 +447,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                   {(Array.isArray(p.features) ? p.features : ["Standard Bay Access", "24/7 Security"]).map((feat, idx) => (
                     <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "0.82rem", color: "#334155" }}>
                       <CheckCircle2 size={15} style={{ color: isMonthly ? "#B45309" : "#10b981", flexShrink: 0, marginTop: "2px" }} />
-                      <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "#1E293B" : "#334155" }}>{feat}</span>
+                      <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "var(--text-primary, #1E293B)" : "var(--text-secondary, #334155)" }}>{feat}</span>
                     </div>
                   ))}
                 </div>
@@ -520,7 +520,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                 <tr key={idx}>
                   <td className="feature-title-col">
                     <div>
-                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "#1E293B" }}>{row.feature}</div>
+                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1E293B)" }}>{row.feature}</div>
                       <div style={{ fontSize: "0.74rem", color: "#64748B", fontWeight: 400, marginTop: "2px" }}>{row.desc}</div>
                     </div>
                   </td>
@@ -543,8 +543,8 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
               ))}
             </tbody>
             <tfoot>
-              <tr style={{ background: "#F8FAFC" }}>
-                <td style={{ padding: "16px 18px", fontWeight: 800, color: "#1E293B" }}>
+              <tr style={{ background: "var(--bg-sub, #F8FAFC)" }}>
+                <td style={{ padding: "16px 18px", fontWeight: 800, color: "var(--text-primary, #1E293B)" }}>
                   Selected Plan Recommendation
                 </td>
                 <td style={{ textAlign: "center", padding: "16px 18px" }}>

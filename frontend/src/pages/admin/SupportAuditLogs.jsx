@@ -348,21 +348,21 @@ export default function SupportAuditLogs() {
       </div>
 
       {statusActionMsg && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.84rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.84rem", fontWeight: 700 }}>
           <CheckCircle2 size={16} />
           <span>{statusActionMsg}</span>
         </div>
       )}
 
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
             type="button"
             className={`pw-filter-pill ${activeSubTab === "tickets" ? "active" : ""}`}
             onClick={() => setActiveSubTab("tickets")}
             style={{
-              background: activeSubTab === "tickets" ? "#0f766e" : "#f1f5f9",
-              color: activeSubTab === "tickets" ? "#ffffff" : "#475569",
+              background: activeSubTab === "tickets" ? "#0f766e" : "var(--bg-sub, #f1f5f9)",
+              color: activeSubTab === "tickets" ? "#ffffff" : "var(--text-secondary, #475569)",
               border: "none",
               borderRadius: "8px",
               padding: "8px 16px",
@@ -383,8 +383,8 @@ export default function SupportAuditLogs() {
             className={`pw-filter-pill ${activeSubTab === "audit" ? "active" : ""}`}
             onClick={() => setActiveSubTab("audit")}
             style={{
-              background: activeSubTab === "audit" ? "#0f766e" : "#f1f5f9",
-              color: activeSubTab === "audit" ? "#ffffff" : "#475569",
+              background: activeSubTab === "audit" ? "#0f766e" : "var(--bg-sub, #f1f5f9)",
+              color: activeSubTab === "audit" ? "#ffffff" : "var(--text-secondary, #475569)",
               border: "none",
               borderRadius: "8px",
               padding: "8px 16px",
@@ -437,9 +437,9 @@ export default function SupportAuditLogs() {
 
       {activeSubTab === "tickets" && (
         <div style={{ display: "grid", gridTemplateColumns: selectedTicket ? "1.4fr 1fr" : "1fr", gap: "20px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Customer Support Inquiries (Live Synced)</h4>
+              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Customer Support Inquiries (Live Synced)</h4>
               <div style={{ display: "flex", gap: "6px" }}>
                 {["All", "Open", "In Progress", "Resolved"].map((st) => (
                   <button
@@ -495,15 +495,15 @@ export default function SupportAuditLogs() {
                       return (
                         <tr
                           key={tCode}
-                          style={{ background: isSel ? "#f0fdfa" : undefined }}
+                          style={{ background: isSel ? "var(--bg-teal-sub, #f0fdfa)" : undefined }}
                         >
                           <td style={{ fontWeight: 800, color: "#0f766e" }}>{tCode}</td>
                           <td>
-                            <div style={{ fontWeight: 700, color: "#0f172a" }}>{cName}</div>
+                            <div style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{cName}</div>
                             <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{cEmail} • {dateText}</div>
                           </td>
                           <td>
-                            <div style={{ fontWeight: 700, color: "#1e293b" }}>{t.subject}</div>
+                            <div style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{t.subject}</div>
                             <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{t.category}</div>
                           </td>
                           <td>
@@ -556,7 +556,7 @@ export default function SupportAuditLogs() {
                                 onClick={() => setSelectedTicket(t)}
                                 title="View conversation thread and reply"
                                 style={{
-                                  background: "#f0fdfa",
+                                  background: "var(--bg-teal-sub, #f0fdfa)",
                                   border: "1px solid #ccfbf1",
                                   color: "#0f766e",
                                   padding: "4px 9px",
@@ -579,8 +579,8 @@ export default function SupportAuditLogs() {
                                   onClick={() => handleUpdateStatus(tCode, "Resolved")}
                                   title="Mark Resolved"
                                   style={{
-                                    background: "#f0fdf4",
-                                    border: "1px solid #bbf7d0",
+                                    background: "var(--bg-teal-sub, #f0fdf4)",
+                                    border: "1px solid var(--border-color, #bbf7d0)",
                                     color: "#16a34a",
                                     padding: "4px 8px",
                                     borderRadius: "6px",
@@ -602,7 +602,7 @@ export default function SupportAuditLogs() {
                                     alignItems: "center",
                                     gap: "3px",
                                     padding: "4px 8px",
-                                    background: "#f0fdf4",
+                                    background: "var(--bg-teal-sub, #f0fdf4)",
                                     color: "#16a34a",
                                     borderRadius: "6px",
                                     fontSize: "0.74rem",
@@ -644,12 +644,12 @@ export default function SupportAuditLogs() {
           </div>
 
           {selectedTicket && (
-            <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
                   <div>
                     <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#0f766e" }}>{selectedTicket.ticket_code || selectedTicket.id}</span>
-                    <h4 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", margin: "2px 0 0 0" }}>{selectedTicket.subject}</h4>
+                    <h4 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "2px 0 0 0" }}>{selectedTicket.subject}</h4>
                     <span style={{ fontSize: "0.76rem", color: "#64748b" }}>From: {selectedTicket.customer_name || selectedTicket.customer} ({selectedTicket.customer_email || selectedTicket.email})</span>
                   </div>
                   <button
@@ -691,7 +691,7 @@ export default function SupportAuditLogs() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "230px", overflowY: "auto", padding: "10px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "14px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "230px", overflowY: "auto", padding: "10px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "14px" }}>
                   {(Array.isArray(selectedTicket.messages) ? selectedTicket.messages : (typeof selectedTicket.messages === "string" ? JSON.parse(selectedTicket.messages) : [{ sender: selectedTicket.customer_name || "Customer", text: selectedTicket.description || selectedTicket.subject, time: "Recent" }])).map((msg, idx) => (
                     <div
                       key={idx}
@@ -736,7 +736,7 @@ export default function SupportAuditLogs() {
                   <button
                     type="button"
                     onClick={() => handleUpdateStatus(selectedTicket.ticket_code || selectedTicket.id, "Resolved")}
-                    style={{ width: "100%", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "8px", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                    style={{ width: "100%", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "8px", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
                   >
                     <CheckCircle2 size={15} />
                     <span>Mark Ticket as Resolved</span>
@@ -749,8 +749,8 @@ export default function SupportAuditLogs() {
       )}
 
       {activeSubTab === "audit" && (
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: "0 0 14px 0" }}>Administrative & Security Audit Events</h4>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 14px 0" }}>Administrative & Security Audit Events</h4>
           <div style={{ overflowX: "auto" }}>
             <table className="pw-records-table" style={{ width: "100%" }}>
               <thead>
@@ -767,11 +767,11 @@ export default function SupportAuditLogs() {
                 {auditLogs.map((log) => (
                   <tr key={log.id}>
                     <td style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>{log.timestamp}</td>
-                    <td style={{ fontWeight: 700, color: "#0f172a" }}>{log.actor}</td>
-                    <td style={{ fontWeight: 700, color: "#1e293b" }}>{log.action}</td>
+                    <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{log.actor}</td>
+                    <td style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{log.action}</td>
                     <td style={{ color: "#475569" }}>{log.target}</td>
                     <td>
-                      <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: log.severity === "Warning" ? "#fffbeb" : "#f0fdfa", color: log.severity === "Warning" ? "#b45309" : "#0f766e" }}>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: log.severity === "Warning" ? "var(--bg-sub, #fffbeb)" : "var(--bg-teal-sub, #f0fdfa)", color: log.severity === "Warning" ? "#b45309" : "#0f766e" }}>
                         {log.severity}
                       </span>
                     </td>

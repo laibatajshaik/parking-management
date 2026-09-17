@@ -48,7 +48,7 @@ export default function StaffOverview({ metrics, recentEntries }) {
           <div className="pw-occupancy-donut-wrap">
             <div className="pw-donut-container">
               <svg className="pw-donut-svg" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                <circle cx="50" cy="50" r="38" fill="none" stroke="var(--border-color, #f1f5f9)" strokeWidth="12" />
                 <circle
                   cx="50"
                   cy="50"

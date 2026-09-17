@@ -193,7 +193,7 @@ export default function ParkingLocations() {
         </div>
       </div>
 
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
           <div className="pw-search-box-pill" style={{ width: "300px" }}>
             <Search size={15} className="pw-search-icon" />
@@ -248,9 +248,9 @@ export default function ParkingLocations() {
             <div
               key={loc.id}
               style={{
-                background: "#ffffff",
+                background: "var(--bg-card, #ffffff)",
                 borderRadius: "14px",
-                border: "1px solid #e2e8f0",
+                border: "1px solid var(--border-color, #e2e8f0)",
                 padding: "20px",
                 boxShadow: "0 2px 8px rgba(15,23,42,0.04)",
                 display: "flex",
@@ -262,16 +262,16 @@ export default function ParkingLocations() {
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: "#f0fdfa", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Building size={20} />
                     </div>
                     <div>
-                      <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>{loc.name}</h4>
+                      <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>{loc.name}</h4>
                       <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>{loc.code}</span>
                     </div>
                   </div>
 
-                  <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: loc.status === "Operational" ? "#f0fdf4" : "#fef2f2", color: loc.status === "Operational" ? "#16a34a" : "#dc2626", border: loc.status === "Operational" ? "1px solid #bbf7d0" : "1px solid #fecaca" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: loc.status === "Operational" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-sub, #fef2f2)", color: loc.status === "Operational" ? "#16a34a" : "#dc2626", border: loc.status === "Operational" ? "1px solid var(--border-color, #bbf7d0)" : "1px solid var(--border-color, #fecaca)" }}>
                     {loc.status}
                   </span>
                 </div>
@@ -281,24 +281,24 @@ export default function ParkingLocations() {
                   <span>{loc.address}</span>
                 </div>
 
-                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "14px" }}>
+                <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 700, marginBottom: "6px" }}>
                     <span style={{ color: "#334155" }}>Bay Utilization</span>
                     <span style={{ color: "#0f766e" }}>{loc.occupiedSlots} / {loc.totalSlots} ({occPct}%)</span>
                   </div>
-                  <div style={{ height: "6px", background: "#e2e8f0", borderRadius: "999px", overflow: "hidden" }}>
+                  <div style={{ height: "6px", background: "var(--border-color, #e2e8f0)", borderRadius: "999px", overflow: "hidden" }}>
                     <div style={{ width: `${occPct}%`, height: "100%", background: occPct > 85 ? "#ef4444" : occPct > 60 ? "#f59e0b" : "#10b981", borderRadius: "999px" }} />
                   </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "0.78rem" }}>
-                  <div style={{ background: "#f1f5f9", padding: "8px 10px", borderRadius: "6px" }}>
+                  <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "8px 10px", borderRadius: "6px" }}>
                     <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem" }}>Operating Hours</span>
-                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{loc.openingHours}</span>
+                    <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{loc.openingHours}</span>
                   </div>
-                  <div style={{ background: "#f1f5f9", padding: "8px 10px", borderRadius: "6px" }}>
+                  <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "8px 10px", borderRadius: "6px" }}>
                     <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem" }}>Active Staff</span>
-                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{loc.activeStaff} Wardens</span>
+                    <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{loc.activeStaff} Wardens</span>
                   </div>
                 </div>
               </div>
@@ -306,12 +306,12 @@ export default function ParkingLocations() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "12px", borderTop: "1px solid #f1f5f9" }}>
                 <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                   {loc.zones.slice(0, 2).map((z, idx) => (
-                    <span key={idx} style={{ fontSize: "0.68rem", background: "#f0fdfa", color: "#0f766e", padding: "2px 6px", borderRadius: "4px" }}>
+                    <span key={idx} style={{ fontSize: "0.68rem", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", padding: "2px 6px", borderRadius: "4px" }}>
                       {z}
                     </span>
                   ))}
                   {loc.zones.length > 2 && (
-                    <span style={{ fontSize: "0.68rem", background: "#f1f5f9", color: "#64748b", padding: "2px 6px", borderRadius: "4px" }}>
+                    <span style={{ fontSize: "0.68rem", background: "var(--bg-sub, #f8fafc)", color: "#64748b", padding: "2px 6px", borderRadius: "4px" }}>
                       +{loc.zones.length - 2} more
                     </span>
                   )}
@@ -321,7 +321,7 @@ export default function ParkingLocations() {
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(loc)}
-                    style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#334155" }}
+                    style={{ background: "var(--bg-sub, #f8fafc)", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#334155" }}
                     title="Edit Location"
                   >
                     <Edit2 size={13} />
@@ -329,7 +329,7 @@ export default function ParkingLocations() {
                   <button
                     type="button"
                     onClick={() => handleDelete(loc.id)}
-                    style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#ef4444" }}
+                    style={{ background: "var(--bg-sub, #fef2f2)", border: "1px solid var(--border-color, #fecaca)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#ef4444" }}
                     title="Delete Location"
                   >
                     <Trash2 size={13} />
@@ -343,9 +343,9 @@ export default function ParkingLocations() {
 
       {isModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", padding: "16px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", padding: "24px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", padding: "24px", maxWidth: "480px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>
                 {modalMode === "create" ? "Add New Parking Facility" : "Edit Parking Facility"}
               </h3>
               <button

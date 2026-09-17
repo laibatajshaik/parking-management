@@ -21,20 +21,30 @@ export default function ParkingOccupancy({
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("ALL");
   const [selectedSlotModal, setSelectedSlotModal] = useState(null);
 
-  const filteredSlots = slots.filter((slot) => {
-    const zoneMatch = selectedZone === "ALL" || slot.zone === selectedZone;
-    const queryMatch =
-      !baySearch ||
-      slot.slot_number.toLowerCase().includes(baySearch.toLowerCase()) ||
-      slot.zone.toLowerCase().includes(baySearch.toLowerCase());
-    
-    const slotState = getSlotState(slot);
-    const statusMatch =
-      selectedStatusFilter === "ALL" ||
-      slotState === selectedStatusFilter.toLowerCase();
+  const filteredSlots = slots
+    .filter((slot) => {
+      const zoneMatch = selectedZone === "ALL" || slot.zone === selectedZone;
+      const queryMatch =
+        !baySearch ||
+        slot.slot_number.toLowerCase().includes(baySearch.toLowerCase()) ||
+        slot.zone.toLowerCase().includes(baySearch.toLowerCase());
 
-    return zoneMatch && queryMatch && statusMatch;
-  });
+      const slotState = getSlotState(slot);
+      const statusMatch =
+        selectedStatusFilter === "ALL" ||
+        slotState === selectedStatusFilter.toLowerCase();
+
+      return zoneMatch && queryMatch && statusMatch;
+    })
+    .sort((a, b) => {
+      if (a.zone !== b.zone) {
+        return a.zone.localeCompare(b.zone);
+      }
+      return a.slot_number.localeCompare(b.slot_number, undefined, {
+        numeric: true,
+        sensitivity: "base"
+      });
+    });
 
   return (
     <>

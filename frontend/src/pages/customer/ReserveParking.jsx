@@ -259,7 +259,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
               <Crown size={20} />
             </div>
             <div>
-              <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#12233F" }}>👑 Active Premium Membership</div>
+              <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>👑 Active Premium Membership</div>
               <div style={{ fontSize: "0.78rem", color: "#9A6B18", fontWeight: 600 }}>Your Monthly VIP Plan is active with unlimited priority parking & reserved bays.</div>
             </div>
           </div>
@@ -292,7 +292,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
         <>
           <div className="pw-plans-header-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#12233F", margin: 0 }}>Available Parking Plans</h2>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Available Parking Plans</h2>
               <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "3px 0 0 0" }}>Choose a plan configured for your vehicle type and parking duration.</p>
             </div>
 
@@ -302,19 +302,19 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                   type="button"
                   className="pw-vehicle-filter-pill"
                   onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                  style={{ display: "flex", alignItems: "center", gap: "6px", background: "#ffffff", padding: "8px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--bg-card, #ffffff)", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary, #1e293b)", cursor: "pointer" }}
                 >
                   <span>{vehicleFilter}</span>
                   <ChevronDown size={14} style={{ color: "#64748b" }} />
                 </button>
 
                 {isFilterDropdownOpen && (
-                  <div style={{ position: "absolute", right: 0, top: "110%", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: "180px", padding: "6px 0" }}>
+                  <div style={{ position: "absolute", right: 0, top: "110%", background: "var(--bg-card, #ffffff)", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "8px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: "180px", padding: "6px 0" }}>
                     {["All Vehicle Types", "Car", "SUV", "EV", "Bike"].map((item) => (
                       <button
                         key={item}
                         type="button"
-                        style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", border: "none", background: vehicleFilter === item ? "#f0fdfa" : "transparent", color: vehicleFilter === item ? "#0f766e" : "#334155", fontWeight: vehicleFilter === item ? 700 : 500, fontSize: "0.82rem", cursor: "pointer" }}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", border: "none", background: vehicleFilter === item ? "var(--bg-teal-sub, #f0fdfa)" : "transparent", color: vehicleFilter === item ? "#0f766e" : "#334155", fontWeight: vehicleFilter === item ? 700 : 500, fontSize: "0.82rem", cursor: "pointer" }}
                         onClick={() => {
                           setVehicleFilter(item);
                           setIsFilterDropdownOpen(false);
@@ -359,12 +359,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                   )}
 
                   <div className="pw-plan-card-top-row">
-                    <div className="pw-plan-card-icon-circle" style={{ background: isMonthly ? "#FDF0CD" : isSelected ? "#e6fffa" : "#f0fdfa" }}>
+                    <div className="pw-plan-card-icon-circle" style={{ background: isMonthly ? "var(--bg-sub, #FDF0CD)" : isSelected ? "var(--bg-teal-sub, #e6fffa)" : "var(--bg-teal-sub, #f0fdfa)" }}>
                       {getVehicleIcon(p.vehicle_type, isMonthly)}
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1" }}>
+                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "2px 7px", borderRadius: "6px", background: "var(--bg-sub, #f8fafc)", color: "#475569", border: "1px solid var(--border-color, #cbd5e1)" }}>
                         {p.vehicle_type}
                       </span>
                       {isMonthly ? (
@@ -373,11 +373,11 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                           <span>VIP PASS</span>
                         </span>
                       ) : p.billing_type === "Daily" ? (
-                        <span style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
+                        <span style={{ background: "var(--bg-teal-sub, #f0fdf4)", color: "#16a34a", border: "1px solid var(--border-color, #bbf7d0)", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
                           Full Day
                         </span>
                       ) : (
-                        <span style={{ background: "#f0fdfa", color: "#0f766e", border: "1px solid #ccfbf1", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
+                        <span style={{ background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", border: "1px solid #ccfbf1", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
                           Hourly
                         </span>
                       )}
@@ -389,7 +389,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                   </div>
 
                   <div style={{ marginTop: "12px" }}>
-                    <h3 className="pw-customer-plan-title" style={{ color: isMonthly ? "#9A6B18" : "#12233F", fontSize: "1.05rem", fontWeight: 800 }}>
+                    <h3 className="pw-customer-plan-title" style={{ color: isMonthly ? "#facc15" : "var(--text-primary, #12233F)", fontSize: "1.05rem", fontWeight: 800 }}>
                       {p.plan_name}
                     </h3>
                     <p className="pw-customer-plan-sub" style={{ fontSize: "0.8rem", color: "#64748b", minHeight: "36px", margin: "2px 0 0 0", lineHeight: 1.45 }}>
@@ -406,7 +406,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                     {(Array.isArray(p.features) ? p.features : ["Covered Bay Access", "24/7 Security"]).map((feat, idx) => (
                       <div key={idx} className="pw-plan-feat-item">
                         <Check size={14} className={isMonthly ? "pw-feat-check-gold" : "pw-feat-check-icon"} style={{ color: isMonthly ? "#B45309" : undefined }} />
-                        <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "#1E293B" : "#334155" }}>{feat}</span>
+                        <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "var(--text-primary, #1E293B)" : "var(--text-secondary, #334155)" }}>{feat}</span>
                       </div>
                     ))}
                   </div>
@@ -475,7 +475,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                   {isCurrentPlanMonthly() ? <Crown size={20} /> : "P"}
                 </div>
                 <div>
-                  <div style={{ fontSize: "0.95rem", fontWeight: 800, color: isCurrentPlanMonthly() ? "#713F12" : "#12233F" }}>
+                  <div style={{ fontSize: "0.95rem", fontWeight: 800, color: isCurrentPlanMonthly() ? "#facc15" : "var(--text-primary, #12233F)" }}>
                     {isCurrentPlanMonthly() ? "👑 Monthly VIP Premium Pass (Best Value)" : `Estimated Cost: ${selectedPlanObject?.plan_name || "Parking Plan"}`}
                   </div>
                   <div style={{ fontSize: "0.78rem", color: isCurrentPlanMonthly() ? "#854D0E" : "#64748b", fontWeight: isCurrentPlanMonthly() ? 600 : 400 }}>
@@ -622,7 +622,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
           </div>
 
           {isCurrentPlanMonthly() && (
-            <div style={{ background: "linear-gradient(135deg, #FFFDF5 0%, #FEF9C3 100%)", border: "1.5px solid #EAB308", borderRadius: "10px", padding: "14px 18px", marginBottom: "18px" }}>
+            <div style={{ background: "linear-gradient(135deg, #1c1809 0%, #2a200a 100%)", border: "1.5px solid #EAB308", borderRadius: "10px", padding: "14px 18px", marginBottom: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, color: "#713F12", fontSize: "0.92rem", marginBottom: "6px" }}>
                 <Crown size={16} />
                 <span>Premium VIP Privileges Activated for this Booking:</span>
@@ -636,7 +636,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             </div>
           )}
 
-          <div className="pw-calc-details-list" style={{ background: "#f8fafc", padding: "16px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "20px" }}>
+          <div className="pw-calc-details-list" style={{ background: "var(--bg-sub, #f8fafc)", padding: "16px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "20px" }}>
             <div className="pw-calc-detail-row"><span className="pw-calc-detail-key">Customer Name</span><span className="pw-calc-detail-colon">:</span><span className="pw-calc-detail-val">{loggedInUser?.name || "Customer"}</span></div>
             <div className="pw-calc-detail-row"><span className="pw-calc-detail-key">Selected Plan</span><span className="pw-calc-detail-colon">:</span><span className="pw-calc-detail-val">{selectedPlanObject?.plan_name || "Parking Plan"} ({selectedPlanObject?.plan_code || "PLAN"})</span></div>
             <div className="pw-calc-detail-row"><span className="pw-calc-detail-key">Vehicle Type</span><span className="pw-calc-detail-colon">:</span><span className="pw-calc-detail-val">{selectedPlanObject?.vehicle_type || "Car"}</span></div>
@@ -692,7 +692,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                     padding: "16px",
                     borderRadius: "10px",
                     border: isSelected ? (isCurrentPlanMonthly() ? "2px solid #C99A2E" : "2px solid #0d9488") : "1px solid #cbd5e1",
-                    background: isSelected ? (isCurrentPlanMonthly() ? "#FDF0CD" : "#f0fdfa") : "#ffffff",
+                    background: isSelected ? (isCurrentPlanMonthly() ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)") : "var(--bg-card, #ffffff)",
                     cursor: "pointer",
                     display: "flex",
                     flexDirection: "column",
@@ -709,7 +709,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             })}
           </div>
 
-          <div className="pw-reserve-cost-summary-box" style={{ background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #FEF9C3 0%, #FEF08A 100%)" : "#f8fafc", border: isCurrentPlanMonthly() ? "1.5px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
+          <div className="pw-reserve-cost-summary-box" style={{ background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #1c1809 0%, #2a200a 100%)" : "var(--bg-sub, #f8fafc)", border: isCurrentPlanMonthly() ? "1.5px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
             <div>
               <div style={{ fontSize: "0.82rem", color: isCurrentPlanMonthly() ? "#713F12" : "#64748b", fontWeight: 600 }}>Amount Due</div>
               <div style={{ fontSize: "1.6rem", fontWeight: 900, color: isCurrentPlanMonthly() ? "#713F12" : "#0f766e" }}>
@@ -748,12 +748,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
       {isSuccessModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", padding: "16px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "16px", padding: "32px", maxWidth: "440px", width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.25)", border: isCurrentPlanMonthly() ? "2px solid #C99A2E" : "1px solid #e2e8f0" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "16px", padding: "32px", maxWidth: "440px", width: "100%", textAlign: "center", boxShadow: "0 20px 40px rgba(0,0,0,0.25)", border: isCurrentPlanMonthly() ? "2px solid #C99A2E" : "1px solid #e2e8f0" }}>
             <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #F5E7C3 0%, #FBF7EE 100%)" : "#ccfbf1", border: isCurrentPlanMonthly() ? "2px solid #C99A2E" : "none", color: isCurrentPlanMonthly() ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto" }}>
               {isCurrentPlanMonthly() ? <Crown size={36} /> : <CheckCircle2 size={36} />}
             </div>
 
-            <h3 style={{ fontSize: "1.25rem", fontWeight: 900, color: "#12233F", margin: "0 0 6px 0" }}>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: 900, color: "var(--text-primary, #0f172a)", margin: "0 0 6px 0" }}>
               {isCurrentPlanMonthly() ? "👑 VIP Membership Activated!" : "Reservation Confirmed!"}
             </h3>
             <p style={{ fontSize: "0.84rem", color: "#64748b", margin: "0 0 20px 0" }}>
@@ -762,14 +762,14 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                 : `Your parking reservation at Bay ${selectedSlot} (${selectedZone}) has been successfully confirmed.`}
             </p>
 
-            <div style={{ background: isCurrentPlanMonthly() ? "#FDF0CD" : "#f8fafc", border: isCurrentPlanMonthly() ? "1px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "24px", textAlign: "left", fontSize: "0.82rem" }}>
+            <div style={{ background: isCurrentPlanMonthly() ? "var(--bg-sub, #FDF0CD)" : "var(--bg-sub, #f8fafc)", border: isCurrentPlanMonthly() ? "1px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "14px", marginBottom: "24px", textAlign: "left", fontSize: "0.82rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                 <span style={{ color: "#64748b" }}>Pass / Plan:</span>
-                <span style={{ fontWeight: 800, color: isCurrentPlanMonthly() ? "#713F12" : "#12233F" }}>{selectedPlanObject?.plan_name}</span>
+                <span style={{ fontWeight: 800, color: isCurrentPlanMonthly() ? "#facc15" : "var(--text-primary, #12233F)" }}>{selectedPlanObject?.plan_name}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                 <span style={{ color: "#64748b" }}>Assigned Slot:</span>
-                <span style={{ fontWeight: 700, color: "#12233F" }}>Bay {selectedSlot} ({selectedZone})</span>
+                <span style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Bay {selectedSlot} ({selectedZone})</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "#64748b" }}>Amount Paid:</span>

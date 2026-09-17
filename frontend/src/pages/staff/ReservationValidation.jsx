@@ -425,7 +425,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
 
             <div style={{ marginTop: "20px" }}>
               <div className="pw-section-header-row">
-                <span className="pw-detail-label" style={{ fontWeight: 700, color: "#1e293b" }}>
+                <span className="pw-detail-label" style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>
                   Upcoming Reservations Today ({pendingList.length})
                 </span>
                 <button
@@ -460,19 +460,19 @@ export default function ReservationValidation({ setStatusActionMessage }) {
                         </div>
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px" }}>
-                          <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155" }}>
+                          <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary, #334155)" }}>
                             {b.customer_name}
                           </span>
-                          <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                          <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)" }}>
                             {b.booking_id} • Code: {b.validation_code}
                           </span>
                         </div>
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
-                          <span style={{ fontSize: "0.72rem", color: "#0f766e" }}>
+                          <span style={{ fontSize: "0.72rem", color: "#2dd4bf" }}>
                             ⏰ {formatTimeOnly(b.start_time)} - {formatTimeOnly(b.end_time)}
                           </span>
-                          <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#047857" }}>
+                          <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#34d399" }}>
                             ₹{parseFloat(b.total_amount || 0).toFixed(2)}
                           </span>
                         </div>

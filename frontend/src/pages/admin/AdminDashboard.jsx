@@ -30,6 +30,7 @@ import ParkingLocations from "./ParkingLocations.jsx";
 import ReportsAnalytics from "./ReportsAnalytics.jsx";
 import SystemSettings from "./SystemSettings.jsx";
 import SupportAuditLogs from "./SupportAuditLogs.jsx";
+import ThemeToggle from "../../components/ThemeToggle.jsx";
 
 const ADMIN_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard, isWorking: true },
@@ -314,6 +315,7 @@ export default function AdminDashboard({ setView }) {
           </div>
 
           <div className="pw-topbar-right">
+            <ThemeToggle />
             <div className="pw-topbar-bell">
               <Bell size={18} />
               <span className="pw-bell-dot"></span>

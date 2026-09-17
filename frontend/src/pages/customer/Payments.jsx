@@ -226,7 +226,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                     </div>
 
                     <div className="pw-user-card-date-col">
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "#1e293b", fontWeight: 600, fontSize: "0.82rem" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--text-primary, #1e293b)", fontWeight: 600, fontSize: "0.82rem" }}>
                         <Calendar size={13} style={{ color: "#0d9488" }} />
                         <span>{formatDateOnly(p.created_at || p.exit_time)}</span>
                       </div>

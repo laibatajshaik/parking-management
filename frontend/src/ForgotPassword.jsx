@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Eye, EyeOff, CheckCircle2, ArrowLeft, Mail } from "lucide-react";
+import ThemeToggle from "./components/ThemeToggle.jsx";
 
 export default function ForgotPassword({ setView }) {
   const [step, setStep] = useState(1);
@@ -125,11 +126,14 @@ export default function ForgotPassword({ setView }) {
       <div className="pw-auth-card">
         <div className="pw-dot-grid-decor"></div>
 
-        <div className="pw-auth-brand-row" onClick={() => setView("landing")}>
-          <div className="pw-brand-logo-box">
-            <span className="pw-p-logo">P</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: "16px" }}>
+          <div className="pw-auth-brand-row" style={{ margin: 0 }} onClick={() => setView("landing")}>
+            <div className="pw-brand-logo-box">
+              <span className="pw-p-logo">P</span>
+            </div>
+            <span className="pw-brand-word">ParkSafe</span>
           </div>
-          <span className="pw-brand-word">ParkSafe</span>
+          <ThemeToggle />
         </div>
 
         {step === 1 && (
@@ -192,11 +196,11 @@ export default function ForgotPassword({ setView }) {
                 Verify <span className="pw-teal-text">OTP Code</span>
               </h2>
               <p className="pw-auth-subtitle">
-                Enter the 6-digit verification code sent to <strong style={{ color: "#0f172a" }}>{email}</strong>
+                Enter the 6-digit verification code sent to <strong style={{ color: "var(--text-primary, #0f172a)" }}>{email}</strong>
               </p>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdfa", border: "1px solid #ccfbf1", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", fontSize: "0.8rem", color: "#0f766e" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdfa)", border: "1px solid var(--border-color, #ccfbf1)", borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", fontSize: "0.8rem", color: "#2dd4bf" }}>
               <Mail size={16} style={{ flexShrink: 0 }} />
               <span>Please check your email inbox for the real-time 6-digit verification code.</span>
             </div>
@@ -233,7 +237,7 @@ export default function ForgotPassword({ setView }) {
                     setMessage("");
                     setIsError(false);
                   }}
-                  style={{ background: "transparent", border: "none", color: "#64748b", fontSize: "0.82rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  style={{ background: "transparent", border: "none", color: "var(--text-secondary, #64748b)", fontSize: "0.82rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
                 >
                   <ArrowLeft size={13} />
                   <span>Change Email</span>
@@ -242,7 +246,7 @@ export default function ForgotPassword({ setView }) {
                 <button
                   type="button"
                   onClick={handleRequestOtp}
-                  style={{ background: "transparent", border: "none", color: "#0f766e", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
+                  style={{ background: "transparent", border: "none", color: "#2dd4bf", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
                 >
                   Resend Code
                 </button>
@@ -332,7 +336,7 @@ export default function ForgotPassword({ setView }) {
 
         {step === 4 && (
           <div style={{ textAlign: "center", padding: "10px 0 16px" }}>
-            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#f0fdf4", border: "2px solid #bbf7d0", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "var(--bg-teal-sub, #f0fdf4)", border: "2px solid #2dd4bf", color: "#2dd4bf", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}>
               <CheckCircle2 size={36} />
             </div>
 

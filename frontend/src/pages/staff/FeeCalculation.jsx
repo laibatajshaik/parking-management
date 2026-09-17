@@ -91,7 +91,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
         </div>
 
         <div className="pw-calc-stat-card">
-          <div className="pw-calc-stat-icon-circle" style={{ background: "#fef3c7", color: "#d97706" }}>
+          <div className="pw-calc-stat-icon-circle" style={{ background: "var(--bg-sub, #fef3c7)", color: "#d97706" }}>
             <Clock size={22} />
           </div>
           <div className="pw-calc-stat-meta">
@@ -241,7 +241,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
             <div className="pw-calc-detail-row">
               <span className="pw-calc-detail-key">Vehicle Number</span>
               <span className="pw-calc-detail-colon">:</span>
-              <span className="pw-calc-detail-val" style={{ fontWeight: 800, color: "#0f172a" }}>{vehicleNumber}</span>
+              <span className="pw-calc-detail-val" style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{vehicleNumber}</span>
             </div>
 
             <div className="pw-calc-detail-row">
@@ -299,10 +299,10 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
       <div className="pw-calc-box-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#f0fdfa", color: "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Clock size={15} />
             </div>
-            <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Recent Fee Calculations</h3>
+            <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Recent Fee Calculations</h3>
           </div>
           <button type="button" className="pw-view-all-link" style={{ fontSize: "0.82rem", fontWeight: 600, color: "#0d9488", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
             View All
@@ -328,11 +328,11 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
               {recentCalculations.map((item) => (
                 <tr key={item.id}>
                   <td style={{ color: "#64748b" }}>{item.id}</td>
-                  <td style={{ fontWeight: 700, color: "#0f172a" }}>{item.vehicleNumber}</td>
-                  <td style={{ color: "#334155" }}>{item.vehicleType}</td>
-                  <td style={{ color: "#334155" }}>{item.plan}</td>
-                  <td style={{ color: "#334155" }}>{item.duration}</td>
-                  <td style={{ fontWeight: 700, color: "#0f172a" }}>₹ {item.amount}</td>
+                  <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{item.vehicleNumber}</td>
+                  <td style={{ color: "var(--text-secondary, #334155)" }}>{item.vehicleType}</td>
+                  <td style={{ color: "var(--text-secondary, #334155)" }}>{item.plan}</td>
+                  <td style={{ color: "var(--text-secondary, #334155)" }}>{item.duration}</td>
+                  <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>₹ {item.amount}</td>
                   <td>
                     <span className={`pw-calc-status-pill ${item.status.toLowerCase()}`}>
                       {item.status}

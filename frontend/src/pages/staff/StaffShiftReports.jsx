@@ -67,17 +67,17 @@ export default function StaffShiftReports() {
       </div>
 
       {closureSuccess && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
           <CheckCircle2 size={18} />
           <span>Shift reconciliation slip generated and cash drawer handover recorded successfully!</span>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "20px" }}>
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #f1f5f9" }}>
-            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Active Duty Shift Information</h4>
-            <span style={{ fontSize: "0.72rem", fontWeight: 800, padding: "3px 10px", borderRadius: "999px", background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Active Duty Shift Information</h4>
+            <span style={{ fontSize: "0.72rem", fontWeight: 800, padding: "3px 10px", borderRadius: "999px", background: "var(--bg-teal-sub, #f0fdf4)", color: "#16a34a", border: "1px solid var(--border-color, #bbf7d0)" }}>
               ON DUTY ACTIVE
             </span>
           </div>
@@ -85,21 +85,21 @@ export default function StaffShiftReports() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.82rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "#64748b" }}>Staff Operator:</span>
-              <span style={{ fontWeight: 800, color: "#0f172a" }}>{shiftData.operator} ({shiftData.staffId})</span>
+              <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{shiftData.operator} ({shiftData.staffId})</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "#64748b" }}>Terminal Gate:</span>
-              <span style={{ fontWeight: 700, color: "#1e293b" }}>{shiftData.terminal}</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{shiftData.terminal}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "#64748b" }}>Shift Date & Slot:</span>
-              <span style={{ fontWeight: 700, color: "#1e293b" }}>{shiftData.shiftDate} ({shiftData.shiftTime})</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{shiftData.shiftDate} ({shiftData.shiftTime})</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ color: "#64748b" }}>Opening Float Balance:</span>
               <span style={{ fontWeight: 700, color: "#0f766e" }}>{shiftData.openingDrawerBalance}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #f1f5f9", paddingTop: "10px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #f1f5f9)", paddingTop: "10px" }}>
               <span style={{ color: "#64748b" }}>Total Inbound Entries Processed:</span>
               <span style={{ fontWeight: 800, color: "#16a34a" }}>{shiftData.totalEntries} Vehicles</span>
             </div>
@@ -110,31 +110,31 @@ export default function StaffShiftReports() {
           </div>
         </div>
 
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
-            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: "0 0 16px 0" }}>Payment Channels Reconciliation</h4>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 16px 0" }}>Payment Channels Reconciliation</h4>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Smartphone size={16} style={{ color: "#0284c7" }} />
-                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>Fastag & UPI Digital</span>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>Fastag & UPI Digital</span>
                 </div>
                 <span style={{ fontWeight: 900, color: "#0284c7", fontSize: "0.95rem" }}>{shiftData.upiFastag}</span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <CreditCard size={16} style={{ color: "#7c3aed" }} />
-                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>Credit / Debit Cards</span>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>Credit / Debit Cards</span>
                 </div>
                 <span style={{ fontWeight: 900, color: "#7c3aed", fontSize: "0.95rem" }}>{shiftData.cardSwipes}</span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <Layers size={16} style={{ color: "#0d9488" }} />
-                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>Cash Counter Collected</span>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>Cash Counter Collected</span>
                 </div>
                 <span style={{ fontWeight: 900, color: "#0d9488", fontSize: "0.95rem" }}>{shiftData.cashCollected}</span>
               </div>

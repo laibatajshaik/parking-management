@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import ThemeToggle from "./components/ThemeToggle.jsx";
 
 export default function SignUp({ setView }) {
   const [name, setName] = useState("");
@@ -58,11 +59,14 @@ export default function SignUp({ setView }) {
       <div className="pw-auth-card">
         <div className="pw-dot-grid-decor"></div>
 
-        <div className="pw-auth-brand-row" onClick={() => setView("landing")}>
-          <div className="pw-brand-logo-box">
-            <span className="pw-p-logo">P</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: "16px" }}>
+          <div className="pw-auth-brand-row" style={{ margin: 0 }} onClick={() => setView("landing")}>
+            <div className="pw-brand-logo-box">
+              <span className="pw-p-logo">P</span>
+            </div>
+            <span className="pw-brand-word">ParkSafe</span>
           </div>
-          <span className="pw-brand-word">ParkSafe</span>
+          <ThemeToggle />
         </div>
 
         <div className="pw-auth-header-box">

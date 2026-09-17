@@ -41,13 +41,13 @@ export default function SystemSettings() {
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#f0fdfa", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Settings size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>System Configuration & Operations</h3>
+            <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>System Configuration & Operations</h3>
             <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Manage parking tariffs, IoT barrier controls, taxes, and system policies</span>
           </div>
         </div>
@@ -64,24 +64,24 @@ export default function SystemSettings() {
       </div>
 
       {isSaved && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
           <CheckCircle2 size={18} />
           <span>System configuration updated and broadcasted to all gate terminals successfully.</span>
         </div>
       )}
 
       {backupMsg && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdfa", border: "1px solid #ccfbf1", color: "#0f766e", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdfa)", border: "1px solid #ccfbf1", color: "#0f766e", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
           <Database size={18} />
           <span>{backupMsg}</span>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
             <Sliders size={18} style={{ color: "#0f766e" }} />
-            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Operational Parameters</h4>
+            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Operational Parameters</h4>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -129,10 +129,10 @@ export default function SystemSettings() {
           </div>
         </div>
 
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
             <Receipt size={18} style={{ color: "#0f766e" }} />
-            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Tax & Billing Compliance</h4>
+            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Tax & Billing Compliance</h4>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -168,22 +168,22 @@ export default function SystemSettings() {
               />
             </div>
 
-            <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "0.78rem", color: "#64748b" }}>
+            <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: "0.78rem", color: "#64748b" }}>
               Tax invoices are generated automatically with QR-code verification on all customer payments.
             </div>
           </div>
         </div>
 
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
             <Cpu size={18} style={{ color: "#0f766e" }} />
-            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Hardware & IoT Gate Barriers</h4>
+            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Hardware & IoT Gate Barriers</h4>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "#f8fafc", borderRadius: "8px", cursor: "pointer", border: "1px solid #e2e8f0" }}>
+            <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", cursor: "pointer", border: "1px solid var(--border-color, #e2e8f0)" }}>
               <div>
-                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "#1e293b" }}>Fastag RFID Express Automated Gate</div>
+                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>Fastag RFID Express Automated Gate</div>
                 <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Instant barrier lift on registered VIP vehicle detection</div>
               </div>
               <input
@@ -194,9 +194,9 @@ export default function SystemSettings() {
               />
             </label>
 
-            <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "#f8fafc", borderRadius: "8px", cursor: "pointer", border: "1px solid #e2e8f0" }}>
+            <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", cursor: "pointer", border: "1px solid var(--border-color, #e2e8f0)" }}>
               <div>
-                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "#1e293b" }}>ANPR License Plate OCR Recognition</div>
+                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>ANPR License Plate OCR Recognition</div>
                 <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Automatic vehicle plate detection at entry kiosk camera</div>
               </div>
               <input
@@ -209,16 +209,16 @@ export default function SystemSettings() {
           </div>
         </div>
 
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
             <HardDrive size={18} style={{ color: "#0f766e" }} />
-            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>System Maintenance & Database</h4>
+            <h4 style={{ fontSize: "0.98rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>System Maintenance & Database</h4>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
               <div>
-                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "#1e293b" }}>PostgreSQL Database Backup</div>
+                <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>PostgreSQL Database Backup</div>
                 <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Last snapshot: Today 04:00 AM (Automated)</div>
               </div>
               <button

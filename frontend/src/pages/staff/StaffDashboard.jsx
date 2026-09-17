@@ -12,6 +12,7 @@ import StaffSlotAssignment from "./StaffSlotAssignment.jsx";
 import StaffParkingRecords from "./StaffParkingRecords.jsx";
 import StaffShiftReports from "./StaffShiftReports.jsx";
 import StaffSupport from "./StaffSupport.jsx";
+import ThemeToggle from "../../components/ThemeToggle.jsx";
 
 const STAFF_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
@@ -166,6 +167,7 @@ export default function StaffDashboard({ setView }) {
           </div>
 
           <div className="pw-topbar-right">
+            <ThemeToggle />
             <div className="pw-topbar-bell">
               <Bell size={18} />
               <span className="pw-bell-dot" style={{ width: "8px", height: "8px", fontSize: "0.6rem", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", background: "#ef4444" }}>1</span>
@@ -185,15 +187,15 @@ export default function StaffDashboard({ setView }) {
         <div className="pw-dashboard-body">
           <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: "#0f172a" }}>{getPageTitle()}</h1>
+              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{getPageTitle()}</h1>
               {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "#64748b", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
             </div>
 
             {activeTab === "fee-calculation" && (
-              <div className="pw-date-time-box" style={{ display: "flex", alignItems: "center", gap: "8px", background: "#ffffff", padding: "8px 14px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div className="pw-date-time-box" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <Calendar size={16} style={{ color: "#0d9488" }} />
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0f172a" }}>Tuesday, 2 Sep 2025</div>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Tuesday, 2 Sep 2025</div>
                   <div style={{ fontSize: "0.68rem", color: "#64748b" }}>10:24 AM</div>
                 </div>
               </div>
@@ -201,7 +203,7 @@ export default function StaffDashboard({ setView }) {
           </div>
 
           {statusActionMessage && (
-            <div className="pw-user-action-alert" style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <div className="pw-user-action-alert" style={{ background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
               <CheckCircle size={16} />
               <span>{statusActionMessage}</span>
             </div>

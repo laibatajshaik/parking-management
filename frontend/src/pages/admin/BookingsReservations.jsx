@@ -365,7 +365,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
     const raw = (st || "").toLowerCase();
     if (raw === "confirmed") {
       return (
-        <span className="pw-badge-status-completed" style={{ background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" }}>
+        <span className="pw-badge-status-completed" style={{ background: "var(--bg-teal-sub, #ecfdf5)", color: "#2dd4bf", border: "1px solid var(--border-color, #a7f3d0)" }}>
           <CheckCircle2 size={11} />
           <span>Confirmed</span>
         </span>
@@ -373,7 +373,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
     }
     if (raw === "pending") {
       return (
-        <span className="pw-badge-status-pending" style={{ background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a" }}>
+        <span className="pw-badge-status-pending" style={{ background: "var(--bg-sub, #fffbeb)", color: "#facc15", border: "1px solid var(--border-color, #fde68a)" }}>
           <Clock size={11} />
           <span>Pending</span>
         </span>
@@ -381,7 +381,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
     }
     if (raw === "checked in" || raw === "validated") {
       return (
-        <span className="pw-badge-status-parked" style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
+        <span className="pw-badge-status-parked" style={{ background: "var(--bg-sub, #eff6ff)", color: "#38bdf8", border: "1px solid var(--border-color, #bfdbfe)" }}>
           <Tag size={11} />
           <span>Checked In</span>
         </span>
@@ -397,7 +397,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
     }
     if (raw === "cancelled") {
       return (
-        <span className="pw-badge-status-cancelled" style={{ background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" }}>
+        <span className="pw-badge-status-cancelled" style={{ background: "var(--bg-sub, #fef2f2)", color: "#f87171", border: "1px solid var(--border-color, #fecaca)" }}>
           <XCircle size={11} />
           <span>Cancelled</span>
         </span>
@@ -510,7 +510,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                 return (
                   <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid">
                     <div>
-                      <div className="pw-txn-badge" style={{ background: "#f0fdfa", color: "#0f766e", borderColor: "#99f6e4" }}>
+                      <div className="pw-txn-badge" style={{ background: "var(--bg-teal-sub, #f0fdfa)", color: "#2dd4bf", borderColor: "var(--border-color, #99f6e4)" }}>
                         <CalendarCheck size={12} />
                         <span>{b.booking_id}</span>
                       </div>
@@ -548,7 +548,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                     </div>
 
                     <div className="pw-user-card-date-col">
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#1e293b", fontWeight: 600, fontSize: "0.78rem" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--text-primary, #1e293b)", fontWeight: 600, fontSize: "0.78rem" }}>
                         <Clock size={11} style={{ color: "#0d9488" }} />
                         <span>{formatDateOnly(b.start_time)}</span>
                       </div>

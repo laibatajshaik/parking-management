@@ -323,7 +323,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
       <div className="pw-receipt-list-col">
         <div className="pw-receipt-list-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>My Invoices & Slips</h3>
+            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", margin: 0 }}>My Invoices & Slips</h3>
             <button
               type="button"
               className="pw-btn-action-refresh"
@@ -358,7 +358,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <Receipt size={13} style={{ color: "#0d9488" }} />
-                        <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "#0f172a" }}>{p.transaction_id}</span>
+                        <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "var(--text-primary, #0f172a)" }}>{p.transaction_id}</span>
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>
                         {p.vehicle_number} • Bay {p.slot_number}

@@ -101,20 +101,20 @@ export default function StaffSupport() {
       </div>
 
       {actionAlert && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
+        <div className="pw-user-action-alert" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 700 }}>
           <CheckCircle2 size={18} />
           <span>{actionAlert}</span>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "20px" }}>
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+        <div className="pw-support-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #1e293b" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <ShieldAlert size={18} style={{ color: "#dc2626" }} />
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Emergency Manual Barrier Controls</h4>
+              <h4 className="pw-card-title" style={{ fontSize: "1.02rem", fontWeight: 800, margin: 0 }}>Emergency Manual Barrier Controls</h4>
             </div>
-            <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 700 }}>AUTHORIZED OPERATOR ONLY</span>
+            <span style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 700 }}>AUTHORIZED OPERATOR ONLY</span>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -127,21 +127,13 @@ export default function StaffSupport() {
               return (
                 <div
                   key={g.key}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "14px 16px",
-                    background: isOpen ? "#fef2f2" : "#f8fafc",
-                    border: isOpen ? "1.5px solid #fecaca" : "1px solid #e2e8f0",
-                    borderRadius: "10px"
-                  }}
+                  className={`pw-support-item-row ${isOpen ? "is-open-barrier" : ""}`}
                 >
                   <div>
-                    <div style={{ fontSize: "0.88rem", fontWeight: 800, color: isOpen ? "#dc2626" : "#0f172a" }}>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 800, color: isOpen ? "#dc2626" : "inherit" }}>
                       {g.label}
                     </div>
-                    <div style={{ fontSize: "0.72rem", color: isOpen ? "#b91c1c" : "#64748b", fontWeight: 700, marginTop: "2px" }}>
+                    <div style={{ fontSize: "0.72rem", color: isOpen ? "#b91c1c" : "#94a3b8", fontWeight: 700, marginTop: "2px" }}>
                       Status: {barrierState[g.key]}
                     </div>
                   </div>
@@ -172,29 +164,29 @@ export default function StaffSupport() {
           </div>
         </div>
 
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div className="pw-support-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #1e293b" }}>
               <PhoneCall size={18} style={{ color: "#0d9488" }} />
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Emergency Contacts & Intercom</h4>
+              <h4 className="pw-card-title" style={{ fontSize: "1.02rem", fontWeight: 800, margin: 0 }}>Emergency Contacts & Intercom</h4>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.82rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "6px" }}>
-                <span style={{ fontWeight: 700, color: "#1e293b" }}>Facility Security Control Room</span>
-                <span style={{ fontWeight: 800, color: "#0d9488" }}>Ext. 101 / +91 80 2345 6701</span>
+              <div className="pw-contact-item-box">
+                <span style={{ fontWeight: 700 }}>Facility Security Control Room</span>
+                <span style={{ fontWeight: 800, color: "#2dd4bf" }}>Ext. 101 / +91 80 2345 6701</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "6px" }}>
-                <span style={{ fontWeight: 700, color: "#1e293b" }}>Hardware & Gate IT Engineer</span>
-                <span style={{ fontWeight: 800, color: "#0d9488" }}>Ext. 104 / +91 80 2345 6704</span>
+              <div className="pw-contact-item-box">
+                <span style={{ fontWeight: 700 }}>Hardware & Gate IT Engineer</span>
+                <span style={{ fontWeight: 800, color: "#2dd4bf" }}>Ext. 104 / +91 80 2345 6704</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "6px" }}>
-                <span style={{ fontWeight: 700, color: "#1e293b" }}>Shift Duty Manager (On Site)</span>
-                <span style={{ fontWeight: 800, color: "#0d9488" }}>+91 98765 11223</span>
+              <div className="pw-contact-item-box">
+                <span style={{ fontWeight: 700 }}>Shift Duty Manager (On Site)</span>
+                <span style={{ fontWeight: 800, color: "#2dd4bf" }}>+91 98765 11223</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#f8fafc", borderRadius: "6px" }}>
-                <span style={{ fontWeight: 700, color: "#1e293b" }}>Emergency Police / Medical</span>
-                <span style={{ fontWeight: 800, color: "#dc2626" }}>112</span>
+              <div className="pw-contact-item-box">
+                <span style={{ fontWeight: 700 }}>Emergency Police / Medical</span>
+                <span style={{ fontWeight: 800, color: "#f87171" }}>112</span>
               </div>
             </div>
           </div>
@@ -211,8 +203,8 @@ export default function StaffSupport() {
         </div>
       </div>
 
-      <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-        <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: "0 0 14px 0" }}>Logged Gate Incidents & Operational Tickets</h4>
+      <div className="pw-support-card">
+        <h4 className="pw-card-title" style={{ fontSize: "1.02rem", fontWeight: 800, margin: "0 0 14px 0" }}>Logged Gate Incidents & Operational Tickets</h4>
         <div style={{ overflowX: "auto" }}>
           <table className="pw-records-table" style={{ width: "100%" }}>
             <thead>
@@ -229,18 +221,18 @@ export default function StaffSupport() {
             <tbody>
               {incidents.map((inc) => (
                 <tr key={inc.id}>
-                  <td style={{ fontWeight: 800, color: "#0d9488" }}>{inc.id}</td>
-                  <td style={{ fontWeight: 700, color: "#0f172a" }}>{inc.type}</td>
-                  <td style={{ color: "#475569" }}>{inc.location}</td>
-                  <td style={{ fontWeight: 700, color: "#1e293b" }}>{inc.plate}</td>
-                  <td style={{ fontSize: "0.78rem", color: "#64748b" }}>{inc.reportedAt}</td>
+                  <td style={{ fontWeight: 800, color: "#2dd4bf" }}>{inc.id}</td>
+                  <td style={{ fontWeight: 700 }}>{inc.type}</td>
+                  <td style={{ color: "#94a3b8" }}>{inc.location}</td>
+                  <td style={{ fontWeight: 700 }}>{inc.plate}</td>
+                  <td style={{ fontSize: "0.78rem", color: "#94a3b8" }}>{inc.reportedAt}</td>
                   <td>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: inc.severity === "High" ? "#fef2f2" : "#fffbeb", color: inc.severity === "High" ? "#dc2626" : "#b45309" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: inc.severity === "High" ? "#7f1d1d" : "#78350f", color: inc.severity === "High" ? "#fca5a5" : "#fde68a" }}>
                       {inc.severity}
                     </span>
                   </td>
                   <td>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: "#f0fdf4", color: "#16a34a" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: "#064e3b", color: "#6ee7b7" }}>
                       {inc.status}
                     </span>
                   </td>
@@ -252,71 +244,77 @@ export default function StaffSupport() {
       </div>
 
       {isIncidentModalOpen && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", padding: "16px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", padding: "24px", maxWidth: "460px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Report Gate Incident</h3>
+        <div className="pw-modal-overlay">
+          <div className="pw-modal-card" style={{ maxWidth: "480px", width: "100%", padding: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", paddingBottom: "12px", borderBottom: "1px solid #1e293b" }}>
+              <h3 className="pw-modal-title" style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0 }}>Log New Gate Incident</h3>
               <button
                 type="button"
+                className="pw-modal-close-btn"
                 onClick={() => setIsIncidentModalOpen(false)}
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b" }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleReportIncident} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div className="pw-calc-field-group">
-                <label className="pw-calc-label">Incident Type</label>
+            <form onSubmit={handleReportIncident} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div className="pw-form-field">
+                <label className="pw-form-label">Incident Type</label>
                 <select
-                  className="pw-calc-input"
+                  className="pw-form-input"
                   value={incidentForm.type}
                   onChange={(e) => setIncidentForm({ ...incidentForm, type: e.target.value })}
                 >
-                  <option value="Scanner Misread">Scanner / Fastag Misread</option>
+                  <option value="Scanner Misread">Scanner Misread</option>
                   <option value="Unauthorized Overstay">Unauthorized Overstay</option>
-                  <option value="Barrier Obstruction">Physical Barrier Obstruction</option>
-                  <option value="Vehicle Scratch / Damage">Vehicle Scratch / Damage</option>
-                  <option value="Payment Discrepancy">Counter Payment Discrepancy</option>
+                  <option value="Barrier Obstruction">Barrier Obstruction</option>
+                  <option value="Payment Gateway Failure">Payment Gateway Failure</option>
+                  <option value="Other Physical Issue">Other Physical Issue</option>
                 </select>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div className="pw-calc-field-group">
-                  <label className="pw-calc-label">Location / Gate</label>
-                  <input
-                    type="text"
-                    className="pw-calc-input"
-                    value={incidentForm.location}
-                    onChange={(e) => setIncidentForm({ ...incidentForm, location: e.target.value })}
-                  />
-                </div>
-
-                <div className="pw-calc-field-group">
-                  <label className="pw-calc-label">Vehicle Plate</label>
-                  <input
-                    type="text"
-                    className="pw-calc-input"
-                    placeholder="e.g. KA01 AB 1234"
-                    value={incidentForm.plate}
-                    onChange={(e) => setIncidentForm({ ...incidentForm, plate: e.target.value.toUpperCase() })}
-                  />
-                </div>
+              <div className="pw-form-field">
+                <label className="pw-form-label">Location / Gate Bay</label>
+                <select
+                  className="pw-form-input"
+                  value={incidentForm.location}
+                  onChange={(e) => setIncidentForm({ ...incidentForm, location: e.target.value })}
+                >
+                  <option value="Gate #01 (North Entry)">Gate #01 (North Entry)</option>
+                  <option value="Gate #02 (South Exit)">Gate #02 (South Exit)</option>
+                  <option value="Gate #03 (VIP Express)">Gate #03 (VIP Express)</option>
+                  <option value="Zone A Parking Area">Zone A Parking Area</option>
+                  <option value="Zone B Parking Area">Zone B Parking Area</option>
+                  <option value="Zone C VIP Bay">Zone C VIP Bay</option>
+                  <option value="Zone D Motorcycle Bay">Zone D Motorcycle Bay</option>
+                </select>
               </div>
 
-              <div className="pw-calc-field-group">
-                <label className="pw-calc-label">Incident Notes & Details</label>
-                <textarea
-                  className="pw-calc-input"
-                  rows="3"
-                  placeholder="Describe the incident details..."
-                  value={incidentForm.notes}
-                  onChange={(e) => setIncidentForm({ ...incidentForm, notes: e.target.value })}
-                  style={{ resize: "none" }}
+              <div className="pw-form-field">
+                <label className="pw-form-label">Vehicle Plate Number (Optional)</label>
+                <input
+                  type="text"
+                  className="pw-form-input"
+                  placeholder="e.g. KA01 AB 1234"
+                  value={incidentForm.plate}
+                  onChange={(e) => setIncidentForm({ ...incidentForm, plate: e.target.value.toUpperCase() })}
                 />
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+              <div className="pw-form-field">
+                <label className="pw-form-label">Severity Level</label>
+                <select
+                  className="pw-form-input"
+                  value={incidentForm.severity}
+                  onChange={(e) => setIncidentForm({ ...incidentForm, severity: e.target.value })}
+                >
+                  <option value="Low">Low - Informational Only</option>
+                  <option value="Medium">Medium - Warden Assistance</option>
+                  <option value="High">High - Critical Gate Failure</option>
+                </select>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "10px" }}>
                 <button
                   type="button"
                   className="pw-calc-btn-reset"

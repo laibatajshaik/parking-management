@@ -124,13 +124,13 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: isPremiumActive ? "#FDF0CD" : "#f0fdfa", color: isPremiumActive ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "38px", height: "38px", borderRadius: "10px", background: isPremiumActive ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)", color: isPremiumActive ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <HelpCircle size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Customer Helpdesk & 24/7 Support</h3>
+            <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Customer Helpdesk & 24/7 Support</h3>
             <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Instant answers and support inquiries</span>
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
       </div>
 
       {statusMessage && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.86rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "12px 18px", borderRadius: "10px", fontSize: "0.86rem", fontWeight: 700 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <CheckCircle2 size={18} />
             <span>{statusMessage}</span>
@@ -171,9 +171,9 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "20px" }}>
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Frequently Asked Questions</h4>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Frequently Asked Questions</h4>
             <div className="pw-search-box-pill" style={{ width: "220px" }}>
               <Search size={13} className="pw-search-icon" />
               <input
@@ -214,7 +214,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
                       cursor: "pointer"
                     }}
                   >
-                    <span style={{ fontSize: "0.86rem", fontWeight: 800, color: isOpen ? (isPremiumActive ? "#713F12" : "#0f766e") : "#1e293b" }}>
+                    <span style={{ fontSize: "0.86rem", fontWeight: 800, color: isOpen ? (isPremiumActive ? "#facc15" : "#2dd4bf") : "var(--text-primary, #1e293b)" }}>
                       {faq.q}
                     </span>
                     {isOpen ? (
@@ -236,39 +236,39 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", paddingBottom: "10px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
               <PhoneCall size={18} style={{ color: isPremiumActive ? "#9A6B18" : "#0d9488" }} />
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Direct Support Helplines</h4>
+              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Direct Support Helplines</h4>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "0.82rem" }}>
-              <div style={{ padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div style={{ color: "#64748b", fontSize: "0.72rem" }}>24/7 Customer Care Desk</div>
-                <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.95rem" }}>+91 80 2345 6789</div>
+                <div style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)", fontSize: "0.95rem" }}>+91 80 2345 6789</div>
               </div>
 
-              <div style={{ padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div style={{ color: "#64748b", fontSize: "0.72rem" }}>VIP Concierge & Valet Priority</div>
                 <div style={{ fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0d9488", fontSize: "0.95rem" }}>+91 80 2345 6799 (Toll Free)</div>
               </div>
 
-              <div style={{ padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div style={{ color: "#64748b", fontSize: "0.72rem" }}>Email Assistance</div>
-                <div style={{ fontWeight: 800, color: "#0f172a" }}>support@shnoorparking.com</div>
+                <div style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>support@shnoorparking.com</div>
               </div>
             </div>
           </div>
 
-          <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>My Active Inquiries ({myTickets.length})</h4>
+              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>My Active Inquiries ({myTickets.length})</h4>
               <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Status Overview</span>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "320px", overflowY: "auto" }}>
               {myTickets.length === 0 ? (
-                <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: "0.82rem", background: "#f8fafc", borderRadius: "8px" }}>
+                <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: "0.82rem", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px" }}>
                   No active support inquiries. Click "Submit Support Ticket" above to reach our team.
                 </div>
               ) : (
@@ -280,9 +280,9 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
                       key={tCode}
                       style={{
                         padding: "12px",
-                        background: "#f8fafc",
+                        background: "var(--bg-sub, #f8fafc)",
                         borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
+                        border: "1px solid var(--border-color, #e2e8f0)",
                         display: "flex",
                         flexDirection: "column",
                         gap: "6px"
@@ -292,11 +292,11 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
                         <span style={{ fontSize: "0.74rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0d9488" }}>
                           {tCode}
                         </span>
-                        <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: "999px", background: t.status === "Resolved" ? "#f0fdf4" : t.status === "In Progress" ? "#fffbeb" : "#f0fdfa", color: t.status === "Resolved" ? "#16a34a" : t.status === "In Progress" ? "#b45309" : "#0f766e" }}>
+                        <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: "999px", background: "var(--bg-sub, #f0fdf4)", color: t.status === "Resolved" ? "#16a34a" : t.status === "In Progress" ? "#b45309" : "#0f766e" }}>
                           {t.status}
                         </span>
                       </div>
-                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "#1e293b" }}>{t.subject}</div>
+                      <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{t.subject}</div>
                       <div style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span>{t.category}</span>
                         <span>{dateStr}</span>
@@ -312,9 +312,9 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
 
       {isNewTicketOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", padding: "16px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", padding: "24px", maxWidth: "460px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", padding: "24px", maxWidth: "460px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Create Support Request</h3>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Create Support Request</h3>
               <button
                 type="button"
                 onClick={() => setIsNewTicketOpen(false)}

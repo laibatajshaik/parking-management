@@ -15,6 +15,7 @@ import {
   Send,
   Car
 } from "lucide-react";
+import ThemeToggle from "./components/ThemeToggle.jsx";
 
 const NAV_LINKS = [
   { label: "Home", href: "#home" },
@@ -145,6 +146,7 @@ export default function ShnoorParkingLanding({ setView }) {
           </nav>
 
           <div className="pw-nav-auth-actions">
+            <ThemeToggle />
             <button
               type="button"
               className="pw-btn-nav-login"

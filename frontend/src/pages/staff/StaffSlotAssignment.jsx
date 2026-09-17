@@ -104,13 +104,13 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
       </div>
 
       {statusActionMsg && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.84rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.84rem", fontWeight: 700 }}>
           <CheckCircle2 size={16} />
           <span>{statusActionMsg}</span>
         </div>
       )}
 
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           {["Zone A", "Zone B", "Zone C", "Zone D"].map((z) => (
             <button
@@ -122,9 +122,9 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
                 setSelectedBay(null);
               }}
               style={{
-                background: selectedZone === z ? "#0d9488" : "#f1f5f9",
-                color: selectedZone === z ? "#ffffff" : "#475569",
-                border: selectedZone === z ? "1px solid #0d9488" : "1px solid #cbd5e1",
+                background: selectedZone === z ? "#0d9488" : "var(--bg-sub, #f1f5f9)",
+                color: selectedZone === z ? "#ffffff" : "var(--text-secondary, #475569)",
+                border: selectedZone === z ? "1px solid #0d9488" : "1px solid var(--border-color, #cbd5e1)",
                 borderRadius: "8px",
                 padding: "8px 16px",
                 fontSize: "0.82rem",
@@ -150,9 +150,9 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selectedBay ? "1.5fr 1fr" : "1fr", gap: "20px" }}>
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>
               Live Bay Grid — {selectedZone}
             </h4>
             <div style={{ display: "flex", gap: "10px", fontSize: "0.74rem", fontWeight: 700 }}>
@@ -180,20 +180,8 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
                   key={bay.slot}
                   onClick={() => setSelectedBay(bay)}
                   style={{
-                    background: isSel
-                      ? "#f0fdfa"
-                      : isAvail
-                      ? "#f0fdf4"
-                      : isOcc
-                      ? "#fef2f2"
-                      : "#f0f9ff",
-                    border: isSel
-                      ? "2px solid #0d9488"
-                      : isAvail
-                      ? "1.5px solid #bbf7d0"
-                      : isOcc
-                      ? "1.5px solid #fecaca"
-                      : "1.5px solid #bae6fd",
+                    background: isSel ? "var(--bg-teal-sub, #f0fdfa)" : isAvail ? "var(--bg-sub, #f0fdf4)" : isOcc ? "var(--bg-sub, #fef2f2)" : "var(--bg-sub, #f0f9ff)",
+                    border: isSel ? "2px solid #0d9488" : "1.5px solid var(--border-color, #bbf7d0)",
                     borderRadius: "10px",
                     padding: "14px 10px",
                     textAlign: "center",
@@ -217,30 +205,30 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
         </div>
 
         {selectedBay && (
-          <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
                 <div>
                   <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#0d9488" }}>{selectedBay.zone}</span>
-                  <h4 style={{ fontSize: "1.2rem", fontWeight: 900, color: "#0f172a", margin: "2px 0 0 0" }}>Bay {selectedBay.slot}</h4>
+                  <h4 style={{ fontSize: "1.2rem", fontWeight: 900, color: "var(--text-primary, #0f172a)", margin: "2px 0 0 0" }}>Bay {selectedBay.slot}</h4>
                 </div>
-                <span style={{ fontSize: "0.72rem", fontWeight: 800, padding: "3px 10px", borderRadius: "999px", background: selectedBay.status === "available" ? "#f0fdf4" : selectedBay.status === "occupied" ? "#fef2f2" : "#f0f9ff", color: selectedBay.status === "available" ? "#16a34a" : selectedBay.status === "occupied" ? "#dc2626" : "#0284c7" }}>
+                <span style={{ fontSize: "0.72rem", fontWeight: 800, padding: "3px 10px", borderRadius: "999px", background: "var(--bg-sub, #f0fdf4)", color: selectedBay.status === "available" ? "#16a34a" : selectedBay.status === "occupied" ? "#dc2626" : "#0284c7" }}>
                   {selectedBay.status.toUpperCase()}
                 </span>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "16px", fontSize: "0.82rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "16px", fontSize: "0.82rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#64748b" }}>Vehicle Type:</span>
-                  <span style={{ fontWeight: 700, color: "#1e293b" }}>{selectedBay.type}</span>
+                  <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{selectedBay.type}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#64748b" }}>Parked Plate:</span>
-                  <span style={{ fontWeight: 800, color: "#0f172a" }}>{selectedBay.vehicle || "None (Available)"}</span>
+                  <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{selectedBay.vehicle || "None (Available)"}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#64748b" }}>Driver / User:</span>
-                  <span style={{ fontWeight: 700, color: "#1e293b" }}>{selectedBay.user || "N/A"}</span>
+                  <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{selectedBay.user || "N/A"}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#64748b" }}>Parked Since:</span>
@@ -254,21 +242,21 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(selectedBay.slot, "available")}
-                    style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "8px 4px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 800, cursor: "pointer" }}
+                    style={{ background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "8px 4px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 800, cursor: "pointer" }}
                   >
                     Set Available
                   </button>
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(selectedBay.slot, "occupied")}
-                    style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", padding: "8px 4px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 800, cursor: "pointer" }}
+                    style={{ background: "var(--bg-sub, #fef2f2)", border: "1px solid var(--border-color, #fecaca)", color: "#f87171", padding: "8px 4px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 800, cursor: "pointer" }}
                   >
                     Set Occupied
                   </button>
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(selectedBay.slot, "reserved")}
-                    style={{ background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0284c7", padding: "8px 4px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 800, cursor: "pointer" }}
+                    style={{ background: "var(--bg-sub, #f0f9ff)", border: "1px solid var(--border-color, #bae6fd)", color: "#38bdf8", padding: "8px 4px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 800, cursor: "pointer" }}
                   >
                     Set Reserved
                   </button>

@@ -4,7 +4,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       {isPremiumActive && (
-        <div className="pw-premium-active-card" style={{ background: "linear-gradient(135deg, #FFFFFF 0%, #FBF7EE 100%)", border: "1.5px solid #C99A2E", borderRadius: "14px", padding: "20px", boxShadow: "0 4px 16px rgba(201, 154, 46, 0.12)" }}>
+        <div className="pw-premium-active-card" style={{ background: "var(--bg-card, #ffffff)", border: "1.5px solid #C99A2E", borderRadius: "14px", padding: "20px", boxShadow: "0 4px 16px rgba(201, 154, 46, 0.12)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <div style={{ width: "44px", height: "44px", borderRadius: "10px", background: "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)", color: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(201, 154, 46, 0.3)" }}>
@@ -12,7 +12,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
               </div>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <h3 style={{ fontSize: "1.15rem", fontWeight: 800, color: "#12233F", margin: 0 }}>Your Premium Plan is Active</h3>
+                  <h3 style={{ fontSize: "1.15rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Your Premium Plan is Active</h3>
                   <span style={{ background: "#F5E7C3", color: "#9A6B18", border: "1px solid #C99A2E", fontSize: "0.72rem", fontWeight: 800, padding: "2px 8px", borderRadius: "999px" }}>
                     MONTHLY VIP
                   </span>
@@ -33,10 +33,10 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginTop: "18px", background: "#ffffff", padding: "14px 16px", borderRadius: "10px", border: "1px solid #F5E7C3" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginTop: "18px", background: "var(--bg-card, #ffffff)", padding: "14px 16px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
             <div>
               <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Plan Type</span>
-              <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#12233F", marginTop: "2px" }}>Monthly VIP</div>
+              <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>Monthly VIP</div>
             </div>
             <div>
               <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Amount Paid</span>
@@ -44,11 +44,11 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
             </div>
             <div>
               <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Valid From</span>
-              <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#12233F", marginTop: "2px" }}>{premiumPlanInfo?.validFrom || "02 Sep 2025"}</div>
+              <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>{premiumPlanInfo?.validFrom || "02 Sep 2025"}</div>
             </div>
             <div>
               <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Valid Until</span>
-              <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#12233F", marginTop: "2px" }}>{premiumPlanInfo?.validUntil || "02 Oct 2025"}</div>
+              <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>{premiumPlanInfo?.validUntil || "02 Oct 2025"}</div>
             </div>
             <div>
               <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Remaining</span>
@@ -59,14 +59,14 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
       )}
 
       {isPremiumActive && (
-        <div className="pw-calc-box-card" style={{ padding: "18px 20px", background: "#ffffff", border: "1px solid #F5E7C3" }}>
+        <div className="pw-calc-box-card" style={{ padding: "18px 20px", background: "var(--bg-card, #ffffff)", border: "1px solid var(--border-color, #F5E7C3)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
             <Award size={18} style={{ color: "#C99A2E" }} />
-            <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "#12233F", margin: 0 }}>Exclusive Premium VIP Benefits</h4>
+            <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Exclusive Premium VIP Benefits</h4>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px" }}>
-            <div style={{ background: "#FBF7EE", padding: "12px 14px", borderRadius: "10px", border: "1px solid #F5E7C3" }}>
+            <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#9A6B18", fontWeight: 700, fontSize: "0.82rem" }}>
                 <KeyRound size={15} />
                 <span>Priority Access</span>
@@ -74,7 +74,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
               <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Instant boom barrier lift via RFID tag</div>
             </div>
 
-            <div style={{ background: "#FBF7EE", padding: "12px 14px", borderRadius: "10px", border: "1px solid #F5E7C3" }}>
+            <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#9A6B18", fontWeight: 700, fontSize: "0.82rem" }}>
                 <ShieldCheck size={15} />
                 <span>Dedicated Slot</span>
@@ -82,7 +82,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
               <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Guaranteed VIP parking in Zone C</div>
             </div>
 
-            <div style={{ background: "#FBF7EE", padding: "12px 14px", borderRadius: "10px", border: "1px solid #F5E7C3" }}>
+            <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#9A6B18", fontWeight: 700, fontSize: "0.82rem" }}>
                 <Zap size={15} />
                 <span>Faster In & Out</span>
@@ -90,7 +90,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
               <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Zero waiting & automated monthly billing</div>
             </div>
 
-            <div style={{ background: "#FBF7EE", padding: "12px 14px", borderRadius: "10px", border: "1px solid #F5E7C3" }}>
+            <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#9A6B18", fontWeight: 700, fontSize: "0.82rem" }}>
                 <Sparkles size={15} />
                 <span>Premium Support</span>
@@ -139,7 +139,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
         <div className="pw-chart-card">
           <div className="pw-chart-header">
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: isPremiumActive ? "#F5E7C3" : "#f0fdfa", color: isPremiumActive ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)", color: isPremiumActive ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {isPremiumActive ? <Crown size={16} /> : <Car size={16} />}
               </div>
               <h3 className="pw-chart-title">Current Active Parking Pass</h3>
@@ -148,14 +148,14 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
           </div>
 
           <div className="pw-upcoming-body">
-            <div className="pw-upcoming-location-row" style={{ background: isPremiumActive ? "#FBF7EE" : "#f8fafc", padding: "12px", borderRadius: "10px", border: isPremiumActive ? "1px solid #F5E7C3" : "1px solid #e2e8f0" }}>
+            <div className="pw-upcoming-location-row" style={{ background: isPremiumActive ? "var(--bg-sub, #FBF7EE)" : "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "10px", border: isPremiumActive ? "1px solid #ca8a04" : "1px solid var(--border-color, #e2e8f0)" }}>
               <div className="pw-location-icon-box" style={{ background: isPremiumActive ? "#9A6B18" : "#0f3b43", color: "#ffffff" }}>
                 <MapPin size={18} />
               </div>
               <div className="pw-location-meta" style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span className="pw-location-name">Downtown Plaza Parking Bay</span>
-                  <span style={{ fontSize: "0.78rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0d9488", background: isPremiumActive ? "#F5E7C3" : "#f0fdfa", padding: "2px 8px", borderRadius: "6px", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #ccfbf1" }}>Bay A-04</span>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0d9488", background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)", padding: "2px 8px", borderRadius: "6px", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #ccfbf1" }}>Bay A-04</span>
                 </div>
                 <span className="pw-location-time">Floor 1, Zone A • Security Gate North</span>
               </div>
@@ -175,7 +175,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: isPremiumActive ? "#FBF7EE" : "#f0fdfa", borderRadius: "8px", border: isPremiumActive ? "1px solid #F5E7C3" : "1px solid #ccfbf1" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: isPremiumActive ? "var(--bg-sub, #FBF7EE)" : "var(--bg-teal-sub, #f0fdfa)", borderRadius: "8px", border: isPremiumActive ? "1px solid #F5E7C3" : "1px solid #ccfbf1" }}>
               <span style={{ fontSize: "0.82rem", color: isPremiumActive ? "#9A6B18" : "#0f766e", fontWeight: 600 }}>
                 {isPremiumActive ? "VIP Pass Status" : "Accumulated Parking Tariff"}
               </span>
@@ -209,7 +209,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
         <div className="pw-recent-table-card">
           <div className="pw-chart-header">
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: isPremiumActive ? "#F5E7C3" : "#f0fdfa", color: isPremiumActive ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)", color: isPremiumActive ? "#9A6B18" : "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Clock size={16} />
               </div>
               <h3 className="pw-table-title">Recent Parking History</h3>
@@ -235,8 +235,8 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
                   <span className="pw-recent-item-time">{p.date} • {p.duration} • Bay {p.slot}</span>
                 </div>
                 <div className="pw-recent-item-right" style={{ textAlign: "right" }}>
-                  <span className="pw-recent-amount" style={{ fontWeight: 800, color: "#12233F" }}>{p.amount}</span>
-                  <span className="pw-status-pill completed" style={{ fontSize: "0.7rem", padding: "1px 6px", background: isPremiumActive ? "#F5E7C3" : "#f0fdf4", color: isPremiumActive ? "#9A6B18" : "#16a34a", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #bbf7d0" }}>Paid</span>
+                  <span className="pw-recent-amount" style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{p.amount}</span>
+                  <span className="pw-status-pill completed" style={{ fontSize: "0.7rem", padding: "1px 6px", background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdf4)", color: isPremiumActive ? "#9A6B18" : "#16a34a", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #bbf7d0" }}>Paid</span>
                 </div>
               </div>
             ))}
@@ -245,10 +245,10 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
       </div>
 
       <div className="pw-find-parking-section" style={{ marginTop: "6px" }}>
-        <h3 className="pw-section-title" style={{ fontSize: "1.05rem", fontWeight: 700, color: "#12233F", marginBottom: "8px" }}>Quick Customer Services</h3>
+        <h3 className="pw-section-title" style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginBottom: "8px" }}>Quick Customer Services</h3>
         <div className="pw-quick-actions-grid">
           <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => onNavigate && onNavigate("reserve-parking")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "#F5E7C3" : "#f0fdfa" }}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)" }}>
               <BookmarkCheck size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#0d9488" }} />
             </div>
             <div className="pw-action-meta">
@@ -258,7 +258,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
           </div>
 
           <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => onNavigate && onNavigate("my-parking")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "#F5E7C3" : "#f0fdf4" }}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdf4)" }}>
               <Car size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#16a34a" }} />
             </div>
             <div className="pw-action-meta">
@@ -278,7 +278,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
           </div>
 
           <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => onNavigate && onNavigate("parking-history")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "#F5E7C3" : "#eff6ff" }}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #eff6ff)" }}>
               <Clock size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#2563eb" }} />
             </div>
             <div className="pw-action-meta">

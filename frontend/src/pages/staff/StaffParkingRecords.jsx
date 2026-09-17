@@ -140,7 +140,7 @@ export default function StaffParkingRecords() {
         </div>
       </div>
 
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
           <div className="pw-search-box-pill" style={{ width: "300px" }}>
             <Search size={14} className="pw-search-icon" />
@@ -161,9 +161,9 @@ export default function StaffParkingRecords() {
                 className={`pw-filter-pill ${statusFilter === st ? "active" : ""}`}
                 onClick={() => setStatusFilter(st)}
                 style={{
-                  background: statusFilter === st ? "#0d9488" : "#f1f5f9",
-                  color: statusFilter === st ? "#ffffff" : "#475569",
-                  border: statusFilter === st ? "1px solid #0d9488" : "1px solid #cbd5e1",
+                  background: statusFilter === st ? "#0d9488" : "var(--bg-sub, #f1f5f9)",
+                  color: statusFilter === st ? "#ffffff" : "var(--text-secondary, #475569)",
+                  border: statusFilter === st ? "1px solid #0d9488" : "1px solid var(--border-color, #cbd5e1)",
                   borderRadius: "20px",
                   padding: "5px 14px",
                   fontSize: "0.8rem",
@@ -178,7 +178,7 @@ export default function StaffParkingRecords() {
         </div>
       </div>
 
-      <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+      <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
         <div style={{ overflowX: "auto" }}>
           <table className="pw-records-table" style={{ width: "100%" }}>
             <thead>
@@ -199,11 +199,11 @@ export default function StaffParkingRecords() {
                 <tr key={r.id}>
                   <td style={{ fontWeight: 800, color: "#0d9488" }}>{r.ticketNumber}</td>
                   <td>
-                    <div style={{ fontWeight: 800, color: "#0f172a" }}>{r.plateNumber}</div>
+                    <div style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{r.plateNumber}</div>
                     <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{r.vehicleType}</div>
                   </td>
                   <td>
-                    <span style={{ fontWeight: 800, color: "#1e293b", background: "#f1f5f9", padding: "3px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
+                    <span style={{ fontWeight: 800, color: "var(--text-primary, #1e293b)", background: "var(--bg-sub, #f8fafc)", padding: "3px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
                       Bay {r.slot}
                     </span>
                   </td>
@@ -212,7 +212,7 @@ export default function StaffParkingRecords() {
                   <td style={{ fontSize: "0.78rem", color: "#475569", fontWeight: 600 }}>{r.duration}</td>
                   <td style={{ fontWeight: 900, color: "#0d9488" }}>{r.amount}</td>
                   <td>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", background: r.status === "Completed" ? "#f0fdf4" : "#f0fdfa", color: r.status === "Completed" ? "#16a34a" : "#0d9488", border: r.status === "Completed" ? "1px solid #bbf7d0" : "1px solid #ccfbf1" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", background: r.status === "Completed" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-teal-sub, #f0fdfa)", color: r.status === "Completed" ? "#16a34a" : "#0d9488", border: r.status === "Completed" ? "1px solid #bbf7d0" : "1px solid #ccfbf1" }}>
                       {r.status}
                     </span>
                   </td>
@@ -220,7 +220,7 @@ export default function StaffParkingRecords() {
                     <button
                       type="button"
                       onClick={() => handlePrintReceipt(r)}
-                      style={{ background: "#f0fdfa", border: "1px solid #ccfbf1", color: "#0d9488", padding: "5px 10px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      style={{ background: "var(--bg-teal-sub, #f0fdfa)", border: "1px solid #ccfbf1", color: "#0d9488", padding: "5px 10px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
                     >
                       <Printer size={13} />
                       <span>Print</span>
@@ -235,7 +235,7 @@ export default function StaffParkingRecords() {
 
       {isReceiptModalOpen && selectedRecord && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", padding: "16px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", padding: "28px", maxWidth: "380px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", border: "1px solid #e2e8f0", textAlign: "center" }}>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", padding: "28px", maxWidth: "380px", width: "100%", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", border: "1px solid var(--border-color, #e2e8f0)", textAlign: "center" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0d9488" }}>OFFICIAL PARKING RECEIPT</span>
               <button
@@ -248,7 +248,7 @@ export default function StaffParkingRecords() {
             </div>
 
             <div style={{ borderBottom: "2px dashed #cbd5e1", paddingBottom: "14px", marginBottom: "14px" }}>
-              <h3 style={{ fontSize: "1.15rem", fontWeight: 900, color: "#0f172a", margin: 0 }}>ParkSafe Smart Facility</h3>
+              <h3 style={{ fontSize: "1.15rem", fontWeight: 900, color: "var(--text-primary, #0f172a)", margin: 0 }}>ParkSafe Smart Facility</h3>
               <p style={{ fontSize: "0.74rem", color: "#64748b", margin: "2px 0 0 0" }}>Downtown Central Plaza • GSTIN: 29AABCS1429B1Z8</p>
             </div>
 

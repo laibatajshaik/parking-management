@@ -617,8 +617,8 @@ export default function VehicleEntry({ setStatusActionMessage }) {
                   gap: "8px",
                   padding: "0 14px",
                   borderRadius: "9px",
-                  background: entryStatusState.includes("Success") ? "#dcfce7" : "#f0fdf4",
-                  border: "1.5px solid #bbf7d0",
+                  background: "var(--bg-teal-sub, #f0fdf4)",
+                  border: "1.5px solid var(--border-color, #bbf7d0)",
                   color: "#15803d",
                   fontWeight: "700",
                   fontSize: "0.84rem"

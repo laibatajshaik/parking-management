@@ -257,26 +257,26 @@ export default function ReportsAnalytics() {
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "#ffffff", padding: "12px 18px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "#f0fdfa", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <BarChart3 size={20} />
           </div>
           <div>
-            <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Executive Revenue & Occupancy Intelligence</h3>
+            <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Executive Revenue & Occupancy Intelligence</h3>
             <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Live audited metrics for {timeRange}</span>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: "4px", background: "#f1f5f9", padding: "4px", borderRadius: "8px" }}>
+          <div style={{ display: "flex", gap: "4px", background: "var(--bg-sub, #f8fafc)", padding: "4px", borderRadius: "8px" }}>
             {["Today", "Last 7 Days", "Last 30 Days", "Quarterly"].map((range) => (
               <button
                 key={range}
                 type="button"
                 onClick={() => setTimeRange(range)}
                 style={{
-                  background: timeRange === range ? "#0f766e" : "transparent",
+                  background: timeRange === range ? "#0f766e" : "var(--bg-sub, transparent)",
                   color: timeRange === range ? "#ffffff" : "#475569",
                   border: "none",
                   borderRadius: "6px",
@@ -306,7 +306,7 @@ export default function ReportsAnalytics() {
       </div>
 
       {exportMessage && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.84rem", fontWeight: 700 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.84rem", fontWeight: 700 }}>
           <CheckCircle2 size={16} />
           <span>{exportMessage}</span>
         </div>
@@ -351,13 +351,13 @@ export default function ReportsAnalytics() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "20px" }}>
-        <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+        <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
             <div>
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>Peak Traffic & Revenue Heatmap ({timeRange})</h4>
+              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Peak Traffic & Revenue Heatmap ({timeRange})</h4>
               <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Hourly distribution of inbound vehicle check-ins</span>
             </div>
-            <span style={{ fontSize: "0.74rem", background: "#f0fdfa", color: "#0f766e", border: "1px solid #ccfbf1", padding: "3px 10px", borderRadius: "999px", fontWeight: 700 }}>
+            <span style={{ fontSize: "0.74rem", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", border: "1px solid #ccfbf1", padding: "3px 10px", borderRadius: "999px", fontWeight: 700 }}>
               Peak at 06:00 PM
             </span>
           </div>
@@ -368,10 +368,10 @@ export default function ReportsAnalytics() {
               return (
                 <div key={idx} style={{ display: "grid", gridTemplateColumns: "60px 1fr 100px 90px", alignItems: "center", gap: "12px", fontSize: "0.78rem" }}>
                   <span style={{ fontWeight: 700, color: "#64748b" }}>{item.hour}</span>
-                  <div style={{ height: "14px", background: "#f1f5f9", borderRadius: "4px", overflow: "hidden" }}>
+                  <div style={{ height: "14px", background: "var(--bg-sub, #f8fafc)", borderRadius: "4px", overflow: "hidden" }}>
                     <div style={{ width: `${barWidth}%`, height: "100%", background: barWidth > 80 ? "linear-gradient(90deg, #0d9488, #059669)" : "linear-gradient(90deg, #38bdf8, #0284c7)", borderRadius: "4px", transition: "width 0.3s ease" }} />
                   </div>
-                  <span style={{ fontWeight: 700, color: "#1e293b", textAlign: "right" }}>{item.vehicles} vehicles</span>
+                  <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)", textAlign: "right" }}>{item.vehicles} vehicles</span>
                   <span style={{ fontWeight: 800, color: "#0f766e", textAlign: "right" }}>₹ {item.revenue.toLocaleString("en-IN")}</span>
                 </div>
               );
@@ -380,8 +380,8 @@ export default function ReportsAnalytics() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: "0 0 14px 0" }}>Vehicle Type Distribution ({timeRange})</h4>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 14px 0" }}>Vehicle Type Distribution ({timeRange})</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {currentData.vehicleDistribution.map((v, idx) => {
                 const Icon = v.icon;
@@ -392,9 +392,9 @@ export default function ReportsAnalytics() {
                         <Icon size={14} style={{ color: v.color }} />
                         <span>{v.type}</span>
                       </div>
-                      <span style={{ fontWeight: 800, color: "#0f172a" }}>{v.count} ({v.pct}%)</span>
+                      <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{v.count} ({v.pct}%)</span>
                     </div>
-                    <div style={{ height: "6px", background: "#f1f5f9", borderRadius: "999px", overflow: "hidden" }}>
+                    <div style={{ height: "6px", background: "var(--bg-sub, #f8fafc)", borderRadius: "999px", overflow: "hidden" }}>
                       <div style={{ width: `${v.pct}%`, height: "100%", background: v.color, borderRadius: "999px" }} />
                     </div>
                   </div>
@@ -403,19 +403,19 @@ export default function ReportsAnalytics() {
             </div>
           </div>
 
-          <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: "0 0 14px 0" }}>Payment Mode Settlement ({timeRange})</h4>
+          <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 14px 0" }}>Payment Mode Settlement ({timeRange})</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {currentData.paymentBreakdown.map((pm, idx) => {
                 const Icon = pm.icon;
                 return (
-                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div style={{ width: "32px", height: "32px", borderRadius: "6px", background: "#f0fdfa", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "6px", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Icon size={16} />
                       </div>
                       <div>
-                        <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>{pm.method}</div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{pm.method}</div>
                         <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{pm.count} transactions ({pm.pct}%)</div>
                       </div>
                     </div>
@@ -428,8 +428,8 @@ export default function ReportsAnalytics() {
         </div>
       </div>
 
-      <div style={{ background: "#ffffff", borderRadius: "14px", border: "1px solid #e2e8f0", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-        <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "#0f172a", margin: "0 0 14px 0" }}>Zone Efficiency & Turnover Performance ({timeRange})</h4>
+      <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+        <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 14px 0" }}>Zone Efficiency & Turnover Performance ({timeRange})</h4>
         <div style={{ overflowX: "auto" }}>
           <table className="pw-records-table" style={{ width: "100%" }}>
             <thead>
@@ -444,10 +444,10 @@ export default function ReportsAnalytics() {
             <tbody>
               {currentData.zonePerformance.map((zp, idx) => (
                 <tr key={idx}>
-                  <td style={{ fontWeight: 700, color: "#0f172a" }}>{zp.zone}</td>
+                  <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{zp.zone}</td>
                   <td style={{ textAlign: "center" }}>{zp.totalBays} Bays</td>
                   <td style={{ textAlign: "center" }}>
-                    <span style={{ background: "#f0fdf4", color: "#16a34a", padding: "2px 8px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
+                    <span style={{ background: "var(--bg-teal-sub, #f0fdf4)", color: "#16a34a", padding: "2px 8px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700 }}>
                       {zp.avgOccupancy}
                     </span>
                   </td>
