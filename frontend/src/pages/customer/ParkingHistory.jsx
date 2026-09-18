@@ -47,11 +47,21 @@ export default function ParkingHistory({ loggedInUser }) {
     }
   };
 
-  const filteredHistory = historyList.filter((item) => {
+  const validHistory = historyList.filter(
+    (item) =>
+      item.vehicle_number &&
+      item.vehicle_number.trim() !== "" &&
+      item.vehicle_number !== "—" &&
+      item.slot_number &&
+      item.slot_number.trim() !== "" &&
+      item.slot_number !== "—"
+  );
+
+  const filteredHistory = validHistory.filter((item) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
-      item.vehicle_number.toLowerCase().includes(q) ||
+      (item.vehicle_number && item.vehicle_number.toLowerCase().includes(q)) ||
       (item.slot_number && item.slot_number.toLowerCase().includes(q)) ||
       (item.transaction_id && item.transaction_id.toLowerCase().includes(q));
 
@@ -350,7 +360,7 @@ export default function ParkingHistory({ loggedInUser }) {
         </div>
 
         <div className="pw-users-table-footer">
-          <span>Showing {filteredHistory.length} of {historyList.length} past parking trips</span>
+          <span>Showing {filteredHistory.length} of {validHistory.length} past parking trips</span>
         </div>
       </div>
 

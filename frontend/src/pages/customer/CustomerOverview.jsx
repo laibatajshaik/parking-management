@@ -149,7 +149,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
 
           <div className="pw-upcoming-body">
             <div className="pw-upcoming-location-row" style={{ background: isPremiumActive ? "var(--bg-sub, #FBF7EE)" : "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "10px", border: isPremiumActive ? "1px solid #ca8a04" : "1px solid var(--border-color, #e2e8f0)" }}>
-              <div className="pw-location-icon-box" style={{ background: isPremiumActive ? "#9A6B18" : "#0f3b43", color: "#ffffff" }}>
+              <div className="pw-location-icon-box" style={{ background: isPremiumActive ? "#9A6B18" : "#0d9488", color: "#ffffff" }}>
                 <MapPin size={18} />
               </div>
               <div className="pw-location-meta" style={{ flex: 1 }}>

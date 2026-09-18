@@ -44,7 +44,17 @@ export default function ActiveParkingSessions() {
     }
   };
 
-  const filteredSessions = sessions.filter((s) => {
+  const validSessions = sessions.filter(
+    (s) =>
+      s.vehicle_number &&
+      s.vehicle_number.trim() !== "" &&
+      s.vehicle_number !== "—" &&
+      (s.current_slot || s.slot_number) &&
+      s.current_slot !== "—" &&
+      s.slot_number !== "—"
+  );
+
+  const filteredSessions = validSessions.filter((s) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
@@ -64,11 +74,11 @@ export default function ActiveParkingSessions() {
     return matchesSearch && matchesType && matchesZone;
   });
 
-  const totalParked = sessions.length;
-  const carsCount = sessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "car" || (s.vehicle_type || "").toLowerCase() === "suv").length;
-  const bikesCount = sessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "bike").length;
-  const evCount = sessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "ev").length;
-  const totalAccruedFee = sessions.reduce((sum, s) => sum + (parseFloat(s.fee_numeric) || 0), 0);
+  const totalParked = validSessions.length;
+  const carsCount = validSessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "car" || (s.vehicle_type || "").toLowerCase() === "suv").length;
+  const bikesCount = validSessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "bike").length;
+  const evCount = validSessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "ev").length;
+  const totalAccruedFee = validSessions.reduce((sum, s) => sum + (parseFloat(s.fee_numeric) || 0), 0);
 
   return (
     <div className="pw-active-sessions-module">
@@ -259,7 +269,7 @@ export default function ActiveParkingSessions() {
         </div>
 
         <div className="pw-users-table-footer">
-          <span>Showing {filteredSessions.length} of {sessions.length} active parked vehicles</span>
+          <span>Showing {filteredSessions.length} of {validSessions.length} active parked vehicles</span>
         </div>
       </div>
     </div>

@@ -1328,7 +1328,7 @@ html, body {
   font-family: "Sora", sans-serif;
   font-size: 0.9rem;
   font-weight: 700;
-  color: #0a292f;
+  color: var(--text-primary, #0a292f);
   margin: 0;
 }
 
@@ -1337,7 +1337,7 @@ html, body {
   align-items: center;
   gap: 12px;
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
 }
 
 .legend-item {
@@ -1372,7 +1372,7 @@ html, body {
   justify-content: space-between;
   padding: 0 14px;
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
 }
 
 .pw-donut-chart-row {
@@ -1410,13 +1410,13 @@ html, body {
   font-family: "Sora", sans-serif;
   font-size: 1.15rem;
   font-weight: 800;
-  color: #0a292f;
+  color: var(--text-primary, #0a292f);
   line-height: 1;
 }
 
 .pw-donut-sub {
   font-size: 0.65rem;
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
   font-weight: 600;
 }
 
@@ -1439,21 +1439,21 @@ html, body {
   border-radius: 50%;
 }
 
-.dot-teal { background: #0f3b43; }
-.dot-amber { background: #0d9488; }
-.dot-red { background: #99f6e4; }
+.dot-teal { background: #0d9488; }
+.dot-amber { background: #0284c7; }
+.dot-red { background: #f59e0b; }
 .dot-blue { background: #0284c7; }
-.dot-darkteal { background: #092429; }
+.dot-darkteal { background: #0d9488; }
 .dot-lightteal { background: #ccfbf1; }
 
 .pw-legend-name {
-  color: #94a3b8;
+  color: var(--text-secondary, #94a3b8);
   width: 60px;
 }
 
 .pw-legend-val {
   font-weight: 700;
-  color: #0a292f;
+  color: var(--text-primary, #0a292f);
 }
 
 .pw-table-scroll {
@@ -1472,14 +1472,14 @@ html, body {
   padding: 7px 10px;
   font-size: 0.7rem;
   font-weight: 700;
-  color: #94a3b8;
-  border-bottom: 1px solid #e2e8f0;
+  color: var(--text-secondary, #94a3b8);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
 
 .pw-custom-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #0a292f;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  color: var(--text-primary, #0a292f);
 }
 
 .pw-status-pill {
@@ -1648,15 +1648,18 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.4px;
   box-sizing: border-box;
+  min-width: 100%;
+  width: max-content;
 }
 
 .pw-users-table-scroll-container {
   width: 100%;
   overflow-x: auto;
-  padding-bottom: 6px;
+  padding-bottom: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  box-sizing: border-box;
 }
 
 .pw-mgmt-grid-row {
@@ -1676,31 +1679,31 @@ html, body {
 }
 
 .pw-veh-mgmt-grid {
-  grid-template-columns: minmax(135px, 1.2fr) 65px minmax(140px, 1.3fr) minmax(120px, 1.1fr) 130px 165px;
+  grid-template-columns: minmax(140px, 1.2fr) 75px minmax(140px, 1.3fr) minmax(130px, 1.1fr) 130px 170px;
   gap: 10px;
   width: 100%;
-  min-width: 820px;
+  min-width: 850px;
 }
 
 .pw-user-mgmt-grid {
-  grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1.4fr) minmax(130px, 1fr) 110px 290px;
+  grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1.4fr) minmax(130px, 1fr) 115px 290px;
   gap: 12px;
   width: 100%;
-  min-width: 880px;
+  min-width: 900px;
 }
 
 .pw-slot-mgmt-grid {
-  grid-template-columns: minmax(140px, 1.3fr) 100px 110px 130px 160px;
+  grid-template-columns: minmax(140px, 1.3fr) 110px 115px 130px 170px;
   gap: 10px;
   width: 100%;
-  min-width: 720px;
+  min-width: 760px;
 }
 
 .pw-veh-entry-grid {
-  grid-template-columns: minmax(125px, 1.1fr) 55px minmax(125px, 1.2fr) minmax(125px, 1.1fr) 68px 90px 145px;
+  grid-template-columns: minmax(130px, 1.1fr) 60px minmax(130px, 1.2fr) minmax(130px, 1.1fr) 75px 95px 150px;
   gap: 8px;
   width: 100%;
-  min-width: 800px;
+  min-width: 840px;
 }
 
 .pw-veh-plate-col {
@@ -1723,6 +1726,9 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 100%;
+  width: max-content;
+  box-sizing: border-box;
 }
 
 .pw-user-card-box {
@@ -1738,6 +1744,8 @@ html, body {
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   position: relative;
   box-sizing: border-box;
+  width: 100%;
+  min-width: 100%;
 }
 
 .pw-user-card-box:hover {
@@ -3263,38 +3271,38 @@ html, body {
 
 .pw-active-sessions-grid {
   display: grid;
-  grid-template-columns: minmax(150px, 1.5fr) minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(110px, 1.1fr) minmax(90px, 0.9fr) minmax(100px, 1fr) minmax(100px, 0.9fr);
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-width: 860px;
-}
-
-.pw-staff-active-grid {
-  display: grid;
-  grid-template-columns: minmax(150px, 1.5fr) minmax(100px, 1fr) minmax(120px, 1.2fr) minmax(110px, 1.1fr) minmax(90px, 0.9fr) minmax(100px, 1fr) minmax(120px, 1.2fr);
+  grid-template-columns: minmax(150px, 1.4fr) minmax(110px, 1.1fr) minmax(125px, 1.2fr) minmax(115px, 1.1fr) minmax(95px, 0.9fr) minmax(105px, 1fr) minmax(115px, 1.1fr);
   align-items: center;
   gap: 12px;
   width: 100%;
   min-width: 880px;
 }
 
-.pw-revenue-grid {
+.pw-staff-active-grid {
   display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) minmax(110px, 1.1fr) minmax(120px, 1.2fr) minmax(110px, 1.1fr) minmax(110px, 1.1fr) minmax(100px, 1fr) minmax(100px, 0.9fr);
+  grid-template-columns: minmax(150px, 1.4fr) minmax(110px, 1.1fr) minmax(125px, 1.2fr) minmax(115px, 1.1fr) minmax(95px, 0.9fr) minmax(105px, 1fr) minmax(130px, 1.2fr);
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-width: 840px;
+  min-width: 900px;
+}
+
+.pw-revenue-grid {
+  display: grid;
+  grid-template-columns: minmax(135px, 1.2fr) minmax(115px, 1.1fr) minmax(125px, 1.2fr) minmax(115px, 1.1fr) minmax(115px, 1.1fr) minmax(105px, 1fr) minmax(110px, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 880px;
 }
 
 .pw-customer-payments-grid {
   display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) minmax(110px, 1.1fr) minmax(120px, 1.2fr) minmax(120px, 1.2fr) minmax(120px, 1.2fr) minmax(100px, 1fr) minmax(90px, 0.8fr);
+  grid-template-columns: minmax(135px, 1.2fr) minmax(115px, 1.1fr) minmax(125px, 1.2fr) minmax(125px, 1.2fr) minmax(125px, 1.2fr) minmax(105px, 1fr) minmax(100px, 0.9fr);
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-width: 860px;
+  min-width: 880px;
 }
 
 .pw-badge-slot-cell {
@@ -4217,17 +4225,17 @@ html, body {
 }
 
 .pw-parking-records-grid {
-  grid-template-columns: minmax(130px, 1.4fr) minmax(110px, 1.1fr) 75px 125px 125px 95px 85px 85px 110px;
+  grid-template-columns: minmax(135px, 1.4fr) minmax(115px, 1.1fr) 80px 130px 130px 100px 90px 90px 120px;
   gap: 10px;
   width: 100%;
-  min-width: 940px;
+  min-width: 980px;
 }
 
 .pw-customer-history-grid {
-  grid-template-columns: minmax(130px, 1.3fr) 85px minmax(120px, 1.1fr) minmax(120px, 1.1fr) 100px 90px 90px 105px;
+  grid-template-columns: minmax(135px, 1.3fr) 90px minmax(125px, 1.1fr) minmax(125px, 1.1fr) 105px 95px 95px 115px;
   gap: 10px;
   width: 100%;
-  min-width: 840px;
+  min-width: 880px;
 }
 
 .pw-btn-action-download {
@@ -4272,10 +4280,10 @@ html, body {
 }
 
 .pw-bookings-reservations-grid {
-  grid-template-columns: minmax(130px, 1.3fr) minmax(120px, 1.2fr) minmax(120px, 1.2fr) 95px minmax(120px, 1.2fr) 100px 95px 140px;
-  gap: 10px;
+  grid-template-columns: minmax(130px, 1.2fr) minmax(135px, 1.3fr) minmax(130px, 1.2fr) minmax(95px, 0.9fr) minmax(135px, 1.2fr) minmax(110px, 1fr) minmax(115px, 1fr) minmax(170px, 1.4fr);
+  gap: 12px;
   width: 100%;
-  min-width: 900px;
+  min-width: 1060px;
 }
 
 .pw-badge-status-completed {
@@ -5866,21 +5874,24 @@ html, body {
 
 .pw-plans-cards-trio-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
   gap: 18px;
   width: 100%;
+  align-items: start;
 }
 
 .pw-customer-pricing-card {
   background: #ffffff;
   border-radius: 14px;
   border: 1.5px solid #e2e8f0;
-  padding: 20px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  height: fit-content;
+  align-self: start;
 }
 
 .pw-customer-pricing-card:hover {
@@ -5949,11 +5960,15 @@ html, body {
 }
 
 .pw-customer-plan-rate-banner {
-  margin: 16px 0;
-  padding: 12px 14px;
+  margin: 12px 0;
+  padding: 10px 14px;
   border-radius: 8px;
   background: #f8fafc;
-  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .pw-customer-plan-rate-banner.selected-rate {
@@ -5961,7 +5976,7 @@ html, body {
 }
 
 .pw-customer-plan-rate-text {
-  font-size: 1.15rem;
+  font-size: 1.12rem;
   font-weight: 800;
   color: #0a292f;
 }
@@ -9673,4 +9688,448 @@ body.dark-theme .pw-text-link,
 [data-theme="dark"] .pw-switch-link,
 body.dark-theme .pw-switch-link {
   color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-chart-title,
+body.dark-theme .pw-chart-title,
+[data-theme="dark"] .pw-table-title,
+body.dark-theme .pw-table-title,
+[data-theme="dark"] .pw-section-title,
+body.dark-theme .pw-section-title,
+[data-theme="dark"] .pw-chart-header h3,
+body.dark-theme .pw-chart-header h3,
+[data-theme="dark"] .pw-chart-header h4,
+body.dark-theme .pw-chart-header h4,
+[data-theme="dark"] .pw-donut-big,
+body.dark-theme .pw-donut-big,
+[data-theme="dark"] .pw-legend-val,
+body.dark-theme .pw-legend-val,
+[data-theme="dark"] .pw-user-col-value,
+body.dark-theme .pw-user-col-value,
+[data-theme="dark"] .pw-user-name-bold,
+body.dark-theme .pw-user-name-bold,
+[data-theme="dark"] .pw-detail-value,
+body.dark-theme .pw-detail-value,
+[data-theme="dark"] .pw-detail-user-name,
+body.dark-theme .pw-detail-user-name,
+[data-theme="dark"] .pw-modal-title,
+body.dark-theme .pw-modal-title,
+[data-theme="dark"] .pw-delete-modal-title,
+body.dark-theme .pw-delete-modal-title,
+[data-theme="dark"] .pw-btn-cancel-delete,
+body.dark-theme .pw-btn-cancel-delete,
+[data-theme="dark"] .pw-activity-title,
+body.dark-theme .pw-activity-title,
+[data-theme="dark"] .pw-action-title,
+body.dark-theme .pw-action-title,
+[data-theme="dark"] .pw-location-name,
+body.dark-theme .pw-location-name,
+[data-theme="dark"] .pw-veh-val,
+body.dark-theme .pw-veh-val,
+[data-theme="dark"] .pw-recent-item-title,
+body.dark-theme .pw-recent-item-title,
+[data-theme="dark"] .pw-recent-amount,
+body.dark-theme .pw-recent-amount,
+[data-theme="dark"] .pw-bay-tile-num,
+body.dark-theme .pw-bay-tile-num,
+[data-theme="dark"] .pw-entry-form-title,
+body.dark-theme .pw-entry-form-title,
+[data-theme="dark"] .pw-gate-pass-val,
+body.dark-theme .pw-gate-pass-val,
+[data-theme="dark"] .pw-duration-chip,
+body.dark-theme .pw-duration-chip,
+[data-theme="dark"] .pw-fee-amount,
+body.dark-theme .pw-fee-amount,
+[data-theme="dark"] .pw-rev-method-val,
+body.dark-theme .pw-rev-method-val,
+[data-theme="dark"] .pw-receipt-title,
+body.dark-theme .pw-receipt-title,
+[data-theme="dark"] .pw-receipt-value,
+body.dark-theme .pw-receipt-value,
+[data-theme="dark"] .pw-btn-print,
+body.dark-theme .pw-btn-print,
+[data-theme="dark"] .pw-hero-item-val,
+body.dark-theme .pw-hero-item-val,
+[data-theme="dark"] .pw-counter-value,
+body.dark-theme .pw-counter-value,
+[data-theme="dark"] .pw-guidance-header h4,
+body.dark-theme .pw-guidance-header h4,
+[data-theme="dark"] .pw-step-content h5,
+body.dark-theme .pw-step-content h5,
+[data-theme="dark"] .pw-receipt-company-title,
+body.dark-theme .pw-receipt-company-title,
+[data-theme="dark"] .pw-zone-tag,
+body.dark-theme .pw-zone-tag,
+[data-theme="dark"] .pw-summary-val,
+body.dark-theme .pw-summary-val,
+[data-theme="dark"] .pw-summary-label-total,
+body.dark-theme .pw-summary-label-total,
+[data-theme="dark"] .pw-plan-card-title,
+body.dark-theme .pw-plan-card-title,
+[data-theme="dark"] .pw-zone-card-info h4,
+body.dark-theme .pw-zone-card-info h4,
+[data-theme="dark"] .pw-calc-stat-number,
+body.dark-theme .pw-calc-stat-number,
+[data-theme="dark"] .pw-calc-card-title,
+body.dark-theme .pw-calc-card-title,
+[data-theme="dark"] .pw-calc-detail-val,
+body.dark-theme .pw-calc-detail-val,
+[data-theme="dark"] .pw-customer-plan-title,
+body.dark-theme .pw-customer-plan-title,
+[data-theme="dark"] .pw-customer-plan-rate-text,
+body.dark-theme .pw-customer-plan-rate-text,
+[data-theme="dark"] .pw-comparison-table td.feature-title-col,
+body.dark-theme .pw-comparison-table td.feature-title-col,
+[data-theme="dark"] .pw-custom-table td,
+body.dark-theme .pw-custom-table td,
+[data-theme="dark"] .pw-custom-table td strong,
+body.dark-theme .pw-custom-table td strong,
+[data-theme="dark"] .pw-records-table td,
+body.dark-theme .pw-records-table td,
+[data-theme="dark"] .pw-records-table td strong,
+body.dark-theme .pw-records-table td strong {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .pw-chart-legend,
+body.dark-theme .pw-chart-legend,
+[data-theme="dark"] .legend-item,
+body.dark-theme .legend-item,
+[data-theme="dark"] .pw-chart-x-axis,
+body.dark-theme .pw-chart-x-axis,
+[data-theme="dark"] .pw-donut-sub,
+body.dark-theme .pw-donut-sub,
+[data-theme="dark"] .pw-legend-name,
+body.dark-theme .pw-legend-name,
+[data-theme="dark"] .pw-total-slots-note,
+body.dark-theme .pw-total-slots-note,
+[data-theme="dark"] .pw-action-sub,
+body.dark-theme .pw-action-sub,
+[data-theme="dark"] .pw-location-time,
+body.dark-theme .pw-location-time,
+[data-theme="dark"] .pw-veh-label,
+body.dark-theme .pw-veh-label,
+[data-theme="dark"] .pw-fee-rate,
+body.dark-theme .pw-fee-rate,
+[data-theme="dark"] .pw-rev-method-header,
+body.dark-theme .pw-rev-method-header,
+[data-theme="dark"] .pw-plan-banner-unit,
+body.dark-theme .pw-plan-banner-unit,
+[data-theme="dark"] .pw-summary-label,
+body.dark-theme .pw-summary-label,
+[data-theme="dark"] .pw-plan-card-unit,
+body.dark-theme .pw-plan-card-unit,
+[data-theme="dark"] .pw-plan-card-desc,
+body.dark-theme .pw-plan-card-desc,
+[data-theme="dark"] .pw-reserve-tab-btn,
+body.dark-theme .pw-reserve-tab-btn,
+[data-theme="dark"] .pw-stepper-number,
+body.dark-theme .pw-stepper-number,
+[data-theme="dark"] .pw-comparison-table td,
+body.dark-theme .pw-comparison-table td,
+[data-theme="dark"] .pw-custom-table th,
+body.dark-theme .pw-custom-table th,
+[data-theme="dark"] .pw-records-table th,
+body.dark-theme .pw-records-table th {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .pw-txn-badge,
+body.dark-theme .pw-txn-badge,
+[data-theme="dark"] .pw-summary-val-total,
+body.dark-theme .pw-summary-val-total,
+[data-theme="dark"] .pw-plan-card-rate,
+body.dark-theme .pw-plan-card-rate,
+[data-theme="dark"] .pw-calc-total-val,
+body.dark-theme .pw-calc-total-val,
+[data-theme="dark"] .pw-gate-pass-brand,
+body.dark-theme .pw-gate-pass-brand,
+[data-theme="dark"] .pw-step-num,
+body.dark-theme .pw-step-num {
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] svg text,
+body.dark-theme svg text {
+  fill: #f8fafc !important;
+}
+
+[data-theme="dark"] .pw-mobile-toggle,
+body.dark-theme .pw-mobile-toggle,
+[data-theme="dark"] .pw-empty-state h4,
+body.dark-theme .pw-empty-state h4,
+[data-theme="dark"] .pw-theme-toggle-btn,
+body.dark-theme .pw-theme-toggle-btn {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .pw-eye-btn:hover,
+body.dark-theme .pw-eye-btn:hover,
+[data-theme="dark"] .pw-modal-close-btn:hover,
+body.dark-theme .pw-modal-close-btn:hover,
+[data-theme="dark"] .pw-reserve-tab-btn:hover,
+body.dark-theme .pw-reserve-tab-btn:hover {
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-duration-chip,
+body.dark-theme .pw-duration-chip {
+  background: #0a292f !important;
+  border-color: #184e58 !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .pw-badge-slot-cell,
+body.dark-theme .pw-badge-slot-cell {
+  background: rgba(13, 148, 136, 0.15) !important;
+  border-color: rgba(13, 148, 136, 0.3) !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-txn-badge,
+body.dark-theme .pw-txn-badge {
+  background: rgba(13, 148, 136, 0.15) !important;
+  border-color: rgba(13, 148, 136, 0.35) !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-payment-method-badge,
+body.dark-theme .pw-payment-method-badge {
+  background: #0a292f !important;
+  border-color: #184e58 !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-veh-status-pill.parked,
+body.dark-theme .pw-veh-status-pill.parked,
+[data-theme="dark"] .pw-status-pill.confirmed,
+body.dark-theme .pw-status-pill.confirmed,
+[data-theme="dark"] .pw-status-pill.active,
+body.dark-theme .pw-status-pill.active,
+[data-theme="dark"] .pw-badge-status-completed,
+body.dark-theme .pw-badge-status-completed,
+[data-theme="dark"] .pw-user-status-pill.active,
+body.dark-theme .pw-user-status-pill.active,
+[data-theme="dark"] .pw-calc-status-pill.paid,
+body.dark-theme .pw-calc-status-pill.paid,
+[data-theme="dark"] .pw-slot-chip.avail,
+body.dark-theme .pw-slot-chip.avail,
+[data-theme="dark"] .pw-bay-tile.available,
+body.dark-theme .pw-bay-tile.available,
+[data-theme="dark"] .pw-status-legend-pill.avail,
+body.dark-theme .pw-status-legend-pill.avail {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: #34d399 !important;
+}
+
+[data-theme="dark"] .pw-veh-status-pill.checkedout,
+body.dark-theme .pw-veh-status-pill.checkedout,
+[data-theme="dark"] .pw-slot-type-badge.standard,
+body.dark-theme .pw-slot-type-badge.standard,
+[data-theme="dark"] .pw-slot-chip.occupied,
+body.dark-theme .pw-slot-chip.occupied,
+[data-theme="dark"] .pw-val-pill-limited,
+body.dark-theme .pw-val-pill-limited {
+  background: rgba(148, 163, 184, 0.15) !important;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .pw-veh-status-pill.registered,
+body.dark-theme .pw-veh-status-pill.registered,
+[data-theme="dark"] .pw-badge-status-parked,
+body.dark-theme .pw-badge-status-parked,
+[data-theme="dark"] .pw-slot-avatar-small.reserved,
+body.dark-theme .pw-slot-avatar-small.reserved,
+[data-theme="dark"] .pw-slot-type-badge.bike,
+body.dark-theme .pw-slot-type-badge.bike,
+[data-theme="dark"] .pw-veh-type-badge.bike,
+body.dark-theme .pw-veh-type-badge.bike,
+[data-theme="dark"] .pw-bay-tile.reserved,
+body.dark-theme .pw-bay-tile.reserved,
+[data-theme="dark"] .pw-status-legend-pill.reserved,
+body.dark-theme .pw-status-legend-pill.reserved {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .pw-status-pill.pending,
+body.dark-theme .pw-status-pill.pending,
+[data-theme="dark"] .pw-badge-status-pending,
+body.dark-theme .pw-badge-status-pending,
+[data-theme="dark"] .pw-calc-status-pill.pending,
+body.dark-theme .pw-calc-status-pill.pending,
+[data-theme="dark"] .pw-role-badge.staff,
+body.dark-theme .pw-role-badge.staff,
+[data-theme="dark"] .pw-slot-type-badge.vip,
+body.dark-theme .pw-slot-type-badge.vip,
+[data-theme="dark"] .pw-veh-type-badge.suv,
+body.dark-theme .pw-veh-type-badge.suv {
+  background: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+  color: #fbbf24 !important;
+}
+
+[data-theme="dark"] .pw-badge-status-cancelled,
+body.dark-theme .pw-badge-status-cancelled,
+[data-theme="dark"] .pw-slot-avatar-small.occupied,
+body.dark-theme .pw-slot-avatar-small.occupied,
+[data-theme="dark"] .pw-bay-tile.occupied,
+body.dark-theme .pw-bay-tile.occupied,
+[data-theme="dark"] .pw-status-legend-pill.occ,
+body.dark-theme .pw-status-legend-pill.occ,
+[data-theme="dark"] .pw-delete-icon-circle,
+body.dark-theme .pw-delete-icon-circle,
+[data-theme="dark"] .pw-btn-action-delete,
+body.dark-theme .pw-btn-action-delete {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: #f87171 !important;
+}
+
+[data-theme="dark"] .pw-role-badge.customer,
+body.dark-theme .pw-role-badge.customer,
+[data-theme="dark"] .pw-veh-type-badge.car,
+body.dark-theme .pw-veh-type-badge.car,
+[data-theme="dark"] .pw-veh-type-badge.ev,
+body.dark-theme .pw-veh-type-badge.ev,
+[data-theme="dark"] .pw-slot-avatar-small,
+body.dark-theme .pw-slot-avatar-small,
+[data-theme="dark"] .pw-tag-slot,
+body.dark-theme .pw-tag-slot {
+  background: rgba(13, 148, 136, 0.15) !important;
+  border-color: rgba(13, 148, 136, 0.35) !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-btn-action-view,
+body.dark-theme .pw-btn-action-view,
+[data-theme="dark"] .pw-btn-cancel-delete,
+body.dark-theme .pw-btn-cancel-delete,
+[data-theme="dark"] .pw-btn-action-refresh,
+body.dark-theme .pw-btn-action-refresh,
+[data-theme="dark"] .pw-calc-btn-reset,
+body.dark-theme .pw-calc-btn-reset {
+  background: #0a292f !important;
+  border-color: #184e58 !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .pw-btn-action-view:hover,
+body.dark-theme .pw-btn-action-view:hover,
+[data-theme="dark"] .pw-btn-cancel-delete:hover,
+body.dark-theme .pw-btn-cancel-delete:hover,
+[data-theme="dark"] .pw-btn-action-refresh:hover,
+body.dark-theme .pw-btn-action-refresh:hover,
+[data-theme="dark"] .pw-calc-btn-reset:hover,
+body.dark-theme .pw-calc-btn-reset:hover {
+  background: #144b55 !important;
+  border-color: #2dd4bf !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-btn-action-edit,
+body.dark-theme .pw-btn-action-edit,
+[data-theme="dark"] .pw-btn-modal-edit,
+body.dark-theme .pw-btn-modal-edit,
+[data-theme="dark"] .pw-btn-action-view-receipt,
+body.dark-theme .pw-btn-action-view-receipt,
+[data-theme="dark"] .pw-calc-search-btn,
+body.dark-theme .pw-calc-search-btn {
+  background: rgba(13, 148, 136, 0.15) !important;
+  border-color: rgba(13, 148, 136, 0.35) !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-btn-action-history,
+body.dark-theme .pw-btn-action-history,
+[data-theme="dark"] .pw-btn-action-download,
+body.dark-theme .pw-btn-action-download {
+  background: rgba(14, 165, 233, 0.15) !important;
+  border-color: rgba(14, 165, 233, 0.35) !important;
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .pw-fee-amount,
+body.dark-theme .pw-fee-amount {
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-action-card,
+body.dark-theme .pw-action-card,
+[data-theme="dark"] .pw-confirm-delete-modal,
+body.dark-theme .pw-confirm-delete-modal,
+[data-theme="dark"] .pw-rev-method-card,
+body.dark-theme .pw-rev-method-card,
+[data-theme="dark"] .pw-receipt-selector-bar,
+body.dark-theme .pw-receipt-selector-bar,
+[data-theme="dark"] .pw-reserve-zone-card,
+body.dark-theme .pw-reserve-zone-card,
+[data-theme="dark"] .pw-plan-select-card,
+body.dark-theme .pw-plan-select-card,
+[data-theme="dark"] .pw-zone-select-card,
+body.dark-theme .pw-zone-select-card,
+[data-theme="dark"] .pw-receipt-list-card,
+body.dark-theme .pw-receipt-list-card {
+  background: #0f3b43 !important;
+  border-color: #184e58 !important;
+}
+
+[data-theme="dark"] .pw-modal-header,
+body.dark-theme .pw-modal-header,
+[data-theme="dark"] .pw-modal-footer,
+body.dark-theme .pw-modal-footer,
+[data-theme="dark"] .pw-upcoming-vehicle-row,
+body.dark-theme .pw-upcoming-vehicle-row,
+[data-theme="dark"] .pw-recent-item-row,
+body.dark-theme .pw-recent-item-row,
+[data-theme="dark"] .pw-duration-card-light,
+body.dark-theme .pw-duration-card-light,
+[data-theme="dark"] .pw-receipt-list-item,
+body.dark-theme .pw-receipt-list-item,
+[data-theme="dark"] .pw-receipt-footer-stamp,
+body.dark-theme .pw-receipt-footer-stamp,
+[data-theme="dark"] .pw-calc-input.disabled-input,
+body.dark-theme .pw-calc-input.disabled-input {
+  background: #0a292f !important;
+  border-color: #184e58 !important;
+}
+
+[data-theme="dark"] .pw-reserve-zone-card.active,
+body.dark-theme .pw-reserve-zone-card.active,
+[data-theme="dark"] .pw-reserve-zone-card:hover,
+body.dark-theme .pw-reserve-zone-card:hover,
+[data-theme="dark"] .pw-plan-select-card.selected,
+body.dark-theme .pw-plan-select-card.selected,
+[data-theme="dark"] .pw-zone-select-card.selected,
+body.dark-theme .pw-zone-select-card.selected,
+[data-theme="dark"] .pw-receipt-list-item.selected,
+body.dark-theme .pw-receipt-list-item.selected,
+[data-theme="dark"] .pw-receipt-list-item:hover,
+body.dark-theme .pw-receipt-list-item:hover,
+[data-theme="dark"] .pw-calc-btn-outline:hover,
+body.dark-theme .pw-calc-btn-outline:hover {
+  background: #144b55 !important;
+  border-color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-calc-btn-outline,
+body.dark-theme .pw-calc-btn-outline {
+  background: #0a292f !important;
+  border-color: #184e58 !important;
+  color: #2dd4bf !important;
+}
+
+[data-theme="dark"] .pw-calc-data-table th,
+body.dark-theme .pw-calc-data-table th {
+  background: #0a292f !important;
+  border-color: #184e58 !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .pw-calc-data-table tr:hover td,
+body.dark-theme .pw-calc-data-table tr:hover td {
+  background: #144b55 !important;
 }

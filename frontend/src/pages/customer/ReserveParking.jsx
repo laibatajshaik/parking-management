@@ -339,7 +339,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             </div>
           </div>
 
-          <div className="pw-plans-cards-trio-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(295px, 1fr))", gap: "18px" }}>
+          <div className="pw-plans-cards-trio-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(295px, 1fr))", gap: "18px", alignItems: "start" }}>
             {filteredPlans.map((p) => {
               const isSelected = selectedPlanObject && (selectedPlanObject.id === p.id || selectedPlanObject.plan_code === p.plan_code);
               const isMonthly = (p.billing_type || "").toLowerCase() === "monthly" || (p.plan_name || "").toLowerCase().includes("monthly") || (p.plan_name || "").toLowerCase().includes("vip");
@@ -349,7 +349,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                   key={p.id || p.plan_code}
                   className={`pw-customer-pricing-card ${isMonthly ? "pw-premium-highlight-card" : ""} ${isSelected ? (isMonthly ? "selected-monthly-plan" : "selected") : ""}`}
                   onClick={() => handleSelectPlan(p)}
-                  style={{ position: "relative" }}
+                  style={{ position: "relative", height: "fit-content", alignSelf: "start" }}
                 >
                   {isMonthly && (
                     <div className="pw-plan-ribbon-best-value">
@@ -392,21 +392,21 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                     <h3 className="pw-customer-plan-title" style={{ color: isMonthly ? "#facc15" : "var(--text-primary, #12233F)", fontSize: "1.05rem", fontWeight: 800 }}>
                       {p.plan_name}
                     </h3>
-                    <p className="pw-customer-plan-sub" style={{ fontSize: "0.8rem", color: "var(--text-secondary, #94a3b8)", minHeight: "36px", margin: "2px 0 0 0", lineHeight: 1.45 }}>
+                    <p className="pw-customer-plan-sub" style={{ fontSize: "0.8rem", color: "var(--text-secondary, #94a3b8)", margin: "4px 0 0 0", lineHeight: 1.45 }}>
                       {p.description || "Standard vehicle parking bay coverage with automated clearance."}
                     </p>
                   </div>
 
-                  <div className={`pw-customer-plan-rate-banner ${isMonthly ? "selected-gold-rate" : isSelected ? "selected-rate" : ""}`} style={{ background: isMonthly ? "linear-gradient(135deg, #FEF9C3 0%, #FEF08A 100%)" : undefined, border: isMonthly ? "1px solid #EAB308" : undefined }}>
-                    <span className="pw-customer-plan-rate-text" style={{ color: isMonthly ? "#713F12" : undefined }}>{getPlanRateBannerText(p)}</span>
-                    <span style={{ fontSize: "0.72rem", opacity: 0.9, fontWeight: 800, color: isMonthly ? "#854D0E" : undefined }}>{p.plan_code}</span>
+                  <div className={`pw-customer-plan-rate-banner ${isMonthly ? "selected-gold-rate" : isSelected ? "selected-rate" : ""}`} style={{ background: isMonthly ? "linear-gradient(135deg, #FEF9C3 0%, #FEF08A 100%)" : undefined, border: isMonthly ? "1px solid #EAB308" : undefined, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", margin: "12px 0", padding: "10px 14px", borderRadius: "8px" }}>
+                    <span className="pw-customer-plan-rate-text" style={{ color: isMonthly ? "#713F12" : undefined, fontSize: "1.1rem", fontWeight: 800 }}>{getPlanRateBannerText(p)}</span>
+                    <span style={{ fontSize: "0.72rem", opacity: 0.95, fontWeight: 800, color: isMonthly ? "#854D0E" : "var(--brand-primary, #0d9488)", padding: "2px 7px", borderRadius: "6px", background: isMonthly ? "rgba(234, 179, 8, 0.2)" : "rgba(13, 148, 136, 0.12)" }}>{p.plan_code}</span>
                   </div>
 
-                  <div className="pw-customer-plan-features-list">
+                  <div className="pw-customer-plan-features-list" style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
                     {(Array.isArray(p.features) ? p.features : ["Covered Bay Access", "24/7 Security"]).map((feat, idx) => (
-                      <div key={idx} className="pw-plan-feat-item">
-                        <Check size={14} className={isMonthly ? "pw-feat-check-gold" : "pw-feat-check-icon"} style={{ color: isMonthly ? "#B45309" : undefined }} />
-                        <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "var(--text-primary, #1E293B)" : "var(--text-secondary, #334155)" }}>{feat}</span>
+                      <div key={idx} className="pw-plan-feat-item" style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "0.82rem" }}>
+                        <Check size={14} className={isMonthly ? "pw-feat-check-gold" : "pw-feat-check-icon"} style={{ color: isMonthly ? "#B45309" : "#10b981", flexShrink: 0, marginTop: "2px" }} />
+                        <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "var(--text-primary, #1E293B)" : "var(--text-secondary, #334155)", lineHeight: 1.35 }}>{feat}</span>
                       </div>
                     ))}
                   </div>

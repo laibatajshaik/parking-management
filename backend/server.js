@@ -1313,7 +1313,7 @@ app.get("/api/staff/active-vehicles", handleActiveSessions);
 
 app.get("/api/payments/today", async (req, res) => {
   try {
-    const paymentsRes = await pool.query("SELECT * FROM payments ORDER BY created_at DESC");
+    const paymentsRes = await pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC");
     const allPayments = paymentsRes.rows;
 
     let totalRevenue = 0;
@@ -1359,7 +1359,7 @@ app.get("/api/payments/today", async (req, res) => {
 app.get("/api/payments", async (req, res) => {
   const { search, method } = req.query;
   try {
-    let query = "SELECT * FROM payments WHERE 1=1";
+    let query = "SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL";
     const params = [];
 
     if (search) {
@@ -1385,7 +1385,7 @@ app.get("/api/payments", async (req, res) => {
 app.get("/api/customer/payments", async (req, res) => {
   const { email, name, search, method } = req.query;
   try {
-    let query = "SELECT * FROM payments WHERE 1=1";
+    let query = "SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL";
     const params = [];
 
     if (email) {
@@ -1411,7 +1411,7 @@ app.get("/api/customer/payments", async (req, res) => {
     const paymentsRes = await pool.query(query, params);
 
     if (paymentsRes.rowCount === 0 && (email || name)) {
-      const allRes = await pool.query("SELECT * FROM payments ORDER BY created_at DESC, id DESC LIMIT 25");
+      const allRes = await pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 25");
       return res.json({ success: true, payments: allRes.rows });
     }
 

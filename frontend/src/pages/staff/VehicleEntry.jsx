@@ -589,7 +589,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
                     onClick={handleAutoAssignSlot}
                     style={{
                       border: "none",
-                      background: "#0f3b43",
+                      background: "#0d9488",
                       color: "#ffffff",
                       fontSize: "0.72rem",
                       fontWeight: "700",

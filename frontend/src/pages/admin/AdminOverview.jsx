@@ -77,7 +77,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab })
               <path
                 d="M 20 130 C 80 120, 120 140, 180 90 C 240 40, 300 110, 360 60 C 420 20, 460 70, 480 40"
                 fill="none"
-                stroke="#0f3b43"
+                stroke="#0d9488"
                 strokeWidth="3"
                 strokeLinecap="round"
               />
@@ -106,13 +106,13 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab })
           <div className="pw-donut-chart-row">
             <div className="pw-donut-container">
               <svg className="pw-donut-svg" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                <circle cx="50" cy="50" r="38" fill="none" stroke="var(--border-color, #f1f5f9)" strokeWidth="12" />
                 <circle
                   cx="50"
                   cy="50"
                   r="38"
                   fill="none"
-                  stroke="#0f3b43"
+                  stroke="#0d9488"
                   strokeWidth="12"
                   strokeDasharray="130 240"
                   strokeDashoffset="0"
@@ -122,7 +122,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab })
                   cy="50"
                   r="38"
                   fill="none"
-                  stroke="#0d9488"
+                  stroke="#0284c7"
                   strokeWidth="12"
                   strokeDasharray="60 240"
                   strokeDashoffset="-130"
@@ -132,7 +132,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab })
                   cy="50"
                   r="38"
                   fill="none"
-                  stroke="#99f6e4"
+                  stroke="#f59e0b"
                   strokeWidth="12"
                   strokeDasharray="30 240"
                   strokeDashoffset="-190"

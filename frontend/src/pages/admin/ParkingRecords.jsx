@@ -46,11 +46,21 @@ export default function ParkingRecords() {
     }
   };
 
-  const filteredRecords = records.filter((r) => {
+  const validRecords = records.filter(
+    (r) =>
+      r.vehicle_number &&
+      r.vehicle_number.trim() !== "" &&
+      r.vehicle_number !== "—" &&
+      (r.slot_number || r.slot) &&
+      r.slot_number !== "—" &&
+      r.slot !== "—"
+  );
+
+  const filteredRecords = validRecords.filter((r) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
-      r.vehicle_number.toLowerCase().includes(q) ||
+      (r.vehicle_number && r.vehicle_number.toLowerCase().includes(q)) ||
       (r.customer_name && r.customer_name.toLowerCase().includes(q)) ||
       (r.customer_email && r.customer_email.toLowerCase().includes(q)) ||
       (r.customer_phone && r.customer_phone.includes(q)) ||
@@ -70,9 +80,9 @@ export default function ParkingRecords() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const activeCount = records.filter((r) => (r.status || "").toLowerCase() === "parked").length;
-  const completedCount = records.filter((r) => (r.status || "").toLowerCase() === "completed").length;
-  const totalRevenueNumeric = records.reduce((acc, r) => {
+  const activeCount = validRecords.filter((r) => (r.status || "").toLowerCase() === "parked").length;
+  const completedCount = validRecords.filter((r) => (r.status || "").toLowerCase() === "completed").length;
+  const totalRevenueNumeric = validRecords.reduce((acc, r) => {
     const num = parseFloat((r.fee || "0").replace(/[^0-9.]/g, "")) || 0;
     return acc + num;
   }, 0);
@@ -443,7 +453,7 @@ export default function ParkingRecords() {
         </div>
 
         <div className="pw-users-table-footer">
-          <span>Showing {filteredRecords.length} of {records.length} total parking records</span>
+          <span>Showing {filteredRecords.length} of {validRecords.length} total parking records</span>
         </div>
       </div>
 

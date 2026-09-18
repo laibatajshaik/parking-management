@@ -91,7 +91,20 @@ export default function TodaysRevenue() {
     return <Globe size={13} className="pw-method-icon netbanking" />;
   };
 
-  const filteredPayments = (revenueData.payments || []).filter((p) => {
+  const validPayments = (revenueData.payments || []).filter(
+    (p) =>
+      p.vehicle_number &&
+      p.vehicle_number.trim() !== "" &&
+      p.vehicle_number !== "—" &&
+      p.slot_number &&
+      p.slot_number.trim() !== "" &&
+      p.slot_number !== "—" &&
+      p.transaction_id &&
+      p.transaction_id.trim() !== "" &&
+      p.transaction_id !== "—"
+  );
+
+  const filteredPayments = validPayments.filter((p) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
@@ -107,14 +120,25 @@ export default function TodaysRevenue() {
     return matchesSearch && matchesMethod;
   });
 
-  const methods = revenueData.summary.methodsBreakdown || {};
+  const totalRevNumeric = validPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+  const totalRevFormatted = `₹${totalRevNumeric.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const completedCountVal = validPayments.length;
+  const avgTicketVal = completedCountVal > 0 ? `₹${(totalRevNumeric / completedCountVal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00";
+
+  const methods = {
+    UPI: validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("upi") || (p.payment_method || "").toLowerCase().includes("gpay")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
+    "Credit Card": validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("credit")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
+    "Debit Card": validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("debit")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
+    Cash: validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("cash")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
+    "Net Banking": validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("net") || (p.payment_method || "").toLowerCase().includes("bank")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+  };
 
   return (
     <div className="pw-todays-revenue-module">
       <div className="pw-metrics-four-grid">
         <div className="pw-metric-card">
           <span className="pw-metric-label">Today's Total Revenue</span>
-          <span className="pw-metric-value">{revenueData.summary.totalRevenue}</span>
+          <span className="pw-metric-value">{totalRevFormatted}</span>
           <span className="pw-metric-trend positive">
             <TrendingUp size={12} />
             <span>Verified collections</span>
@@ -123,7 +147,7 @@ export default function TodaysRevenue() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Completed Payments</span>
-          <span className="pw-metric-value">{revenueData.summary.completedCount}</span>
+          <span className="pw-metric-value">{completedCountVal}</span>
           <span className="pw-metric-trend positive">
             <CheckCircle2 size={12} />
             <span>100% Settled</span>
@@ -132,7 +156,7 @@ export default function TodaysRevenue() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Average Ticket Size</span>
-          <span className="pw-metric-value">{revenueData.summary.avgTicket}</span>
+          <span className="pw-metric-value">{avgTicketVal}</span>
           <span className="pw-metric-trend positive">
             <span>Per vehicle session</span>
           </span>
@@ -313,7 +337,7 @@ export default function TodaysRevenue() {
         </div>
 
         <div className="pw-users-table-footer">
-          <span>Showing {filteredPayments.length} of {(revenueData.payments || []).length} completed transactions</span>
+          <span>Showing {filteredPayments.length} of {validPayments.length} completed transactions</span>
         </div>
       </div>
     </div>

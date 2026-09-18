@@ -76,7 +76,20 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
     return <Globe size={13} className="pw-method-icon netbanking" />;
   };
 
-  const filteredPayments = payments.filter((p) => {
+  const validPayments = payments.filter(
+    (p) =>
+      p.vehicle_number &&
+      p.vehicle_number.trim() !== "" &&
+      p.vehicle_number !== "—" &&
+      p.slot_number &&
+      p.slot_number.trim() !== "" &&
+      p.slot_number !== "—" &&
+      p.transaction_id &&
+      p.transaction_id.trim() !== "" &&
+      p.transaction_id !== "—"
+  );
+
+  const filteredPayments = validPayments.filter((p) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
@@ -91,7 +104,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
     return matchesSearch && matchesMethod;
   });
 
-  const totalSpent = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const totalSpent = validPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
   return (
     <div className="pw-customer-payments-module">
@@ -106,7 +119,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Completed Transactions</span>
-          <span className="pw-metric-value">{payments.length}</span>
+          <span className="pw-metric-value">{validPayments.length}</span>
           <span className="pw-metric-trend positive">
             <CheckCircle2 size={12} />
             <span>Digital Receipts available</span>
@@ -116,11 +129,11 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
         <div className="pw-metric-card">
           <span className="pw-metric-label">Latest Transaction</span>
           <span className="pw-metric-value" style={{ fontSize: "1.1rem", marginTop: "4px" }}>
-            {payments[0] ? `₹${parseFloat(payments[0].amount).toFixed(2)}` : "₹0.00"}
+            {validPayments[0] ? `₹${parseFloat(validPayments[0].amount).toFixed(2)}` : "₹0.00"}
           </span>
           <span className="pw-metric-trend positive">
             <Calendar size={11} />
-            <span>{payments[0] ? formatDateOnly(payments[0].created_at || payments[0].exit_time) : "No history"}</span>
+            <span>{validPayments[0] ? formatDateOnly(validPayments[0].created_at || validPayments[0].exit_time) : "No history"}</span>
           </span>
         </div>
 
@@ -272,7 +285,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
         </div>
 
         <div className="pw-users-table-footer">
-          <span>Showing {filteredPayments.length} of {payments.length} transactions</span>
+          <span>Showing {filteredPayments.length} of {validPayments.length} transactions</span>
         </div>
       </div>
     </div>

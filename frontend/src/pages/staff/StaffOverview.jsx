@@ -54,7 +54,7 @@ export default function StaffOverview({ metrics, recentEntries }) {
                   cy="50"
                   r="38"
                   fill="none"
-                  stroke="#0f3b43"
+                  stroke="#0d9488"
                   strokeWidth="12"
                   strokeDasharray="148 240"
                   strokeDashoffset="0"
@@ -64,7 +64,7 @@ export default function StaffOverview({ metrics, recentEntries }) {
                   cy="50"
                   r="38"
                   fill="none"
-                  stroke="#0d9488"
+                  stroke="#0284c7"
                   strokeWidth="12"
                   strokeDasharray="50 240"
                   strokeDashoffset="-148"
@@ -78,7 +78,7 @@ export default function StaffOverview({ metrics, recentEntries }) {
 
             <div className="pw-occupancy-legend">
               <div className="pw-legend-row">
-                <span className="pw-bullet-chip dot-darkteal"></span>
+                <span className="pw-bullet-chip dot-teal"></span>
                 <span className="pw-legend-name">Occupied</span>
                 <span className="pw-legend-val">{metrics.activeVehicles} slots</span>
               </div>

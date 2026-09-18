@@ -194,7 +194,7 @@ export default function StaffDashboard({ setView }) {
             </div>
 
             <div className="pw-user-profile-pill">
-              <div className="pw-avatar-initials" style={{ background: "#0f3b43", color: "#2dd4bf" }}>LT</div>
+              <div className="pw-avatar-initials" style={{ background: "#0d9488", color: "#ffffff" }}>LT</div>
               <div className="pw-user-profile-meta">
                 <span className="pw-user-profile-name">Laiba Taj</span>
                 <span className="pw-user-profile-role">Staff Operator</span>

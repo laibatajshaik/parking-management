@@ -242,7 +242,7 @@ export default function CustomerDashboard({ setView }) {
             </div>
 
             <div className="pw-user-profile-pill">
-              <div className="pw-avatar-initials" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0f3b43", color: "#ffffff" }}>
+              <div className="pw-avatar-initials" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488", color: "#ffffff" }}>
                 {isPremiumActive ? <Crown size={15} /> : getUserInitials(currentUser.name)}
               </div>
               <div className="pw-user-profile-meta">

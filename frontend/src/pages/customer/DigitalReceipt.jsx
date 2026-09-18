@@ -21,18 +21,46 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
       const res = await fetch(`http://localhost:5000/api/customer/payments?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success && data.payments && data.payments.length > 0) {
-        setPaymentsList(data.payments);
-        if (!activeReceipt) {
-          setActiveReceipt(data.payments[0]);
-        }
-      } else {
-        const allRes = await fetch("http://localhost:5000/api/payments");
-        const allData = await allRes.json();
-        if (allData.success && allData.payments && allData.payments.length > 0) {
-          setPaymentsList(allData.payments);
+      if (data.success && data.payments) {
+        const valids = data.payments.filter(
+          (p) =>
+            p.vehicle_number &&
+            p.vehicle_number.trim() !== "" &&
+            p.vehicle_number !== "—" &&
+            p.slot_number &&
+            p.slot_number.trim() !== "" &&
+            p.slot_number !== "—" &&
+            p.transaction_id &&
+            p.transaction_id.trim() !== "" &&
+            p.transaction_id !== "—"
+        );
+        if (valids.length > 0) {
+          setPaymentsList(valids);
           if (!activeReceipt) {
-            setActiveReceipt(allData.payments[0]);
+            setActiveReceipt(valids[0]);
+          }
+        } else {
+          const allRes = await fetch("http://localhost:5000/api/payments");
+          const allData = await allRes.json();
+          if (allData.success && allData.payments) {
+            const allValids = allData.payments.filter(
+              (p) =>
+                p.vehicle_number &&
+                p.vehicle_number.trim() !== "" &&
+                p.vehicle_number !== "—" &&
+                p.slot_number &&
+                p.slot_number.trim() !== "" &&
+                p.slot_number !== "—" &&
+                p.transaction_id &&
+                p.transaction_id.trim() !== "" &&
+                p.transaction_id !== "—"
+            );
+            if (allValids.length > 0) {
+              setPaymentsList(allValids);
+              if (!activeReceipt) {
+                setActiveReceipt(allValids[0]);
+              }
+            }
           }
         }
       }

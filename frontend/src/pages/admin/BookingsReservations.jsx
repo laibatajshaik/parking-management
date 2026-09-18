@@ -570,14 +570,14 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       {getStatusBadge(b.status)}
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px" }}>
+                    <div className="pw-user-card-actions-col" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px", flexWrap: "nowrap" }}>
                       {b.status === "Confirmed" && (
                         <button
                           type="button"
                           className="pw-btn-action-view-receipt"
                           onClick={() => handleUpdateStatus(b.id, "Checked In")}
                           title="Check-In / Validate customer arrival"
-                          style={{ padding: "4px 8px", fontSize: "0.74rem" }}
+                          style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0 }}
                         >
                           <span>Check-In</span>
                         </button>
@@ -589,7 +589,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                           className="pw-btn-action-view-receipt"
                           onClick={() => handleUpdateStatus(b.id, "Confirmed")}
                           title="Confirm reservation"
-                          style={{ padding: "4px 8px", fontSize: "0.74rem", background: "#ecfdf5", color: "#047857" }}
+                          style={{ padding: "5px 9px", fontSize: "0.74rem", background: "var(--bg-teal-sub, #ecfdf5)", color: "#047857", whiteSpace: "nowrap", flexShrink: 0 }}
                         >
                           <span>Confirm</span>
                         </button>
@@ -601,7 +601,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                           className="pw-btn-action-delete"
                           onClick={() => handleUpdateStatus(b.id, "Cancelled")}
                           title="Cancel reservation"
-                          style={{ padding: "4px 6px" }}
+                          style={{ padding: "5px 7px", flexShrink: 0 }}
                         >
                           <X size={12} />
                         </button>
@@ -612,6 +612,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                         className="pw-btn-action-download"
                         onClick={() => handleDownloadPass(b)}
                         title="Download official reservation pass"
+                        style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0 }}
                       >
                         <Download size={12} />
                         <span>Pass</span>

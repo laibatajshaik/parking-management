@@ -291,7 +291,7 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
               <button
                 type="button"
                 className="pw-btn-confirm-delete"
-                style={{ background: "#0f3b43" }}
+                style={{ background: "#0d9488" }}
                 onClick={() => {
                   const s = selectedSessionModal;
                   setSelectedSessionModal(null);
