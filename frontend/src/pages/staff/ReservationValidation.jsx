@@ -506,7 +506,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
                     <h4 className="pw-detail-user-name">
                       {selectedBooking.model || "Standard"} ({selectedBooking.vehicle_type || "Car"})
                     </h4>
-                    <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                    <span style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>
                       Assigned Bay: <strong>{selectedBooking.slot_number}</strong> ({selectedBooking.zone || "Zone A"})
                     </span>
                   </div>

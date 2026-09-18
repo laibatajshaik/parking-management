@@ -262,7 +262,7 @@ export default function TodaysRevenue() {
                       <div className="pw-user-name-bold" style={{ fontSize: "0.82rem" }}>
                         {p.customer_name}
                       </div>
-                      <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+                      <span style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)" }}>
                         {p.customer_email || "customer@shnoor.com"}
                       </span>
                     </div>

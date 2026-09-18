@@ -107,7 +107,7 @@ export default function StaffSupport() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "20px" }}>
+      <div className="pw-staff-support-grid">
         <div className="pw-support-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #1e293b" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -205,8 +205,8 @@ export default function StaffSupport() {
 
       <div className="pw-support-card">
         <h4 className="pw-card-title" style={{ fontSize: "1.02rem", fontWeight: 800, margin: "0 0 14px 0" }}>Logged Gate Incidents & Operational Tickets</h4>
-        <div style={{ overflowX: "auto" }}>
-          <table className="pw-records-table" style={{ width: "100%" }}>
+        <div className="pw-table-scroll">
+          <table className="pw-records-table">
             <thead>
               <tr>
                 <th>Incident ID</th>

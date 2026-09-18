@@ -360,7 +360,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
                         <Receipt size={13} style={{ color: "#0d9488" }} />
                         <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "var(--text-primary, #0f172a)" }}>{p.transaction_id}</span>
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
                         {p.vehicle_number} • Bay {p.slot_number}
                       </div>
                       <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "1px" }}>
@@ -405,7 +405,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
               <div className="pw-receipt-meta-right">
                 <span className="pw-receipt-badge-status">PAID • VERIFIED</span>
                 <span className="pw-receipt-number-tag">{activeReceipt.transaction_id}</span>
-                <div className="pw-receipt-issue-date" style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "5px", justifyContent: "flex-end" }}>
+                <div className="pw-receipt-issue-date" style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "5px", justifyContent: "flex-end" }}>
                   <Calendar size={12} style={{ color: "#0d9488" }} />
                   <span>{formatDate(activeReceipt.created_at || activeReceipt.exit_time)}</span>
                 </div>

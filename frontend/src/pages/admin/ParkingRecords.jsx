@@ -360,7 +360,7 @@ export default function ParkingRecords() {
 
                     <div className="pw-user-card-contact-col">
                       <div className="pw-user-name-bold">{r.customer_name}</div>
-                      <div className="pw-contact-cell" style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                      <div className="pw-contact-cell" style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>
                         <span>{r.customer_phone || "+91 98765 43210"}</span>
                       </div>
                     </div>
@@ -471,7 +471,7 @@ export default function ParkingRecords() {
                 </span>
                 <div className="pw-detail-user-meta">
                   <h4 className="pw-detail-user-name">{selectedRecordModal.model} ({selectedRecordModal.vehicle_type})</h4>
-                  <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>
                     Bay: <strong>{selectedRecordModal.slot_number}</strong> • {selectedRecordModal.zone}
                   </span>
                 </div>

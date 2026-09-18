@@ -142,7 +142,7 @@ export default function StaffParkingRecords() {
 
       <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
-          <div className="pw-search-box-pill" style={{ width: "300px" }}>
+          <div className="pw-search-box-pill">
             <Search size={14} className="pw-search-icon" />
             <input
               type="text"
@@ -179,8 +179,8 @@ export default function StaffParkingRecords() {
       </div>
 
       <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table className="pw-records-table" style={{ width: "100%" }}>
+        <div className="pw-table-scroll">
+          <table className="pw-records-table">
             <thead>
               <tr>
                 <th>Ticket ID</th>
@@ -200,16 +200,16 @@ export default function StaffParkingRecords() {
                   <td style={{ fontWeight: 800, color: "#0d9488" }}>{r.ticketNumber}</td>
                   <td>
                     <div style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{r.plateNumber}</div>
-                    <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{r.vehicleType}</div>
+                    <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{r.vehicleType}</div>
                   </td>
                   <td>
                     <span style={{ fontWeight: 800, color: "var(--text-primary, #1e293b)", background: "var(--bg-sub, #f8fafc)", padding: "3px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
                       Bay {r.slot}
                     </span>
                   </td>
-                  <td style={{ fontSize: "0.78rem", color: "#475569" }}>{r.entryTime}</td>
+                  <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>{r.entryTime}</td>
                   <td style={{ fontSize: "0.78rem", color: r.status === "Active" ? "#0d9488" : "#475569", fontWeight: r.status === "Active" ? 700 : 400 }}>{r.exitTime}</td>
-                  <td style={{ fontSize: "0.78rem", color: "#475569", fontWeight: 600 }}>{r.duration}</td>
+                  <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>{r.duration}</td>
                   <td style={{ fontWeight: 900, color: "#0d9488" }}>{r.amount}</td>
                   <td>
                     <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", background: r.status === "Completed" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-teal-sub, #f0fdfa)", color: r.status === "Completed" ? "#16a34a" : "#0d9488", border: r.status === "Completed" ? "1px solid #bbf7d0" : "1px solid #ccfbf1" }}>
@@ -241,7 +241,7 @@ export default function StaffParkingRecords() {
               <button
                 type="button"
                 onClick={() => setIsReceiptModalOpen(false)}
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b" }}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary, #94a3b8)" }}
               >
                 <X size={18} />
               </button>
@@ -249,16 +249,16 @@ export default function StaffParkingRecords() {
 
             <div style={{ borderBottom: "2px dashed #cbd5e1", paddingBottom: "14px", marginBottom: "14px" }}>
               <h3 style={{ fontSize: "1.15rem", fontWeight: 900, color: "var(--text-primary, #0f172a)", margin: 0 }}>ParkSafe Smart Facility</h3>
-              <p style={{ fontSize: "0.74rem", color: "#64748b", margin: "2px 0 0 0" }}>Downtown Central Plaza • GSTIN: 29AABCS1429B1Z8</p>
+              <p style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", margin: "2px 0 0 0" }}>Downtown Central Plaza • GSTIN: 29AABCS1429B1Z8</p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", textAlign: "left", fontSize: "0.8rem", marginBottom: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#64748b" }}>Ticket ID:</span><span style={{ fontWeight: 800 }}>{selectedRecord.ticketNumber}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#64748b" }}>Vehicle Plate:</span><span style={{ fontWeight: 800 }}>{selectedRecord.plateNumber}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#64748b" }}>Assigned Slot:</span><span style={{ fontWeight: 700 }}>Bay {selectedRecord.slot} ({selectedRecord.zone})</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#64748b" }}>Entry Time:</span><span>{selectedRecord.entryTime}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#64748b" }}>Exit Time:</span><span>{selectedRecord.exitTime}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#64748b" }}>Duration:</span><span style={{ fontWeight: 700 }}>{selectedRecord.duration}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary, #94a3b8)" }}>Ticket ID:</span><span style={{ fontWeight: 800 }}>{selectedRecord.ticketNumber}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary, #94a3b8)" }}>Vehicle Plate:</span><span style={{ fontWeight: 800 }}>{selectedRecord.plateNumber}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary, #94a3b8)" }}>Assigned Slot:</span><span style={{ fontWeight: 700 }}>Bay {selectedRecord.slot} ({selectedRecord.zone})</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary, #94a3b8)" }}>Entry Time:</span><span>{selectedRecord.entryTime}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary, #94a3b8)" }}>Exit Time:</span><span>{selectedRecord.exitTime}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary, #94a3b8)" }}>Duration:</span><span style={{ fontWeight: 700 }}>{selectedRecord.duration}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: "8px" }}><span style={{ fontWeight: 800 }}>Total Paid:</span><span style={{ fontWeight: 900, fontSize: "1.1rem", color: "#0d9488" }}>{selectedRecord.amount}</span></div>
             </div>
 

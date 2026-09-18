@@ -1,3 +1,4 @@
+import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "./components/ThemeToggle.jsx";
@@ -56,6 +57,11 @@ export default function SignUp({ setView }) {
 
   return (
     <div className="pw-auth-page-wrapper">
+      <div className="pw-auth-landing-backdrop" aria-hidden="true">
+        <ShnoorParkingLanding setView={() => {}} />
+      </div>
+      <div className="pw-auth-backdrop-overlay"></div>
+
       <div className="pw-auth-card">
         <div className="pw-dot-grid-decor"></div>
 

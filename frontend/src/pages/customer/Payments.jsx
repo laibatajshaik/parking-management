@@ -230,7 +230,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                         <Calendar size={13} style={{ color: "#0d9488" }} />
                         <span>{formatDateOnly(p.created_at || p.exit_time)}</span>
                       </div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontSize: "0.74rem", marginTop: "2px" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--text-secondary, #94a3b8)", fontSize: "0.74rem", marginTop: "2px" }}>
                         <Clock size={11} />
                         <span>{formatTimeOnly(p.created_at || p.exit_time)}</span>
                       </div>

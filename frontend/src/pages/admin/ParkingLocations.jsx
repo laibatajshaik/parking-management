@@ -195,7 +195,7 @@ export default function ParkingLocations() {
 
       <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
-          <div className="pw-search-box-pill" style={{ width: "300px" }}>
+          <div className="pw-search-box-pill">
             <Search size={15} className="pw-search-icon" />
             <input
               type="text"
@@ -267,7 +267,7 @@ export default function ParkingLocations() {
                     </div>
                     <div>
                       <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>{loc.name}</h4>
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>{loc.code}</span>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 700 }}>{loc.code}</span>
                     </div>
                   </div>
 
@@ -276,14 +276,14 @@ export default function ParkingLocations() {
                   </span>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.78rem", color: "#64748b", marginBottom: "14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", marginBottom: "14px" }}>
                   <MapPin size={14} style={{ color: "#0f766e", flexShrink: 0 }} />
                   <span>{loc.address}</span>
                 </div>
 
                 <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 700, marginBottom: "6px" }}>
-                    <span style={{ color: "#334155" }}>Bay Utilization</span>
+                    <span style={{ color: "var(--text-secondary, #cbd5e1)" }}>Bay Utilization</span>
                     <span style={{ color: "#0f766e" }}>{loc.occupiedSlots} / {loc.totalSlots} ({occPct}%)</span>
                   </div>
                   <div style={{ height: "6px", background: "var(--border-color, #e2e8f0)", borderRadius: "999px", overflow: "hidden" }}>
@@ -293,11 +293,11 @@ export default function ParkingLocations() {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "0.78rem" }}>
                   <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "8px 10px", borderRadius: "6px" }}>
-                    <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem" }}>Operating Hours</span>
+                    <span style={{ color: "var(--text-secondary, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Operating Hours</span>
                     <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{loc.openingHours}</span>
                   </div>
                   <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "8px 10px", borderRadius: "6px" }}>
-                    <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem" }}>Active Staff</span>
+                    <span style={{ color: "var(--text-secondary, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Active Staff</span>
                     <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{loc.activeStaff} Wardens</span>
                   </div>
                 </div>
@@ -311,7 +311,7 @@ export default function ParkingLocations() {
                     </span>
                   ))}
                   {loc.zones.length > 2 && (
-                    <span style={{ fontSize: "0.68rem", background: "var(--bg-sub, #f8fafc)", color: "#64748b", padding: "2px 6px", borderRadius: "4px" }}>
+                    <span style={{ fontSize: "0.68rem", background: "var(--bg-sub, #f8fafc)", color: "var(--text-secondary, #94a3b8)", padding: "2px 6px", borderRadius: "4px" }}>
                       +{loc.zones.length - 2} more
                     </span>
                   )}
@@ -321,7 +321,7 @@ export default function ParkingLocations() {
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(loc)}
-                    style={{ background: "var(--bg-sub, #f8fafc)", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#334155" }}
+                    style={{ background: "var(--bg-sub, #f8fafc)", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "var(--text-secondary, #cbd5e1)" }}
                     title="Edit Location"
                   >
                     <Edit2 size={13} />
@@ -351,7 +351,7 @@ export default function ParkingLocations() {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b" }}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary, #94a3b8)" }}
               >
                 <X size={18} />
               </button>
@@ -370,7 +370,7 @@ export default function ParkingLocations() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div className="pw-form-two-col-grid">
                 <div className="pw-calc-field-group">
                   <label className="pw-calc-label">Location Code</label>
                   <input
@@ -406,7 +406,7 @@ export default function ParkingLocations() {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div className="pw-form-two-col-grid">
                 <div className="pw-calc-field-group">
                   <label className="pw-calc-label">Operating Hours</label>
                   <input

@@ -234,8 +234,8 @@ export default function VehicleManagement({
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Checked Out</span>
-          <span className="pw-metric-value" style={{ color: "#64748b" }}>{checkedOutVehCount}</span>
-          <span className="pw-metric-trend" style={{ color: "#64748b" }}>
+          <span className="pw-metric-value" style={{ color: "var(--text-secondary, #94a3b8)" }}>{checkedOutVehCount}</span>
+          <span className="pw-metric-trend" style={{ color: "var(--text-secondary, #94a3b8)" }}>
             <span>Exit recorded</span>
           </span>
         </div>
@@ -454,14 +454,14 @@ export default function VehicleManagement({
                 </span>
                 <div className="pw-detail-user-meta">
                   <h4 className="pw-detail-user-name">{vehicleForHistory.model} ({vehicleForHistory.vehicle_type})</h4>
-                  <span style={{ fontSize: "0.76rem", color: "#64748b" }}>
+                  <span style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)" }}>
                     Owner: <strong>{vehicleForHistory.owner_name}</strong> ({vehicleForHistory.owner_email})
                   </span>
                 </div>
               </div>
 
               {isLoadingHistory ? (
-                <div style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
+                <div style={{ padding: "24px", textAlign: "center", color: "var(--text-secondary, #94a3b8)" }}>
                   Loading parking session history...
                 </div>
               ) : vehicleHistoryList.length > 0 ? (
@@ -496,7 +496,7 @@ export default function VehicleManagement({
                   </table>
                 </div>
               ) : (
-                <div style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
+                <div style={{ padding: "24px", textAlign: "center", color: "var(--text-secondary, #94a3b8)" }}>
                   No past parking history records found for this vehicle.
                 </div>
               )}

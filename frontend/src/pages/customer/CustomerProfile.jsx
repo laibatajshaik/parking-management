@@ -77,12 +77,12 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <h3 style={{ fontSize: "1.15rem", fontWeight: 900, color: "#713F12", margin: 0 }}>Active Gold VIP Membership</h3>
+                <h3 style={{ fontSize: "1.15rem", fontWeight: 900, color: "var(--text-gold, #facc15)", margin: 0 }}>Active Gold VIP Membership</h3>
                 <span style={{ background: "#713F12", color: "#FEF08A", fontSize: "0.68rem", fontWeight: 800, padding: "2px 8px", borderRadius: "999px" }}>
                   EXCLUSIVE
                 </span>
               </div>
-              <p style={{ fontSize: "0.82rem", color: "#854D0E", margin: "2px 0 0 0", fontWeight: 600 }}>
+              <p style={{ fontSize: "0.82rem", color: "var(--text-gold, #fde047)", margin: "2px 0 0 0", fontWeight: 600 }}>
                 {premiumPlanInfo?.planName || "Monthly VIP Priority Pass"} • Valid until {premiumPlanInfo?.validUntil || "02 Oct 2025"} (30 Days Unlimited Access)
               </p>
             </div>
@@ -100,7 +100,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
             </div>
             <div>
               <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Unlock Gold VIP Priority Membership</h3>
-              <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "2px 0 0 0" }}>
+              <p style={{ fontSize: "0.82rem", color: "var(--text-secondary, #94a3b8)", margin: "2px 0 0 0" }}>
                 Get 100% guaranteed reserved bay parking, hands-free Fastag RFID boom barrier entry, and free monthly car wash.
               </p>
             </div>
@@ -127,7 +127,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: "20px" }}>
+      <div className="pw-profile-two-col-grid">
         <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
             <User size={18} style={{ color: isPremiumActive ? "#9A6B18" : "#0d9488" }} />
@@ -178,7 +178,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
             <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "4px" }}>
               <label className="pw-calc-label" style={{ marginBottom: "10px", display: "block" }}>Notification Alerts</label>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", color: "#334155" }}>
+                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", color: "var(--text-secondary, #cbd5e1)" }}>
                   <span>SMS alerts upon gate check-in & exit</span>
                   <input
                     type="checkbox"
@@ -187,7 +187,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
                     style={{ accentColor: isPremiumActive ? "#C99A2E" : "#0d9488" }}
                   />
                 </label>
-                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", color: "#334155" }}>
+                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", color: "var(--text-secondary, #cbd5e1)" }}>
                   <span>Email verified tax receipts & invoices</span>
                   <input
                     type="checkbox"
@@ -254,7 +254,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: "0.76rem", color: "#64748b", marginTop: "2px" }}>
+                      <div style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
                         {veh.model} • {veh.type} {veh.fastagLinked && "• Fastag RFID Active"}
                       </div>
                     </div>
@@ -265,7 +265,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
                       <button
                         type="button"
                         onClick={() => handleSetDefaultVehicle(veh.id)}
-                        style={{ background: "transparent", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "4px 8px", fontSize: "0.72rem", color: "#475569", cursor: "pointer", fontWeight: 600 }}
+                        style={{ background: "transparent", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "4px 8px", fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", cursor: "pointer", fontWeight: 600 }}
                       >
                         Set Default
                       </button>
@@ -284,7 +284,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
             </div>
           </div>
 
-          <div style={{ marginTop: "16px", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: "0.78rem", color: "#64748b" }}>
+          <div style={{ marginTop: "16px", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>
             Registered vehicles are recognized instantly at entrance cameras and automated Fastag RFID boom gates.
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
               <button
                 type="button"
                 onClick={() => setIsAddVehicleOpen(false)}
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b" }}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-secondary, #94a3b8)" }}
               >
                 <X size={18} />
               </button>

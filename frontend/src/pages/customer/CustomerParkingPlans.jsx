@@ -250,7 +250,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                 BEST VALUE • SAVE 76%
               </span>
             </div>
-            <p style={{ fontSize: "0.82rem", color: "#78350F", margin: "4px 0 0 0", fontWeight: 600 }}>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-gold, #fde047)", margin: "4px 0 0 0", fontWeight: 600 }}>
               Enjoy guaranteed Zone A reserved bays, hands-free Fastag RFID gate access, unlimited 24/7 multi-entry, and free monthly car wash for just ₹2,500/month.
             </p>
           </div>
@@ -294,17 +294,17 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
         </div>
 
         <div className="pw-metric-card" className="pw-metric-card pw-vip-highlight-metric">
-          <span className="pw-metric-label" style={{ color: "#854D0E" }}>VIP Premium Plan</span>
-          <span className="pw-metric-value" style={{ color: "#713F12" }}>Best Value</span>
+          <span className="pw-metric-label" style={{ color: "var(--text-gold, #fde047)" }}>VIP Premium Plan</span>
+          <span className="pw-metric-value" style={{ color: "var(--text-gold, #facc15)" }}>Best Value</span>
           <span className="pw-metric-trend positive">
-            <span style={{ color: "#854D0E", fontWeight: 700 }}>Save ₹7,500+ / mo</span>
+            <span style={{ color: "var(--text-gold, #fde047)", fontWeight: 700 }}>Save ₹7,500+ / mo</span>
           </span>
         </div>
       </div>
 
       <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div className="pw-plans-search-group" style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
-          <div className="pw-search-box-pill" style={{ width: "300px" }}>
+          <div className="pw-search-box-pill">
             <Search size={15} className="pw-search-icon" />
             <input
               type="text"
@@ -397,7 +397,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                   </div>
 
                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "var(--bg-sub, #f8fafc)", color: "#475569", border: "1px solid var(--border-color, #cbd5e1)" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "6px", background: "var(--bg-sub, #f8fafc)", color: "var(--text-secondary, #94a3b8)", border: "1px solid var(--border-color, #cbd5e1)" }}>
                       {p.vehicle_type}
                     </span>
                     {isMonthly ? (
@@ -417,7 +417,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                   <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: isMonthly ? "#facc15" : "var(--text-primary, #12233F)", margin: "0 0 4px 0" }}>
                     {p.plan_name}
                   </h3>
-                  <p style={{ fontSize: "0.82rem", color: "#64748b", margin: 0, minHeight: "38px", lineHeight: 1.45 }}>
+                  <p style={{ fontSize: "0.82rem", color: "var(--text-secondary, #94a3b8)", margin: 0, minHeight: "38px", lineHeight: 1.45 }}>
                     {p.description || "Official parking plan configured with reserved bay access and security monitoring."}
                   </p>
                 </div>
@@ -445,7 +445,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
 
                 <div className="pw-customer-plan-features-list" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {(Array.isArray(p.features) ? p.features : ["Standard Bay Access", "24/7 Security"]).map((feat, idx) => (
-                    <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "0.82rem", color: "#334155" }}>
+                    <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "0.82rem", color: "var(--text-secondary, #cbd5e1)" }}>
                       <CheckCircle2 size={15} style={{ color: isMonthly ? "#B45309" : "#10b981", flexShrink: 0, marginTop: "2px" }} />
                       <span style={{ fontWeight: isMonthly ? 600 : 400, color: isMonthly ? "var(--text-primary, #1E293B)" : "var(--text-secondary, #334155)" }}>{feat}</span>
                     </div>
@@ -521,7 +521,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                   <td className="feature-title-col">
                     <div>
                       <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1E293B)" }}>{row.feature}</div>
-                      <div style={{ fontSize: "0.74rem", color: "#64748B", fontWeight: 400, marginTop: "2px" }}>{row.desc}</div>
+                      <div style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 400, marginTop: "2px" }}>{row.desc}</div>
                     </div>
                   </td>
                   <td style={{ textAlign: "center" }}>
@@ -548,10 +548,10 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                   Selected Plan Recommendation
                 </td>
                 <td style={{ textAlign: "center", padding: "16px 18px" }}>
-                  <span style={{ fontSize: "0.78rem", color: "#64748B", fontWeight: 600 }}>Best for short errands</span>
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>Best for short errands</span>
                 </td>
                 <td style={{ textAlign: "center", padding: "16px 18px" }}>
-                  <span style={{ fontSize: "0.78rem", color: "#64748B", fontWeight: 600 }}>Best for single day trips</span>
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>Best for single day trips</span>
                 </td>
                 <td className="vip-col-cell" style={{ padding: "16px 18px", textAlign: "center" }}>
                   <button

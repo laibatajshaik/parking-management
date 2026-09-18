@@ -29,6 +29,7 @@ const STAFF_SIDEBAR_ITEMS = [
 export default function StaffDashboard({ setView }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("fee-calculation");
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
   const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState(null);
 
@@ -110,10 +111,14 @@ export default function StaffDashboard({ setView }) {
 
   return (
     <div className="pw-dashboard-app">
-      <aside className="pw-dashboard-sidebar">
+      <div
+        className={`pw-sidebar-backdrop ${isMobileNavOpen ? "open" : ""}`}
+        onClick={() => setIsMobileNavOpen(false)}
+      />
+      <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
         <div className="pw-sidebar-brand" onClick={() => setView("landing")}>
-          <div className="pw-brand-logo-box" style={{ background: "#0d9488", borderRadius: "10px" }}>
-            <span className="pw-p-logo" style={{ color: "#ffffff", fontWeight: 800 }}>P</span>
+          <div className="pw-brand-logo-box">
+            <span className="pw-p-logo">P</span>
           </div>
           <div>
             <span className="pw-brand-word text-white" style={{ fontSize: "1.1rem" }}>ParkSafe</span>
@@ -131,7 +136,10 @@ export default function StaffDashboard({ setView }) {
                 type="button"
                 className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
                 onClick={() => {
-                  if (item.isWorking) setActiveTab(item.id);
+                  if (item.isWorking) {
+                    setActiveTab(item.id);
+                    setIsMobileNavOpen(false);
+                  }
                 }}
                 title={item.isWorking ? "" : `${item.label} (Module disabled)`}
               >
@@ -143,7 +151,14 @@ export default function StaffDashboard({ setView }) {
         </div>
 
         <div className="pw-sidebar-footer" style={{ marginTop: "auto" }}>
-          <button type="button" className="pw-sidebar-logout-btn" onClick={handleSignOut}>
+          <button
+            type="button"
+            className="pw-sidebar-logout-btn"
+            onClick={() => {
+              setIsMobileNavOpen(false);
+              handleSignOut();
+            }}
+          >
             <LogOutIcon size={16} />
             <span>Sign Out</span>
           </button>
@@ -153,10 +168,15 @@ export default function StaffDashboard({ setView }) {
       <div className="pw-dashboard-main">
         <header className="pw-dashboard-topbar">
           <div className="pw-topbar-left">
-            <button type="button" className="pw-topbar-menu-icon" aria-label="Menu">
+            <button
+              type="button"
+              className="pw-topbar-menu-icon"
+              aria-label="Menu"
+              onClick={() => setIsMobileNavOpen((prev) => !prev)}
+            >
               <Menu size={18} />
             </button>
-            <div className="pw-topbar-search" style={{ width: "380px" }}>
+            <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
                 type="text"
@@ -188,7 +208,7 @@ export default function StaffDashboard({ setView }) {
           <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{getPageTitle()}</h1>
-              {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "#64748b", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
+              {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
             </div>
 
             {activeTab === "fee-calculation" && (
@@ -196,7 +216,7 @@ export default function StaffDashboard({ setView }) {
                 <Calendar size={16} style={{ color: "#0d9488" }} />
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Tuesday, 2 Sep 2025</div>
-                  <div style={{ fontSize: "0.68rem", color: "#64748b" }}>10:24 AM</div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)" }}>10:24 AM</div>
                 </div>
               </div>
             )}

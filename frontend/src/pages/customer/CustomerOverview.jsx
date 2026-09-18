@@ -17,7 +17,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
                     MONTHLY VIP
                   </span>
                 </div>
-                <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "3px 0 0 0" }}>Unlimited priority parking, dedicated bays, and express fastag automated entry.</p>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary, #94a3b8)", margin: "3px 0 0 0" }}>Unlimited priority parking, dedicated bays, and express fastag automated entry.</p>
               </div>
             </div>
 
@@ -33,25 +33,25 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px", marginTop: "18px", background: "var(--bg-card, #ffffff)", padding: "14px 16px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
+          <div className="pw-vip-summary-grid" style={{ marginTop: "18px", background: "var(--bg-card, #ffffff)", padding: "14px 16px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
             <div>
-              <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Plan Type</span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", textTransform: "uppercase", fontWeight: 700 }}>Plan Type</span>
               <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>Monthly VIP</div>
             </div>
             <div>
-              <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Amount Paid</span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", textTransform: "uppercase", fontWeight: 700 }}>Amount Paid</span>
               <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#9A6B18", marginTop: "2px" }}>₹ 2,500.00</div>
             </div>
             <div>
-              <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Valid From</span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", textTransform: "uppercase", fontWeight: 700 }}>Valid From</span>
               <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>{premiumPlanInfo?.validFrom || "02 Sep 2025"}</div>
             </div>
             <div>
-              <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Valid Until</span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", textTransform: "uppercase", fontWeight: 700 }}>Valid Until</span>
               <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>{premiumPlanInfo?.validUntil || "02 Oct 2025"}</div>
             </div>
             <div>
-              <span style={{ fontSize: "0.72rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700 }}>Remaining</span>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", textTransform: "uppercase", fontWeight: 700 }}>Remaining</span>
               <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#16a34a", marginTop: "2px" }}>30 Days Left</div>
             </div>
           </div>
@@ -65,13 +65,13 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
             <h4 style={{ fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Exclusive Premium VIP Benefits</h4>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px" }}>
+          <div className="pw-vip-benefits-grid">
             <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#9A6B18", fontWeight: 700, fontSize: "0.82rem" }}>
                 <KeyRound size={15} />
                 <span>Priority Access</span>
               </div>
-              <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Instant boom barrier lift via RFID tag</div>
+              <div style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", marginTop: "3px" }}>Instant boom barrier lift via RFID tag</div>
             </div>
 
             <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
@@ -79,7 +79,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
                 <ShieldCheck size={15} />
                 <span>Dedicated Slot</span>
               </div>
-              <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Guaranteed VIP parking in Zone C</div>
+              <div style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", marginTop: "3px" }}>Guaranteed VIP parking in Zone C</div>
             </div>
 
             <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
@@ -87,7 +87,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
                 <Zap size={15} />
                 <span>Faster In & Out</span>
               </div>
-              <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Zero waiting & automated monthly billing</div>
+              <div style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", marginTop: "3px" }}>Zero waiting & automated monthly billing</div>
             </div>
 
             <div style={{ background: "var(--bg-sub, #FBF7EE)", padding: "12px 14px", borderRadius: "10px", border: "1px solid var(--border-color, #F5E7C3)" }}>
@@ -95,7 +95,7 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
                 <Sparkles size={15} />
                 <span>Premium Support</span>
               </div>
-              <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>24/7 dedicated concierge assistance</div>
+              <div style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", marginTop: "3px" }}>24/7 dedicated concierge assistance</div>
             </div>
           </div>
         </div>
@@ -161,11 +161,11 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div className="pw-upcoming-two-col">
               <div className="pw-upcoming-vehicle-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
                 <span className="pw-veh-label">Parked Vehicle</span>
                 <span className="pw-veh-val" style={{ fontWeight: 700 }}>KA01 AB 1234</span>
-                <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Hyundai Creta (Car)</span>
+                <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>Hyundai Creta (Car)</span>
               </div>
 
               <div className="pw-upcoming-vehicle-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>

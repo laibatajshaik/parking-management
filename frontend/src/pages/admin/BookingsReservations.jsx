@@ -514,7 +514,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                         <CalendarCheck size={12} />
                         <span>{b.booking_id}</span>
                       </div>
-                      <div className="pw-veh-model-sub" style={{ marginTop: "4px", fontSize: "0.72rem", color: "#64748b" }}>
+                      <div className="pw-veh-model-sub" style={{ marginTop: "4px", fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>
                         Code: <strong>{b.validation_code}</strong>
                       </div>
                     </div>
@@ -523,7 +523,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       <div className="pw-user-name-bold" style={{ fontSize: "0.82rem" }}>
                         {b.customer_name}
                       </div>
-                      <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+                      <span style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)" }}>
                         {b.customer_phone || "+91 98765 43210"}
                       </span>
                     </div>
@@ -542,7 +542,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                         <Layers size={11} />
                         <span>Bay {b.slot_number}</span>
                       </div>
-                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>
                         {b.zone || "Zone A"}
                       </span>
                     </div>
@@ -552,7 +552,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                         <Clock size={11} style={{ color: "#0d9488" }} />
                         <span>{formatDateOnly(b.start_time)}</span>
                       </div>
-                      <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px" }}>
+                      <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
                         {formatTimeOnly(b.start_time)} - {formatTimeOnly(b.end_time)}
                       </div>
                     </div>

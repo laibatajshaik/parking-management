@@ -73,7 +73,7 @@ export default function StaffShiftReports() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "20px" }}>
+      <div className="pw-shift-two-col-grid">
         <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "22px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--border-color, #f1f5f9)" }}>
             <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Active Duty Shift Information</h4>
@@ -83,28 +83,28 @@ export default function StaffShiftReports() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.82rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#64748b" }}>Staff Operator:</span>
+            <div className="pw-shift-info-row">
+              <span>Staff Operator:</span>
               <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{shiftData.operator} ({shiftData.staffId})</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#64748b" }}>Terminal Gate:</span>
+            <div className="pw-shift-info-row">
+              <span>Terminal Gate:</span>
               <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{shiftData.terminal}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#64748b" }}>Shift Date & Slot:</span>
+            <div className="pw-shift-info-row">
+              <span>Shift Date & Slot:</span>
               <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{shiftData.shiftDate} ({shiftData.shiftTime})</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#64748b" }}>Opening Float Balance:</span>
+            <div className="pw-shift-info-row">
+              <span>Opening Float Balance:</span>
               <span style={{ fontWeight: 700, color: "#0f766e" }}>{shiftData.openingDrawerBalance}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #f1f5f9)", paddingTop: "10px" }}>
-              <span style={{ color: "#64748b" }}>Total Inbound Entries Processed:</span>
+            <div className="pw-shift-info-row" style={{ borderTop: "1px solid var(--border-color, #f1f5f9)", paddingTop: "10px" }}>
+              <span>Total Inbound Entries Processed:</span>
               <span style={{ fontWeight: 800, color: "#16a34a" }}>{shiftData.totalEntries} Vehicles</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#64748b" }}>Total Outbound Exits Cleared:</span>
+            <div className="pw-shift-info-row">
+              <span>Total Outbound Exits Cleared:</span>
               <span style={{ fontWeight: 800, color: "#dc2626" }}>{shiftData.totalExits} Vehicles</span>
             </div>
           </div>

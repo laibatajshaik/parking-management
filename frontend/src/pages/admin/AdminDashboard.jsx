@@ -82,6 +82,7 @@ const INITIAL_24_SLOTS = [
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
 
   const [usersList, setUsersList] = useState([]);
@@ -259,7 +260,11 @@ export default function AdminDashboard({ setView }) {
 
   return (
     <div className="pw-dashboard-app">
-      <aside className="pw-dashboard-sidebar">
+      <div
+        className={`pw-sidebar-backdrop ${isMobileNavOpen ? "open" : ""}`}
+        onClick={() => setIsMobileNavOpen(false)}
+      />
+      <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
         <div className="pw-sidebar-brand" onClick={() => setView("landing")}>
           <div className="pw-brand-logo-box">
             <span className="pw-p-logo">P</span>
@@ -279,7 +284,10 @@ export default function AdminDashboard({ setView }) {
                 type="button"
                 className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
                 onClick={() => {
-                  if (item.isWorking) setActiveTab(item.id);
+                  if (item.isWorking) {
+                    setActiveTab(item.id);
+                    setIsMobileNavOpen(false);
+                  }
                 }}
                 title={item.isWorking ? "" : `${item.label} (Module disabled)`}
               >
@@ -291,7 +299,14 @@ export default function AdminDashboard({ setView }) {
         </div>
 
         <div className="pw-sidebar-footer">
-          <button type="button" className="pw-sidebar-logout-btn" onClick={handleSignOut}>
+          <button
+            type="button"
+            className="pw-sidebar-logout-btn"
+            onClick={() => {
+              setIsMobileNavOpen(false);
+              handleSignOut();
+            }}
+          >
             <LogOut size={16} />
             <span>Sign Out</span>
           </button>
@@ -301,7 +316,12 @@ export default function AdminDashboard({ setView }) {
       <div className="pw-dashboard-main">
         <header className="pw-dashboard-topbar">
           <div className="pw-topbar-left">
-            <button type="button" className="pw-topbar-menu-icon" aria-label="Menu">
+            <button
+              type="button"
+              className="pw-topbar-menu-icon"
+              aria-label="Menu"
+              onClick={() => setIsMobileNavOpen((prev) => !prev)}
+            >
               <Menu size={18} />
             </button>
             <div className="pw-topbar-search">

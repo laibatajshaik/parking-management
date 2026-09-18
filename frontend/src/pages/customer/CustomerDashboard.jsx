@@ -25,7 +25,8 @@ const CUSTOMER_SIDEBAR_ITEMS = [
 
 export default function CustomerDashboard({ setView }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("reserve-parking");
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
   const [selectedPlanForReserve, setSelectedPlanForReserve] = useState(null);
 
@@ -146,7 +147,11 @@ export default function CustomerDashboard({ setView }) {
 
   return (
     <div className={`pw-dashboard-app ${isPremiumActive ? "pw-theme-premium" : ""}`}>
-      <aside className="pw-dashboard-sidebar">
+      <div
+        className={`pw-sidebar-backdrop ${isMobileNavOpen ? "open" : ""}`}
+        onClick={() => setIsMobileNavOpen(false)}
+      />
+      <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
         <div className="pw-sidebar-brand" onClick={() => setView("landing")}>
           <div className="pw-brand-logo-box" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488", borderRadius: "10px" }}>
             <span className="pw-p-logo" style={{ color: "#ffffff", fontWeight: 800 }}>P</span>
@@ -167,7 +172,10 @@ export default function CustomerDashboard({ setView }) {
                 type="button"
                 className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
                 onClick={() => {
-                  if (item.isWorking) setActiveTab(item.id);
+                  if (item.isWorking) {
+                    setActiveTab(item.id);
+                    setIsMobileNavOpen(false);
+                  }
                 }}
                 title={item.isWorking ? "" : `${item.label} (Module disabled)`}
               >
@@ -191,7 +199,14 @@ export default function CustomerDashboard({ setView }) {
         )}
 
         <div className="pw-sidebar-footer" style={{ marginTop: "auto" }}>
-          <button type="button" className="pw-sidebar-logout-btn" onClick={handleSignOut}>
+          <button
+            type="button"
+            className="pw-sidebar-logout-btn"
+            onClick={() => {
+              setIsMobileNavOpen(false);
+              handleSignOut();
+            }}
+          >
             <LogOut size={16} />
             <span>Sign Out</span>
           </button>
@@ -201,10 +216,15 @@ export default function CustomerDashboard({ setView }) {
       <div className="pw-dashboard-main">
         <header className="pw-dashboard-topbar">
           <div className="pw-topbar-left">
-            <button type="button" className="pw-topbar-menu-icon" aria-label="Menu">
+            <button
+              type="button"
+              className="pw-topbar-menu-icon"
+              aria-label="Menu"
+              onClick={() => setIsMobileNavOpen((prev) => !prev)}
+            >
               <Menu size={18} />
             </button>
-            <div className="pw-topbar-search" style={{ width: "380px" }}>
+            <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
                 type="text"
@@ -247,7 +267,7 @@ export default function CustomerDashboard({ setView }) {
           <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: isPremiumActive ? "#facc15" : "var(--text-primary, #0f172a)" }}>{getPageTitle()}</h1>
-              {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "#64748b", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
+              {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
             </div>
 
             {activeTab === "reserve-parking" && (
@@ -255,7 +275,7 @@ export default function CustomerDashboard({ setView }) {
                 <MapPin size={16} style={{ color: isPremiumActive ? "#C99A2E" : "#0d9488" }} />
                 <div>
                   <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Downtown Plaza Garage</div>
-                  <div style={{ fontSize: "0.68rem", color: "#64748b" }}>24 Available Bays</div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)" }}>24 Available Bays</div>
                 </div>
               </div>
             )}

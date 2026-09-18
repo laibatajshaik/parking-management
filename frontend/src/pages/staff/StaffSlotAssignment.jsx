@@ -137,7 +137,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
           ))}
         </div>
 
-        <div className="pw-search-box-pill" style={{ width: "260px" }}>
+        <div className="pw-search-box-pill">
           <Search size={14} className="pw-search-icon" />
           <input
             type="text"
@@ -149,7 +149,8 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: selectedBay ? "1.5fr 1fr" : "1fr", gap: "20px" }}>
+      <div className={`pw-slot-assignment-grid ${selectedBay ? "has-selected-bay" : ""}`}>
+
         <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>
@@ -195,7 +196,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
                   <div style={{ fontSize: "0.72rem", fontWeight: 700, marginTop: "4px", color: isAvail ? "#16a34a" : isOcc ? "#dc2626" : "#0284c7", textTransform: "uppercase" }}>
                     {bay.status}
                   </div>
-                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)", marginTop: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {bay.vehicle || "Free Bay"}
                   </div>
                 </div>
@@ -219,26 +220,26 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "16px", fontSize: "0.82rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#64748b" }}>Vehicle Type:</span>
+                  <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Vehicle Type:</span>
                   <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{selectedBay.type}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#64748b" }}>Parked Plate:</span>
+                  <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Parked Plate:</span>
                   <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{selectedBay.vehicle || "None (Available)"}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#64748b" }}>Driver / User:</span>
+                  <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Driver / User:</span>
                   <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{selectedBay.user || "N/A"}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#64748b" }}>Parked Since:</span>
+                  <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Parked Since:</span>
                   <span style={{ fontWeight: 700, color: "#0f766e" }}>{selectedBay.parkedSince || "N/A"}</span>
                 </div>
               </div>
 
               <div style={{ marginBottom: "16px" }}>
                 <label className="pw-calc-label" style={{ marginBottom: "8px", display: "block" }}>Quick Status Override</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                <div className="pw-btn-trio-grid">
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(selectedBay.slot, "available")}

@@ -452,7 +452,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
             </div>
 
             <form onSubmit={handleSavePlan} className="pw-modal-form" style={{ marginTop: "16px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div className="pw-form-two-col-grid">
                 <div>
                   <label className="pw-clean-label">Plan Code *</label>
                   <input
@@ -493,7 +493,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "12px" }}>
+              <div className="pw-form-two-col-grid" style={{ marginTop: "12px" }}>
                 <div>
                   <label className="pw-clean-label">Billing Type *</label>
                   <select

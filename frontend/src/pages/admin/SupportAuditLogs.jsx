@@ -402,7 +402,7 @@ export default function SupportAuditLogs() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <div className="pw-search-box-pill" style={{ width: "220px" }}>
+          <div className="pw-search-box-pill">
             <Search size={14} className="pw-search-icon" />
             <input
               type="text"
@@ -436,19 +436,19 @@ export default function SupportAuditLogs() {
       </div>
 
       {activeSubTab === "tickets" && (
-        <div style={{ display: "grid", gridTemplateColumns: selectedTicket ? "1.4fr 1fr" : "1fr", gap: "20px" }}>
+        <div className={`pw-admin-support-grid ${selectedTicket ? "has-thread" : ""}`}>
           <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+            <div className="pw-card-header-flex">
               <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Customer Support Inquiries (Live Synced)</h4>
-              <div style={{ display: "flex", gap: "6px" }}>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                 {["All", "Open", "In Progress", "Resolved"].map((st) => (
                   <button
                     key={st}
                     type="button"
                     onClick={() => setStatusFilter(st)}
                     style={{
-                      background: statusFilter === st ? "#0f766e" : "#f1f5f9",
-                      color: statusFilter === st ? "#ffffff" : "#475569",
+                      background: statusFilter === st ? "#0f766e" : "var(--bg-sub, #f1f5f9)",
+                      color: statusFilter === st ? "#ffffff" : "var(--text-secondary, #475569)",
                       border: "none",
                       borderRadius: "6px",
                       padding: "4px 10px",
@@ -463,8 +463,8 @@ export default function SupportAuditLogs() {
               </div>
             </div>
 
-            <div style={{ overflowX: "auto" }}>
-              <table className="pw-records-table" style={{ width: "100%" }}>
+            <div className="pw-table-scroll">
+              <table className="pw-records-table">
                 <thead>
                   <tr>
                     <th>Ticket ID</th>
@@ -478,7 +478,7 @@ export default function SupportAuditLogs() {
                 <tbody>
                   {filteredTickets.length === 0 ? (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: "center", padding: "24px", color: "#64748b" }}>
+                      <td colSpan="6" style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary, #94a3b8)" }}>
                         No support tickets found matching current filters.
                       </td>
                     </tr>
@@ -500,11 +500,11 @@ export default function SupportAuditLogs() {
                           <td style={{ fontWeight: 800, color: "#0f766e" }}>{tCode}</td>
                           <td>
                             <div style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{cName}</div>
-                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{cEmail} • {dateText}</div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{cEmail} • {dateText}</div>
                           </td>
                           <td>
                             <div style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{t.subject}</div>
-                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{t.category}</div>
+                            <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{t.category}</div>
                           </td>
                           <td>
                             <select
@@ -650,12 +650,12 @@ export default function SupportAuditLogs() {
                   <div>
                     <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#0f766e" }}>{selectedTicket.ticket_code || selectedTicket.id}</span>
                     <h4 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "2px 0 0 0" }}>{selectedTicket.subject}</h4>
-                    <span style={{ fontSize: "0.76rem", color: "#64748b" }}>From: {selectedTicket.customer_name || selectedTicket.customer} ({selectedTicket.customer_email || selectedTicket.email})</span>
+                    <span style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)" }}>From: {selectedTicket.customer_name || selectedTicket.customer} ({selectedTicket.customer_email || selectedTicket.email})</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSelectedTicket(null)}
-                    style={{ background: "transparent", border: "none", color: "#64748b", cursor: "pointer" }}
+                    style={{ background: "transparent", border: "none", color: "var(--text-secondary, #94a3b8)", cursor: "pointer" }}
                   >
                     <X size={16} />
                   </button>
@@ -663,7 +663,7 @@ export default function SupportAuditLogs() {
 
                 <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Priority</label>
+                    <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary, #94a3b8)", display: "block", marginBottom: "3px" }}>Priority</label>
                     <select
                       value={selectedTicket.priority || "Normal"}
                       onChange={(e) => handleUpdatePriority(selectedTicket.ticket_code || selectedTicket.id, e.target.value)}
@@ -677,7 +677,7 @@ export default function SupportAuditLogs() {
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", display: "block", marginBottom: "3px" }}>Status</label>
+                    <label style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary, #94a3b8)", display: "block", marginBottom: "3px" }}>Status</label>
                     <select
                       value={selectedTicket.status || "Open"}
                       onChange={(e) => handleUpdateStatus(selectedTicket.ticket_code || selectedTicket.id, e.target.value)}
@@ -751,8 +751,8 @@ export default function SupportAuditLogs() {
       {activeSubTab === "audit" && (
         <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 14px 0" }}>Administrative & Security Audit Events</h4>
-          <div style={{ overflowX: "auto" }}>
-            <table className="pw-records-table" style={{ width: "100%" }}>
+          <div className="pw-table-scroll">
+            <table className="pw-records-table">
               <thead>
                 <tr>
                   <th>Timestamp</th>
@@ -766,16 +766,16 @@ export default function SupportAuditLogs() {
               <tbody>
                 {auditLogs.map((log) => (
                   <tr key={log.id}>
-                    <td style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>{log.timestamp}</td>
+                    <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>{log.timestamp}</td>
                     <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{log.actor}</td>
                     <td style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{log.action}</td>
-                    <td style={{ color: "#475569" }}>{log.target}</td>
+                    <td style={{ color: "var(--text-secondary, #94a3b8)" }}>{log.target}</td>
                     <td>
                       <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: log.severity === "Warning" ? "var(--bg-sub, #fffbeb)" : "var(--bg-teal-sub, #f0fdfa)", color: log.severity === "Warning" ? "#b45309" : "#0f766e" }}>
                         {log.severity}
                       </span>
                     </td>
-                    <td style={{ fontSize: "0.74rem", color: "#64748b", fontFamily: "monospace" }}>{log.ip}</td>
+                    <td style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)", fontFamily: "monospace" }}>{log.ip}</td>
                   </tr>
                 ))}
               </tbody>

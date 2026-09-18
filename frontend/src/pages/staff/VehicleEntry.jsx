@@ -417,7 +417,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Active Gate Terminal</span>
-          <span className="pw-metric-value" style={{ fontSize: "1.2rem", color: "#0f3b43" }}>North Gate 01</span>
+          <span className="pw-metric-value" style={{ fontSize: "1.2rem", color: "var(--text-primary, #2dd4bf)" }}>North Gate 01</span>
           <span className="pw-metric-trend positive">
             <ShieldCheck size={12} />
             <span>Operator: Laiba Taj</span>
@@ -611,7 +611,8 @@ export default function VehicleEntry({ setStatusActionMessage }) {
               </label>
               <div
                 style={{
-                  height: "42px",
+                  minHeight: "42px",
+                  height: "auto",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
@@ -632,7 +633,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
 
           <div className="pw-entry-form-actions">
             <div className="pw-entry-status-display">
-              <span style={{ fontSize: "0.82rem", color: "#64748b" }}>
+              <span style={{ fontSize: "0.82rem", color: "var(--text-secondary, #94a3b8)" }}>
                 Active Bays Available: <strong>{availableSlots.length}</strong> / {allSlots.length}
               </span>
             </div>
@@ -851,7 +852,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
                 <div className="pw-gate-pass-header">
                   <div className="pw-gate-pass-brand">PARKSAFE PARKING SYSTEM</div>
                   <div className="pw-gate-pass-id">{selectedPassModal.id}</div>
-                  <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "2px" }}>
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
                     Gate: North Terminal 01 • Operator: Laiba Taj
                   </div>
                 </div>
@@ -897,7 +898,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
 
                 <div className="pw-gate-pass-barcode">
                   <div className="pw-barcode-lines">||| | | |||| | || | |||</div>
-                  <div style={{ fontSize: "0.68rem", color: "#64748b", letterSpacing: "1px" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)", letterSpacing: "1px" }}>
                     {selectedPassModal.vehicle_number} - {selectedPassModal.slot_number}
                   </div>
                 </div>

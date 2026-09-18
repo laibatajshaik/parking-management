@@ -48,7 +48,7 @@ export default function SystemSettings() {
           </div>
           <div>
             <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>System Configuration & Operations</h3>
-            <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Manage parking tariffs, IoT barrier controls, taxes, and system policies</span>
+            <span style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)" }}>Manage parking tariffs, IoT barrier controls, taxes, and system policies</span>
           </div>
         </div>
 
@@ -95,7 +95,7 @@ export default function SystemSettings() {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div className="pw-form-two-col-grid">
               <div className="pw-calc-field-group">
                 <label className="pw-calc-label">Grace Period (Minutes)</label>
                 <input
@@ -136,7 +136,7 @@ export default function SystemSettings() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div className="pw-form-two-col-grid">
               <div className="pw-calc-field-group">
                 <label className="pw-calc-label">Standard GST Rate (%)</label>
                 <input
@@ -168,7 +168,7 @@ export default function SystemSettings() {
               />
             </div>
 
-            <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: "0.78rem", color: "#64748b" }}>
+            <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>
               Tax invoices are generated automatically with QR-code verification on all customer payments.
             </div>
           </div>
@@ -184,7 +184,7 @@ export default function SystemSettings() {
             <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", cursor: "pointer", border: "1px solid var(--border-color, #e2e8f0)" }}>
               <div>
                 <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>Fastag RFID Express Automated Gate</div>
-                <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Instant barrier lift on registered VIP vehicle detection</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>Instant barrier lift on registered VIP vehicle detection</div>
               </div>
               <input
                 type="checkbox"
@@ -197,7 +197,7 @@ export default function SystemSettings() {
             <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", cursor: "pointer", border: "1px solid var(--border-color, #e2e8f0)" }}>
               <div>
                 <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>ANPR License Plate OCR Recognition</div>
-                <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Automatic vehicle plate detection at entry kiosk camera</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>Automatic vehicle plate detection at entry kiosk camera</div>
               </div>
               <input
                 type="checkbox"
@@ -219,7 +219,7 @@ export default function SystemSettings() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
               <div>
                 <div style={{ fontSize: "0.84rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>PostgreSQL Database Backup</div>
-                <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Last snapshot: Today 04:00 AM (Automated)</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>Last snapshot: Today 04:00 AM (Automated)</div>
               </div>
               <button
                 type="button"

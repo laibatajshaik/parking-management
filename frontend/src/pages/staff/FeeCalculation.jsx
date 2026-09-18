@@ -122,7 +122,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
             </div>
           </div>
 
-          <div className="pw-calc-form-grid" style={{ marginTop: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div className="pw-calc-form-grid">
             <div className="pw-calc-field-group">
               <label className="pw-calc-label">Vehicle Number <span style={{ color: "#ef4444" }}>*</span></label>
               <div className="pw-calc-search-input-wrap">
@@ -205,7 +205,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "24px" }}>
+          <div className="pw-calc-btn-row">
             <button
               type="button"
               className="pw-calc-btn-reset"
@@ -274,7 +274,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
             <span className="pw-calc-total-val">₹ {calculatedAmount}</span>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "20px" }}>
+          <div className="pw-calc-actions-grid">
             <button
               type="button"
               className="pw-calc-btn-outline"
@@ -327,7 +327,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
             <tbody>
               {recentCalculations.map((item) => (
                 <tr key={item.id}>
-                  <td style={{ color: "#64748b" }}>{item.id}</td>
+                  <td style={{ color: "var(--text-secondary, #94a3b8)" }}>{item.id}</td>
                   <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{item.vehicleNumber}</td>
                   <td style={{ color: "var(--text-secondary, #334155)" }}>{item.vehicleType}</td>
                   <td style={{ color: "var(--text-secondary, #334155)" }}>{item.plan}</td>
@@ -338,9 +338,9 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
                       {item.status}
                     </span>
                   </td>
-                  <td style={{ fontSize: "0.8rem", color: "#64748b" }}>{item.time}</td>
+                  <td style={{ fontSize: "0.8rem", color: "var(--text-secondary, #94a3b8)" }}>{item.time}</td>
                   <td style={{ textAlign: "center" }}>
-                    <button type="button" style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", padding: "4px" }} title="More options">
+                    <button type="button" style={{ background: "none", border: "none", color: "var(--text-secondary, #94a3b8)", cursor: "pointer", padding: "4px" }} title="More options">
                       <MoreHorizontal size={16} />
                     </button>
                   </td>

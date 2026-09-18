@@ -264,7 +264,7 @@ export default function ReportsAnalytics() {
           </div>
           <div>
             <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Executive Revenue & Occupancy Intelligence</h3>
-            <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Live audited metrics for {timeRange}</span>
+            <span style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)" }}>Live audited metrics for {timeRange}</span>
           </div>
         </div>
 
@@ -350,12 +350,12 @@ export default function ReportsAnalytics() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "20px" }}>
+      <div className="pw-analytics-two-col-grid">
         <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
             <div>
               <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Peak Traffic & Revenue Heatmap ({timeRange})</h4>
-              <span style={{ fontSize: "0.76rem", color: "#64748b" }}>Hourly distribution of inbound vehicle check-ins</span>
+              <span style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)" }}>Hourly distribution of inbound vehicle check-ins</span>
             </div>
             <span style={{ fontSize: "0.74rem", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", border: "1px solid #ccfbf1", padding: "3px 10px", borderRadius: "999px", fontWeight: 700 }}>
               Peak at 06:00 PM
@@ -366,8 +366,8 @@ export default function ReportsAnalytics() {
             {currentData.hourlyTrends.map((item, idx) => {
               const barWidth = Math.round((item.vehicles / maxVehicleVal) * 100);
               return (
-                <div key={idx} style={{ display: "grid", gridTemplateColumns: "60px 1fr 100px 90px", alignItems: "center", gap: "12px", fontSize: "0.78rem" }}>
-                  <span style={{ fontWeight: 700, color: "#64748b" }}>{item.hour}</span>
+                <div key={idx} className="pw-heatmap-row-grid">
+                  <span style={{ fontWeight: 700, color: "var(--text-secondary, #94a3b8)" }}>{item.hour}</span>
                   <div style={{ height: "14px", background: "var(--bg-sub, #f8fafc)", borderRadius: "4px", overflow: "hidden" }}>
                     <div style={{ width: `${barWidth}%`, height: "100%", background: barWidth > 80 ? "linear-gradient(90deg, #0d9488, #059669)" : "linear-gradient(90deg, #38bdf8, #0284c7)", borderRadius: "4px", transition: "width 0.3s ease" }} />
                   </div>
@@ -388,7 +388,7 @@ export default function ReportsAnalytics() {
                 return (
                   <div key={idx}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", marginBottom: "4px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "#334155" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, color: "var(--text-secondary, #cbd5e1)" }}>
                         <Icon size={14} style={{ color: v.color }} />
                         <span>{v.type}</span>
                       </div>
@@ -416,7 +416,7 @@ export default function ReportsAnalytics() {
                       </div>
                       <div>
                         <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{pm.method}</div>
-                        <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{pm.count} transactions ({pm.pct}%)</div>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-secondary, #94a3b8)" }}>{pm.count} transactions ({pm.pct}%)</div>
                       </div>
                     </div>
                     <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#0f766e" }}>{pm.amount}</span>
@@ -430,8 +430,8 @@ export default function ReportsAnalytics() {
 
       <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
         <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: "0 0 14px 0" }}>Zone Efficiency & Turnover Performance ({timeRange})</h4>
-        <div style={{ overflowX: "auto" }}>
-          <table className="pw-records-table" style={{ width: "100%" }}>
+        <div className="pw-table-scroll">
+          <table className="pw-records-table">
             <thead>
               <tr>
                 <th>Parking Zone</th>
@@ -451,7 +451,7 @@ export default function ReportsAnalytics() {
                       {zp.avgOccupancy}
                     </span>
                   </td>
-                  <td style={{ textAlign: "center", color: "#475569", fontWeight: 600 }}>{zp.turnover}</td>
+                  <td style={{ textAlign: "center", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>{zp.turnover}</td>
                   <td style={{ textAlign: "right", fontWeight: 800, color: "#0f766e" }}>{zp.revenue}</td>
                 </tr>
               ))}

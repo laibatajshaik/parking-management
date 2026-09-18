@@ -378,7 +378,7 @@ export default function ParkingHistory({ loggedInUser }) {
                 </span>
                 <div className="pw-detail-user-meta">
                   <h4 className="pw-detail-user-name">{selectedSessionModal.model} ({selectedSessionModal.vehicle_type})</h4>
-                  <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>
                     Bay <strong>{selectedSessionModal.slot_number}</strong> • {selectedSessionModal.zone}
                   </span>
                 </div>
