@@ -15,20 +15,33 @@ export default function Login({ setView }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     setMessage("");
     setIsError(false);
+
+    if (!email || !email.trim()) {
+      setIsError(true);
+      setMessage("Email is required");
+      return;
+    }
+
+    if (!password || !password.trim()) {
+      setIsError(true);
+      setMessage("Password is required");
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: email.trim(), password })
       });
       const data = await response.json();
       setIsLoading(false);
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         if (data.user) {
           localStorage.setItem("shnoor_current_user", JSON.stringify(data.user));
         }
@@ -44,7 +57,7 @@ export default function Login({ setView }) {
         }, 800);
       } else {
         setIsError(true);
-        setMessage(data.error || "Invalid credentials");
+        setMessage("Invalid email or password");
       }
     } catch {
       setIsLoading(false);
@@ -80,7 +93,7 @@ export default function Login({ setView }) {
           <p className="pw-auth-subtitle">Login to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="pw-auth-form">
+        <form onSubmit={handleSubmit} className="pw-auth-form" noValidate>
           <div className="pw-form-field">
             <label htmlFor="auth-email" className="pw-form-label">Email Address</label>
             <input
@@ -90,7 +103,6 @@ export default function Login({ setView }) {
               placeholder="youremail@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
             />
           </div>
 
@@ -104,7 +116,6 @@ export default function Login({ setView }) {
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
               />
               <button
                 type="button"

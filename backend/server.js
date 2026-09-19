@@ -707,17 +707,18 @@ app.delete("/api/admin/slots/:id", async (req, res) => {
 app.post("/api/parking-slots/:slotNumber/status", async (req, res) => {
   const { slotNumber } = req.params;
   const { status } = req.body;
+  const normalizedStatus = (status || "").toLowerCase();
 
-  if (!status || !["available", "occupied", "reserved"].includes(status)) {
+  if (!["available", "occupied", "reserved"].includes(normalizedStatus)) {
     return res.status(400).json({ error: "Status must be 'available', 'occupied', or 'reserved'" });
   }
 
-  const isAvailable = status === "available";
+  const isAvailable = normalizedStatus === "available";
 
   try {
     const slotResult = await pool.query(
       "UPDATE parking_slots SET status = $1, is_available = $2 WHERE slot_number = $3 RETURNING *",
-      [status, isAvailable, slotNumber]
+      [normalizedStatus, isAvailable, slotNumber]
     );
 
     if (slotResult.rowCount === 0) {
@@ -2049,8 +2050,8 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       `INSERT INTO reservations (
         booking_id, customer_name, customer_email, customer_phone, vehicle_number,
         vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
-        total_amount, status, validation_code, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Confirmed', $14, CURRENT_TIMESTAMP) RETURNING *`,
+        total_amount, status, validation_code, plan_code, plan_name, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Confirmed', $14, $15, $16, CURRENT_TIMESTAMP) RETURNING *`,
       [
         bookingId,
         customer_name,
@@ -2096,9 +2097,10 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
 });
 
 app.post("/api/staff/validate-reservation", async (req, res) => {
-  const { booking_id, validation_code, vehicle_number, validated_by } = req.body;
+  const { booking_id, validation_code, code, vehicle_number, validated_by } = req.body;
+  const valCode = validation_code || code;
 
-  if (!booking_id && !validation_code && !vehicle_number) {
+  if (!booking_id && !valCode && !vehicle_number) {
     return res.status(400).json({ error: "Booking ID, validation code, or vehicle plate is required" });
   }
 
@@ -2109,8 +2111,8 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
     if (booking_id) {
       params.push(booking_id.trim());
       query += ` AND LOWER(booking_id) = LOWER($${params.length})`;
-    } else if (validation_code) {
-      params.push(validation_code.trim());
+    } else if (valCode) {
+      params.push(valCode.trim());
       query += ` AND LOWER(validation_code) = LOWER($${params.length})`;
     } else if (vehicle_number) {
       params.push(vehicle_number.trim());
