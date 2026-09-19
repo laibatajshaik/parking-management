@@ -33,9 +33,9 @@ export default function CustomerDashboard({ setView }) {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem("shnoor_current_user");
-      return saved ? JSON.parse(saved) : { name: "Customer", email: "customer@shnoor.com" };
+      return saved ? JSON.parse(saved) : null;
     } catch {
-      return { name: "Customer", email: "customer@shnoor.com" };
+      return null;
     }
   });
 
@@ -44,8 +44,8 @@ export default function CustomerDashboard({ setView }) {
       localStorage.removeItem("shnoor_customer_premium");
       const savedUser = localStorage.getItem("shnoor_current_user");
       const user = savedUser ? JSON.parse(savedUser) : null;
-      const email = user?.email || "customer@shnoor.com";
-      const saved = localStorage.getItem(`shnoor_premium_${email}`);
+      const email = user?.email || "";
+      const saved = email ? localStorage.getItem(`shnoor_premium_${email}`) : null;
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -55,15 +55,27 @@ export default function CustomerDashboard({ setView }) {
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem("shnoor_current_user");
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        setCurrentUser(parsed);
-        const email = parsed.email || "customer@shnoor.com";
-        const savedPremium = localStorage.getItem(`shnoor_premium_${email}`);
-        setPremiumPlanInfo(savedPremium ? JSON.parse(savedPremium) : null);
+      if (!savedUser) {
+        if (setView) {
+          setView("login");
+        } else {
+          navigate("/login");
+        }
+        return;
       }
-    } catch (err) { void err; }
-  }, []);
+      const parsed = JSON.parse(savedUser);
+      setCurrentUser(parsed);
+      const email = parsed.email || "";
+      const savedPremium = email ? localStorage.getItem(`shnoor_premium_${email}`) : null;
+      setPremiumPlanInfo(savedPremium ? JSON.parse(savedPremium) : null);
+    } catch {
+      if (setView) {
+        setView("login");
+      } else {
+        navigate("/login");
+      }
+    }
+  }, [navigate, setView]);
 
   const isPremiumActive = Boolean(premiumPlanInfo && premiumPlanInfo.active);
 

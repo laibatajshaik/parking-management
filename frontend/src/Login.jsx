@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "./config/api.js";
 import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 
@@ -13,8 +13,19 @@ export default function Login({ setView }) {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
 
+  useEffect(() => {
+    try {
+      localStorage.removeItem("shnoor_current_user");
+      localStorage.removeItem("shnoor_auth_state");
+    } catch {
+      void 0;
+    }
+  }, []);
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     setMessage("");
     setIsError(false);
 
@@ -41,21 +52,28 @@ export default function Login({ setView }) {
       const data = await response.json();
       setIsLoading(false);
 
-      if (response.ok && data.success) {
-        if (data.user) {
-          localStorage.setItem("shnoor_current_user", JSON.stringify(data.user));
-        }
+      if (response.ok && data && data.success && data.user) {
+        localStorage.setItem("shnoor_current_user", JSON.stringify(data.user));
+        localStorage.setItem("shnoor_auth_state", "true");
         setMessage("Login successful!");
         setTimeout(() => {
-          if (data.user && data.user.role === "admin") {
+          if (data.user.role === "admin") {
             setView("admin/dashboard");
-          } else if (data.user && data.user.role === "staff") {
+          } else if (data.user.role === "staff") {
             setView("staff/dashboard");
+          } else if (data.user.role === "customer") {
+            setView("customer/dashboard");
           } else {
             setView("customer/dashboard");
           }
         }, 800);
       } else {
+        try {
+          localStorage.removeItem("shnoor_current_user");
+          localStorage.removeItem("shnoor_auth_state");
+        } catch {
+          void 0;
+        }
         setIsError(true);
         setMessage("Invalid email or password");
       }

@@ -49,6 +49,33 @@ export default function StaffDashboard({ setView }) {
   ]);
 
   useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem("shnoor_current_user");
+      if (!savedUser) {
+        if (setView) {
+          setView("login");
+        } else {
+          navigate("/login");
+        }
+        return;
+      }
+      const parsed = JSON.parse(savedUser);
+      if (parsed.role !== "staff" && parsed.role !== "admin") {
+        if (setView) {
+          setView("login");
+        } else {
+          navigate("/login");
+        }
+        return;
+      }
+    } catch {
+      if (setView) {
+        setView("login");
+      } else {
+        navigate("/login");
+      }
+      return;
+    }
     fetch(`${API_BASE_URL}/api/admin/dashboard-overview`)
       .then((res) => res.json())
       .then((data) => {
@@ -63,9 +90,15 @@ export default function StaffDashboard({ setView }) {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [navigate, setView]);
 
   const handleSignOut = () => {
+    try {
+      localStorage.removeItem("shnoor_current_user");
+      localStorage.removeItem("shnoor_auth_state");
+    } catch {
+      void 0;
+    }
     if (setView) {
       setView("landing");
     } else {
