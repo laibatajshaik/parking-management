@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Bike, LogIn, Search, CheckCircle2, X, Printer, Download, Layers, RefreshCw, Phone, ShieldCheck, CheckCircle } from "lucide-react";
 
@@ -38,8 +39,8 @@ export default function VehicleEntry({ setStatusActionMessage }) {
     setIsLoading(true);
     try {
       const [slotsRes, entriesRes] = await Promise.all([
-        fetch("http://localhost:5000/api/parking-slots"),
-        fetch("http://localhost:5000/api/staff/vehicle-entries")
+        fetch(`${API_BASE_URL}/api/parking-slots`),
+        fetch(`${API_BASE_URL}/api/staff/vehicle-entries`)
       ]);
 
       const slotsData = await slotsRes.json();
@@ -125,7 +126,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
     setEntryStatusState("Processing Check-in...");
 
     try {
-      const res = await fetch("http://localhost:5000/api/staff/vehicle-entry", {
+      const res = await fetch(`${API_BASE_URL}/api/staff/vehicle-entry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)

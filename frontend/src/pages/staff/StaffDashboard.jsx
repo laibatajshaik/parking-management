@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { LayoutDashboard, Calculator, Car, Calendar, MapPin, CreditCard, FileText, BarChart3, HelpCircle, Bell, LogOut as LogOutIcon, Search, Menu, CheckCircle, ChevronDown } from "lucide-react";
@@ -48,7 +49,7 @@ export default function StaffDashboard({ setView }) {
   ]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/admin/dashboard-overview")
+    fetch(`${API_BASE_URL}/api/admin/dashboard-overview`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.stats) {

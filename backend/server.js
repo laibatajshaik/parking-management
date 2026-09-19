@@ -316,6 +316,34 @@ const initDbSchema = async () => {
         ON CONFLICT (plan_code) DO NOTHING;
       `);
     }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_tickets (
+        id SERIAL PRIMARY KEY,
+        ticket_code VARCHAR(50) UNIQUE NOT NULL,
+        customer_name VARCHAR(100),
+        customer_email VARCHAR(150) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        category VARCHAR(100) DEFAULT 'General Query',
+        description TEXT,
+        priority VARCHAR(50) DEFAULT 'Normal',
+        status VARCHAR(50) DEFAULT 'Open',
+        messages JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const ticketCountRes = await pool.query("SELECT COUNT(*) FROM support_tickets");
+    if (parseInt(ticketCountRes.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO support_tickets (ticket_code, customer_name, customer_email, subject, category, description, priority, status, messages)
+        VALUES
+          ('TCK-8821', 'Laiba', 'customer@shnoor.com', 'EV Charger Station fast speed query', 'EV Charging', 'I wanted to check if 60kW DC fast charging is available on Zone C Bay 01.', 'High', 'Open', '[{"sender": "Customer", "text": "I wanted to check if 60kW DC fast charging is available on Zone C Bay 01.", "time": "10:30 AM"}]'::jsonb),
+          ('TCK-8822', 'Laiba Taj', 'staff@shnoor.com', 'Boom barrier RFID tag auto-renewal', 'Access Control', 'RFID express lane card needs monthly renewal activation.', 'Normal', 'Resolved', '[{"sender": "Customer", "text": "RFID express lane card needs monthly renewal activation.", "time": "09:15 AM"}, {"sender": "Support Agent", "text": "Your RFID tag has been renewed successfully for another 30 days.", "time": "09:45 AM"}]'::jsonb)
+        ON CONFLICT (ticket_code) DO NOTHING;
+      `);
+    }
   } catch (err) {
     console.error("Schema init error:", err);
   }

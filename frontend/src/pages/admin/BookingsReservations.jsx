@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { CalendarCheck, Search, RefreshCw, CheckCircle2, Clock, Layers, Download, X, TrendingUp, Tag, CheckCircle, XCircle } from "lucide-react";
 
@@ -19,7 +20,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
   const fetchBookings = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/bookings");
+      const res = await fetch(`${API_BASE_URL}/api/bookings`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.bookings) {
@@ -93,7 +94,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
 
   const handleUpdateStatus = async (bookingId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/bookings/${bookingId}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/bookings/${bookingId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })

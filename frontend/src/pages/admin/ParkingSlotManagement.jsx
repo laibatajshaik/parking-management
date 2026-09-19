@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState } from "react";
 import {
   Car,
@@ -72,7 +73,7 @@ export default function ParkingSlotManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/admin/slots", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/slots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addSlotFormData)
@@ -121,7 +122,7 @@ export default function ParkingSlotManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/slots/${editingSlot.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/slots/${editingSlot.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editSlotFormData)
@@ -151,7 +152,7 @@ export default function ParkingSlotManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/slots/${slotToDelete.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/slots/${slotToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

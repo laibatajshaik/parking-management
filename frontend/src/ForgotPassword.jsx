@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./config/api.js";
 import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
 import { useState } from "react";
 import { Eye, EyeOff, CheckCircle2, ArrowLeft, Mail } from "lucide-react";
@@ -23,7 +24,7 @@ export default function ForgotPassword({ setView }) {
     setIsError(false);
 
     try {
-      const response = await fetch("http://localhost:5000/api/forgot-password", {
+      const response = await fetch(`${API_BASE_URL}/api/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() })
@@ -54,7 +55,7 @@ export default function ForgotPassword({ setView }) {
     setIsError(false);
 
     try {
-      const response = await fetch("http://localhost:5000/api/verify-reset-otp", {
+      const response = await fetch(`${API_BASE_URL}/api/verify-reset-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), otp: otp.trim() })
@@ -95,7 +96,7 @@ export default function ForgotPassword({ setView }) {
     setIsError(false);
 
     try {
-      const response = await fetch("http://localhost:5000/api/reset-password", {
+      const response = await fetch(`${API_BASE_URL}/api/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

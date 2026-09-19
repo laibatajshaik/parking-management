@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import {
   ShieldAlert,
@@ -27,7 +28,7 @@ export default function SupportAuditLogs() {
   const fetchTickets = async () => {
     setIsLoadingTickets(true);
     try {
-      const res = await fetch("http://localhost:5000/api/support-tickets");
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets`);
       const data = await res.json();
       setIsLoadingTickets(false);
       if (data.success && data.tickets) {
@@ -92,7 +93,7 @@ export default function SupportAuditLogs() {
 
   const handleUpdatePriority = async (ticketId, newPriority) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/support-tickets/${ticketId}/priority`, {
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/priority`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priority: newPriority })
@@ -129,7 +130,7 @@ export default function SupportAuditLogs() {
 
   const handleUpdateStatus = async (ticketId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/support-tickets/${ticketId}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
@@ -166,7 +167,7 @@ export default function SupportAuditLogs() {
 
   const handleDeleteTicket = async (ticketId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/support-tickets/${ticketId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}`, {
         method: "DELETE"
       });
       const data = await res.json();
@@ -194,7 +195,7 @@ export default function SupportAuditLogs() {
 
     try {
       const targetId = selectedTicket.id || selectedTicket.ticket_code;
-      const res = await fetch(`http://localhost:5000/api/support-tickets/${targetId}/reply`, {
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${targetId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./config/api.js";
 import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -19,7 +20,7 @@ export default function Login({ setView }) {
     setIsError(false);
 
     try {
-      const response = await fetch("http://localhost:5000/api/login", {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })

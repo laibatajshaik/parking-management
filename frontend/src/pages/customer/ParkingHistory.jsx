@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, History, Download, Printer, X, Zap, Receipt } from "lucide-react";
 
@@ -15,7 +16,7 @@ export default function ParkingHistory({ loggedInUser }) {
       const queryParam = user.email
         ? `email=${encodeURIComponent(user.email)}`
         : `name=${encodeURIComponent(user.name || "Laiba")}`;
-      const res = await fetch(`http://localhost:5000/api/customer/parking-history?${queryParam}`);
+      const res = await fetch(`${API_BASE_URL}/api/customer/parking-history?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.history) {

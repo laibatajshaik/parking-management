@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState } from "react";
 import {
   Users,
@@ -90,7 +91,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${editingUser.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editFormData)
@@ -126,7 +127,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/admin/users", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addFormData)
@@ -165,7 +166,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${user.id}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${user.id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
@@ -212,7 +213,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${userToDelete.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, Mail, Zap } from "lucide-react";
 
@@ -11,7 +12,7 @@ export default function ActiveParkingSessions() {
   const fetchSessions = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/parking/active-sessions");
+      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.sessions) {

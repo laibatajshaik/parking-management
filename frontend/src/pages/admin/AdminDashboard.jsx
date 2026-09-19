@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -104,7 +105,7 @@ export default function AdminDashboard({ setView }) {
   ]);
 
   const fetchUsers = () => {
-    fetch("http://localhost:5000/api/admin/users")
+    fetch(`${API_BASE_URL}/api/admin/users`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.users) {
@@ -124,7 +125,7 @@ export default function AdminDashboard({ setView }) {
   };
 
   const fetchVehicles = () => {
-    fetch("http://localhost:5000/api/admin/vehicles")
+    fetch(`${API_BASE_URL}/api/admin/vehicles`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.vehicles) {
@@ -135,7 +136,7 @@ export default function AdminDashboard({ setView }) {
   };
 
   const fetchDashboardData = () => {
-    fetch("http://localhost:5000/api/admin/dashboard-overview")
+    fetch(`${API_BASE_URL}/api/admin/dashboard-overview`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -184,7 +185,7 @@ export default function AdminDashboard({ setView }) {
 
   const handleSlotStatusChange = async (slotNumber, newStatus) => {
     try {
-      await fetch(`http://localhost:5000/api/parking-slots/${slotNumber}/status`, {
+      await fetch(`${API_BASE_URL}/api/parking-slots/${slotNumber}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })

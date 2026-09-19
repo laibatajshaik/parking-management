@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import {
   HelpCircle,
@@ -53,7 +54,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
   const fetchMyTickets = async () => {
     setIsLoadingTickets(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/support-tickets?email=${encodeURIComponent(userEmail)}`);
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets?email=${encodeURIComponent(userEmail)}`);
       const data = await res.json();
       setIsLoadingTickets(false);
       if (data.success && data.tickets) {
@@ -81,7 +82,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/support-tickets", {
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

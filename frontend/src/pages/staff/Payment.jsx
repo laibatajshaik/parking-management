@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { CreditCard, Smartphone, Banknote, Globe, CheckCircle2, Car, Printer, Download, RotateCcw, CheckCircle } from "lucide-react";
 
@@ -12,7 +13,7 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
 
   const fetchActiveSessions = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/parking/active-sessions");
+      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
       const data = await res.json();
       if (data.success && data.sessions) {
         setActiveSessions(data.sessions);
@@ -69,7 +70,7 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
     };
 
     try {
-      const res = await fetch("http://localhost:5000/api/staff/process-payment", {
+      const res = await fetch(`${API_BASE_URL}/api/staff/process-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

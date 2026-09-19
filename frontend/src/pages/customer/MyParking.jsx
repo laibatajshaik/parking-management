@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck } from "lucide-react";
 
@@ -10,13 +11,13 @@ export default function MyParking({ loggedInUser, onNavigate }) {
     try {
       const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
       const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name || "Laiba")}`;
-      const res = await fetch(`http://localhost:5000/api/customer/my-parking?${queryParam}`);
+      const res = await fetch(`${API_BASE_URL}/api/customer/my-parking?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.session) {
         setActiveSession(data.session);
       } else {
-        const fallbackRes = await fetch("http://localhost:5000/api/customer/my-parking?name=Laiba");
+        const fallbackRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?name=Laiba`);
         const fallbackData = await fallbackRes.json();
         if (fallbackData.success && fallbackData.session) {
           setActiveSession(fallbackData.session);

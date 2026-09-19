@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Printer, Download, Receipt, ShieldCheck, Calendar, Search, RefreshCw } from "lucide-react";
 
@@ -18,7 +19,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
     try {
       const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
       const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name || "Laiba")}`;
-      const res = await fetch(`http://localhost:5000/api/customer/payments?${queryParam}`);
+      const res = await fetch(`${API_BASE_URL}/api/customer/payments?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.payments) {
@@ -40,7 +41,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
             setActiveReceipt(valids[0]);
           }
         } else {
-          const allRes = await fetch("http://localhost:5000/api/payments");
+          const allRes = await fetch(`${API_BASE_URL}/api/payments`);
           const allData = await allRes.json();
           if (allData.success && allData.payments) {
             const allValids = allData.payments.filter(

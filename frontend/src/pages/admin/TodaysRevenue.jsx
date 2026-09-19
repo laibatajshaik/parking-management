@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers } from "lucide-react";
 
@@ -25,7 +26,7 @@ export default function TodaysRevenue() {
   const fetchRevenue = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/payments/today");
+      const res = await fetch(`${API_BASE_URL}/api/payments/today`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success) {

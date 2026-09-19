@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Search, CheckCircle2, CalendarCheck, Clock, Car, Download, Printer, RefreshCw } from "lucide-react";
 
@@ -12,7 +13,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
   const fetchReservations = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/bookings");
+      const res = await fetch(`${API_BASE_URL}/api/bookings`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.bookings) {
@@ -104,7 +105,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
     setIsValidating(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/staff/validate-reservation", {
+      const res = await fetch(`${API_BASE_URL}/api/staff/validate-reservation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

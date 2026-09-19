@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Search, RefreshCw, Car, Bike, Zap, Crown, CheckCircle2, ArrowRight, Sparkles, Award } from "lucide-react";
 
@@ -110,7 +111,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
   const fetchPlans = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/pricing-plans?active=true");
+      const res = await fetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.plans && data.plans.length > 0) {

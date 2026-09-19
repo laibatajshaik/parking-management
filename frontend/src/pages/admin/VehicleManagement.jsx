@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState } from "react";
 import {
   Car,
@@ -81,7 +82,7 @@ export default function VehicleManagement({
   const fetchVehicleHistory = (vehicle) => {
     setVehicleForHistory(vehicle);
     setIsLoadingHistory(true);
-    fetch(`http://localhost:5000/api/admin/vehicles/${encodeURIComponent(vehicle.vehicle_number)}/history`)
+    fetch(`${API_BASE_URL}/api/admin/vehicles/${encodeURIComponent(vehicle.vehicle_number)}/history`)
       .then((res) => res.json())
       .then((data) => {
         setIsLoadingHistory(false);
@@ -103,7 +104,7 @@ export default function VehicleManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/admin/vehicles", {
+      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addVehicleFormData)
@@ -158,7 +159,7 @@ export default function VehicleManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/vehicles/${editingVehicle.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles/${editingVehicle.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editVehicleFormData)
@@ -188,7 +189,7 @@ export default function VehicleManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/vehicles/${vehicleToDelete.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles/${vehicleToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

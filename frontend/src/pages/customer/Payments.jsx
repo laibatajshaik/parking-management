@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { CreditCard, Smartphone, Banknote, Globe, Receipt, Search, RefreshCw, CheckCircle2, Calendar, Clock, Layers, ArrowUpRight } from "lucide-react";
 
@@ -12,14 +13,14 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
     try {
       const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
       const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name || "Laiba")}`;
-      const res = await fetch(`http://localhost:5000/api/customer/payments?${queryParam}`);
+      const res = await fetch(`${API_BASE_URL}/api/customer/payments?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.payments) {
         if (data.payments.length > 0) {
           setPayments(data.payments);
         } else {
-          const allRes = await fetch("http://localhost:5000/api/payments");
+          const allRes = await fetch(`${API_BASE_URL}/api/payments`);
           const allData = await allRes.json();
           if (allData.success && allData.payments) {
             setPayments(allData.payments);
