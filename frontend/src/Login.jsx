@@ -60,11 +60,11 @@ export default function Login({ setView }) {
           if (data.user.role === "admin") {
             setView("admin/dashboard/overview");
           } else if (data.user.role === "staff") {
-            setView("staff/dashboard");
+            setView("staff/dashboard/overview");
           } else if (data.user.role === "customer") {
-            setView("customer/dashboard");
+            setView("customer/dashboard/overview");
           } else {
-            setView("customer/dashboard");
+            setView("customer/dashboard/overview");
           }
         }, 800);
       } else {

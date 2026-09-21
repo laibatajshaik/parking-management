@@ -28,12 +28,12 @@ export default function App() {
       <Route path="/admin/dashboard" element={<Navigate to="/admin/dashboard/overview" replace />} />
       <Route path="/admin/dashboard/:tab" element={<AdminDashboard setView={setView} />} />
       <Route path="/admin/:tab" element={<AdminDashboard setView={setView} />} />
-      <Route path="/staff" element={<StaffDashboard setView={setView} />} />
-      <Route path="/staff/dashboard" element={<StaffDashboard setView={setView} />} />
+      <Route path="/staff" element={<Navigate to="/staff/dashboard/overview" replace />} />
+      <Route path="/staff/dashboard" element={<Navigate to="/staff/dashboard/overview" replace />} />
       <Route path="/staff/dashboard/:tab" element={<StaffDashboard setView={setView} />} />
       <Route path="/staff/:tab" element={<StaffDashboard setView={setView} />} />
-      <Route path="/customer" element={<CustomerDashboard setView={setView} />} />
-      <Route path="/customer/dashboard" element={<CustomerDashboard setView={setView} />} />
+      <Route path="/customer" element={<Navigate to="/customer/dashboard/overview" replace />} />
+      <Route path="/customer/dashboard" element={<Navigate to="/customer/dashboard/overview" replace />} />
       <Route path="/customer/dashboard/:tab" element={<CustomerDashboard setView={setView} />} />
       <Route path="/customer/:tab" element={<CustomerDashboard setView={setView} />} />
     </Routes>

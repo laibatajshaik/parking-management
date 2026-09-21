@@ -30,27 +30,45 @@ const STAFF_SIDEBAR_ITEMS = [
 export default function StaffDashboard({ setView }) {
   const navigate = useNavigate();
   const { tab } = useParams();
-  const [activeTab, setActiveTab] = useState(() => tab || "dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (!tab || tab === "dashboard" || tab === "overview") return "dashboard";
+    return tab;
+  });
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
   const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState(null);
 
   useEffect(() => {
     if (tab) {
-      const match = STAFF_SIDEBAR_ITEMS.find((item) => item.id === tab);
-      if (match && activeTab !== tab) {
-        setActiveTab(tab);
+      if (tab === "dashboard" || tab === "overview") {
+        if (activeTab !== "dashboard") {
+          setActiveTab("dashboard");
+        }
+      } else {
+        const match = STAFF_SIDEBAR_ITEMS.find((item) => item.id === tab);
+        if (match && activeTab !== tab) {
+          setActiveTab(tab);
+        }
       }
+    } else {
+      navigate("/staff/dashboard/overview", { replace: true });
     }
-  }, [tab, activeTab]);
+  }, [tab, activeTab, navigate]);
 
   useEffect(() => {
-    document.title = "Staff Dashboard | ParkSafe";
-  }, []);
+    const current = STAFF_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
+    const label = current ? current.label : "Dashboard";
+    document.title = `Staff Dashboard - ${label} | ParkSafe`;
+  }, [activeTab]);
 
   const handleTabChange = (itemId) => {
     setActiveTab(itemId);
     setIsMobileNavOpen(false);
+    if (itemId === "dashboard" || itemId === "overview") {
+      navigate("/staff/dashboard/overview");
+    } else {
+      navigate(`/staff/dashboard/${itemId}`);
+    }
   };
 
   const [metrics, setMetrics] = useState({
