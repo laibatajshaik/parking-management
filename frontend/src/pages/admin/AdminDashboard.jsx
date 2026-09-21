@@ -394,15 +394,6 @@ export default function AdminDashboard({ setView }) {
             >
               <Menu size={18} />
             </button>
-            <div className="pw-topbar-breadcrumb">
-              <span className="pw-breadcrumb-role">admin</span>
-              <span className="pw-breadcrumb-sep">/</span>
-              <span className="pw-breadcrumb-role">dashboard</span>
-              <span className="pw-breadcrumb-sep">/</span>
-              <span className="pw-breadcrumb-module">
-                {activeTab === "dashboard" ? "overview" : activeTab}
-              </span>
-            </div>
             <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
