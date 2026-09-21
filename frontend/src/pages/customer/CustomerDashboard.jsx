@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { LayoutDashboard, BookmarkCheck, FileText, CreditCard, Car, Tag, User, HelpCircle, Bell, LogOut, Menu, Search, MapPin, ChevronDown, Crown } from "lucide-react";
 import CustomerOverview from "./CustomerOverview.jsx";
 import MyParking from "./MyParking.jsx";
@@ -25,10 +25,38 @@ const CUSTOMER_SIDEBAR_ITEMS = [
 
 export default function CustomerDashboard({ setView }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const { tab } = useParams();
+  const [activeTab, setActiveTab] = useState(() => tab || "dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
   const [selectedPlanForReserve, setSelectedPlanForReserve] = useState(null);
+
+  useEffect(() => {
+    if (tab && tab !== activeTab) {
+      const match = CUSTOMER_SIDEBAR_ITEMS.find((item) => item.id === tab);
+      if (match) {
+        setActiveTab(tab);
+      }
+    } else if (!tab && activeTab !== "dashboard") {
+      setActiveTab("dashboard");
+    }
+  }, [tab, activeTab]);
+
+  useEffect(() => {
+    const current = CUSTOMER_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
+    const label = current ? current.label : "Dashboard";
+    document.title = `Customer Dashboard - ${label} | ParkSafe`;
+  }, [activeTab]);
+
+  const handleTabChange = (itemId) => {
+    setActiveTab(itemId);
+    setIsMobileNavOpen(false);
+    if (itemId === "dashboard") {
+      navigate("/customer/dashboard");
+    } else {
+      navigate(`/customer/dashboard/${itemId}`);
+    }
+  };
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -125,12 +153,12 @@ export default function CustomerDashboard({ setView }) {
 
   const handleViewReceipt = (payment) => {
     setSelectedReceiptForView(payment);
-    setActiveTab("digital-receipts");
+    handleTabChange("digital-receipts");
   };
 
   const handleSelectPlanAndReserve = (plan) => {
     setSelectedPlanForReserve(plan);
-    setActiveTab("reserve-parking");
+    handleTabChange("reserve-parking");
   };
 
   const getPageTitle = () => {
@@ -185,8 +213,7 @@ export default function CustomerDashboard({ setView }) {
                 className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
                 onClick={() => {
                   if (item.isWorking) {
-                    setActiveTab(item.id);
-                    setIsMobileNavOpen(false);
+                    handleTabChange(item.id);
                   }
                 }}
                 title={item.isWorking ? "" : `${item.label} (Module disabled)`}
@@ -236,6 +263,13 @@ export default function CustomerDashboard({ setView }) {
             >
               <Menu size={18} />
             </button>
+            <div className="pw-topbar-breadcrumb">
+              <span className="pw-breadcrumb-role">Customer Dashboard</span>
+              <span className="pw-breadcrumb-sep">/</span>
+              <span className="pw-breadcrumb-module">
+                {CUSTOMER_SIDEBAR_ITEMS.find((i) => i.id === activeTab)?.label || "Dashboard"}
+              </span>
+            </div>
             <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
@@ -297,7 +331,7 @@ export default function CustomerDashboard({ setView }) {
             <CustomerOverview
               currentUser={currentUser}
               recentParkings={recentParkings}
-              setActiveTab={setActiveTab}
+              setActiveTab={handleTabChange}
               isPremiumActive={isPremiumActive}
               premiumPlanInfo={premiumPlanInfo}
             />
@@ -306,7 +340,7 @@ export default function CustomerDashboard({ setView }) {
           {activeTab === "reserve-parking" && (
             <ReserveParking
               loggedInUser={currentUser}
-              onNavigate={(tab) => setActiveTab(tab)}
+              onNavigate={(tab) => handleTabChange(tab)}
               isPremiumActive={isPremiumActive}
               premiumPlanInfo={premiumPlanInfo}
               onActivatePremium={handleActivatePremium}
@@ -325,7 +359,7 @@ export default function CustomerDashboard({ setView }) {
           {activeTab === "my-parking" && (
             <MyParking
               loggedInUser={currentUser}
-              onNavigate={(tab) => setActiveTab(tab)}
+              onNavigate={(tab) => handleTabChange(tab)}
               isPremiumActive={isPremiumActive}
               premiumPlanInfo={premiumPlanInfo}
             />
@@ -333,7 +367,7 @@ export default function CustomerDashboard({ setView }) {
 
           {activeTab === "parking-history" && (
             <ParkingHistory
-              onNavigate={(tab) => setActiveTab(tab)}
+              onNavigate={(tab) => handleTabChange(tab)}
               isPremiumActive={isPremiumActive}
             />
           )}
@@ -357,7 +391,7 @@ export default function CustomerDashboard({ setView }) {
               currentUser={currentUser}
               isPremiumActive={isPremiumActive}
               premiumPlanInfo={premiumPlanInfo}
-              onNavigateToPlans={() => setActiveTab("parking-plans")}
+              onNavigateToPlans={() => handleTabChange("parking-plans")}
             />
           )}
 

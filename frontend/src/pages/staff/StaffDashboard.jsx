@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { LayoutDashboard, Calculator, Car, Calendar, MapPin, CreditCard, FileText, BarChart3, HelpCircle, Bell, LogOut as LogOutIcon, Search, Menu, CheckCircle, ChevronDown } from "lucide-react";
 import StaffOverview from "./StaffOverview.jsx";
 import VehicleEntry from "./VehicleEntry.jsx";
@@ -29,10 +29,38 @@ const STAFF_SIDEBAR_ITEMS = [
 
 export default function StaffDashboard({ setView }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("fee-calculation");
+  const { tab } = useParams();
+  const [activeTab, setActiveTab] = useState(() => tab || "dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
   const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState(null);
+
+  useEffect(() => {
+    if (tab && tab !== activeTab) {
+      const match = STAFF_SIDEBAR_ITEMS.find((item) => item.id === tab);
+      if (match) {
+        setActiveTab(tab);
+      }
+    } else if (!tab && activeTab !== "dashboard") {
+      setActiveTab("dashboard");
+    }
+  }, [tab, activeTab]);
+
+  useEffect(() => {
+    const current = STAFF_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
+    const label = current ? current.label : "Dashboard";
+    document.title = `Staff Dashboard - ${label} | ParkSafe`;
+  }, [activeTab]);
+
+  const handleTabChange = (itemId) => {
+    setActiveTab(itemId);
+    setIsMobileNavOpen(false);
+    if (itemId === "dashboard") {
+      navigate("/staff/dashboard");
+    } else {
+      navigate(`/staff/dashboard/${itemId}`);
+    }
+  };
 
   const [metrics, setMetrics] = useState({
     todayBookings: "42",
@@ -108,11 +136,11 @@ export default function StaffDashboard({ setView }) {
 
   const handleSelectVehicleForPayment = (veh) => {
     setSelectedVehicleForPayment(veh);
-    setActiveTab("payment");
+    handleTabChange("payment");
   };
 
   const handleNavigateToEntryWithSlot = () => {
-    setActiveTab("vehicle-entry");
+    handleTabChange("vehicle-entry");
   };
 
   const getPageTitle = () => {
@@ -171,8 +199,7 @@ export default function StaffDashboard({ setView }) {
                 className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
                 onClick={() => {
                   if (item.isWorking) {
-                    setActiveTab(item.id);
-                    setIsMobileNavOpen(false);
+                    handleTabChange(item.id);
                   }
                 }}
                 title={item.isWorking ? "" : `${item.label} (Module disabled)`}
@@ -210,6 +237,13 @@ export default function StaffDashboard({ setView }) {
             >
               <Menu size={18} />
             </button>
+            <div className="pw-topbar-breadcrumb">
+              <span className="pw-breadcrumb-role">Staff Dashboard</span>
+              <span className="pw-breadcrumb-sep">/</span>
+              <span className="pw-breadcrumb-module">
+                {STAFF_SIDEBAR_ITEMS.find((i) => i.id === activeTab)?.label || "Dashboard"}
+              </span>
+            </div>
             <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
@@ -267,7 +301,7 @@ export default function StaffDashboard({ setView }) {
             <StaffOverview
               metrics={metrics}
               recentEntries={recentEntries}
-              setActiveTab={setActiveTab}
+              setActiveTab={handleTabChange}
             />
           )}
 
@@ -275,7 +309,7 @@ export default function StaffDashboard({ setView }) {
             <FeeCalculation
               onProceedToPayment={(calcData) => {
                 setSelectedVehicleForPayment(calcData);
-                setActiveTab("payment");
+                handleTabChange("payment");
               }}
             />
           )}
@@ -283,7 +317,7 @@ export default function StaffDashboard({ setView }) {
           {activeTab === "reservation-validation" && (
             <ReservationValidation
               onProceedToEntry={() => {
-                setActiveTab("vehicle-entry");
+                handleTabChange("vehicle-entry");
               }}
             />
           )}

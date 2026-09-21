@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   LayoutDashboard,
   Car,
@@ -82,9 +82,37 @@ const INITIAL_24_SLOTS = [
 
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const { tab } = useParams();
+  const [activeTab, setActiveTab] = useState(() => tab || "dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
+
+  useEffect(() => {
+    if (tab && tab !== activeTab) {
+      const match = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === tab);
+      if (match) {
+        setActiveTab(tab);
+      }
+    } else if (!tab && activeTab !== "dashboard") {
+      setActiveTab("dashboard");
+    }
+  }, [tab, activeTab]);
+
+  useEffect(() => {
+    const current = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
+    const label = current ? current.label : "Dashboard Overview";
+    document.title = `Admin Dashboard - ${label} | ParkSafe`;
+  }, [activeTab]);
+
+  const handleTabChange = (itemId) => {
+    setActiveTab(itemId);
+    setIsMobileNavOpen(false);
+    if (itemId === "dashboard") {
+      navigate("/admin/dashboard");
+    } else {
+      navigate(`/admin/dashboard/${itemId}`);
+    }
+  };
 
   const [usersList, setUsersList] = useState([]);
   const [vehiclesList, setVehiclesList] = useState([]);
@@ -319,8 +347,7 @@ export default function AdminDashboard({ setView }) {
                 className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
                 onClick={() => {
                   if (item.isWorking) {
-                    setActiveTab(item.id);
-                    setIsMobileNavOpen(false);
+                    handleTabChange(item.id);
                   }
                 }}
                 title={item.isWorking ? "" : `${item.label} (Module disabled)`}
@@ -358,6 +385,13 @@ export default function AdminDashboard({ setView }) {
             >
               <Menu size={18} />
             </button>
+            <div className="pw-topbar-breadcrumb">
+              <span className="pw-breadcrumb-role">Admin Dashboard</span>
+              <span className="pw-breadcrumb-sep">/</span>
+              <span className="pw-breadcrumb-module">
+                {ADMIN_SIDEBAR_ITEMS.find((i) => i.id === activeTab)?.label || "Overview"}
+              </span>
+            </div>
             <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
@@ -404,7 +438,7 @@ export default function AdminDashboard({ setView }) {
             <AdminOverview
               metrics={metrics}
               recentBookings={recentBookings}
-              setActiveTab={setActiveTab}
+              setActiveTab={handleTabChange}
             />
           )}
 

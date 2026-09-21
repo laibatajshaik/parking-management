@@ -24,9 +24,18 @@ export default function App() {
       <Route path="/login" element={<Login setView={setView} />} />
       <Route path="/signup" element={<SignUp setView={setView} />} />
       <Route path="/forgot-password" element={<ForgotPassword setView={setView} />} />
+      <Route path="/admin" element={<AdminDashboard setView={setView} />} />
       <Route path="/admin/dashboard" element={<AdminDashboard setView={setView} />} />
+      <Route path="/admin/dashboard/:tab" element={<AdminDashboard setView={setView} />} />
+      <Route path="/admin/:tab" element={<AdminDashboard setView={setView} />} />
+      <Route path="/staff" element={<StaffDashboard setView={setView} />} />
       <Route path="/staff/dashboard" element={<StaffDashboard setView={setView} />} />
+      <Route path="/staff/dashboard/:tab" element={<StaffDashboard setView={setView} />} />
+      <Route path="/staff/:tab" element={<StaffDashboard setView={setView} />} />
+      <Route path="/customer" element={<CustomerDashboard setView={setView} />} />
       <Route path="/customer/dashboard" element={<CustomerDashboard setView={setView} />} />
+      <Route path="/customer/dashboard/:tab" element={<CustomerDashboard setView={setView} />} />
+      <Route path="/customer/:tab" element={<CustomerDashboard setView={setView} />} />
     </Routes>
   );
 }
