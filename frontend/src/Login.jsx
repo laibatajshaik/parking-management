@@ -58,7 +58,7 @@ export default function Login({ setView }) {
         setMessage("Login successful!");
         setTimeout(() => {
           if (data.user.role === "admin") {
-            setView("admin/dashboard");
+            setView("admin/dashboard/overview");
           } else if (data.user.role === "staff") {
             setView("staff/dashboard");
           } else if (data.user.role === "customer") {

@@ -32,30 +32,21 @@ export default function CustomerDashboard({ setView }) {
   const [selectedPlanForReserve, setSelectedPlanForReserve] = useState(null);
 
   useEffect(() => {
-    if (tab && tab !== activeTab) {
+    if (tab) {
       const match = CUSTOMER_SIDEBAR_ITEMS.find((item) => item.id === tab);
-      if (match) {
+      if (match && activeTab !== tab) {
         setActiveTab(tab);
       }
-    } else if (!tab && activeTab !== "dashboard") {
-      setActiveTab("dashboard");
     }
   }, [tab, activeTab]);
 
   useEffect(() => {
-    const current = CUSTOMER_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
-    const label = current ? current.label : "Dashboard";
-    document.title = `Customer Dashboard - ${label} | ParkSafe`;
-  }, [activeTab]);
+    document.title = "Customer Dashboard | ParkSafe";
+  }, []);
 
   const handleTabChange = (itemId) => {
     setActiveTab(itemId);
     setIsMobileNavOpen(false);
-    if (itemId === "dashboard") {
-      navigate("/customer/dashboard");
-    } else {
-      navigate(`/customer/dashboard/${itemId}`);
-    }
   };
 
   const [currentUser, setCurrentUser] = useState(() => {
@@ -263,13 +254,6 @@ export default function CustomerDashboard({ setView }) {
             >
               <Menu size={18} />
             </button>
-            <div className="pw-topbar-breadcrumb">
-              <span className="pw-breadcrumb-role">Customer Dashboard</span>
-              <span className="pw-breadcrumb-sep">/</span>
-              <span className="pw-breadcrumb-module">
-                {CUSTOMER_SIDEBAR_ITEMS.find((i) => i.id === activeTab)?.label || "Dashboard"}
-              </span>
-            </div>
             <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input

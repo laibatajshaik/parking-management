@@ -83,20 +83,29 @@ const INITIAL_24_SLOTS = [
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
   const { tab } = useParams();
-  const [activeTab, setActiveTab] = useState(() => tab || "dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (!tab || tab === "dashboard" || tab === "overview") return "dashboard";
+    return tab;
+  });
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
 
   useEffect(() => {
-    if (tab && tab !== activeTab) {
-      const match = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === tab);
-      if (match) {
-        setActiveTab(tab);
+    if (tab) {
+      if (tab === "dashboard" || tab === "overview") {
+        if (activeTab !== "dashboard") {
+          setActiveTab("dashboard");
+        }
+      } else {
+        const match = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === tab);
+        if (match && activeTab !== tab) {
+          setActiveTab(tab);
+        }
       }
-    } else if (!tab && activeTab !== "dashboard") {
-      setActiveTab("dashboard");
+    } else {
+      navigate("/admin/dashboard/overview", { replace: true });
     }
-  }, [tab, activeTab]);
+  }, [tab, activeTab, navigate]);
 
   useEffect(() => {
     const current = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
@@ -107,8 +116,8 @@ export default function AdminDashboard({ setView }) {
   const handleTabChange = (itemId) => {
     setActiveTab(itemId);
     setIsMobileNavOpen(false);
-    if (itemId === "dashboard") {
-      navigate("/admin/dashboard");
+    if (itemId === "dashboard" || itemId === "overview") {
+      navigate("/admin/dashboard/overview");
     } else {
       navigate(`/admin/dashboard/${itemId}`);
     }
@@ -386,10 +395,12 @@ export default function AdminDashboard({ setView }) {
               <Menu size={18} />
             </button>
             <div className="pw-topbar-breadcrumb">
-              <span className="pw-breadcrumb-role">Admin Dashboard</span>
+              <span className="pw-breadcrumb-role">admin</span>
+              <span className="pw-breadcrumb-sep">/</span>
+              <span className="pw-breadcrumb-role">dashboard</span>
               <span className="pw-breadcrumb-sep">/</span>
               <span className="pw-breadcrumb-module">
-                {ADMIN_SIDEBAR_ITEMS.find((i) => i.id === activeTab)?.label || "Overview"}
+                {activeTab === "dashboard" ? "overview" : activeTab}
               </span>
             </div>
             <div className="pw-topbar-search">

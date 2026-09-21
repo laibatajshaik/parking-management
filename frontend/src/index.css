@@ -1133,29 +1133,29 @@ html, body {
 .pw-topbar-breadcrumb {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   background: rgba(13, 148, 136, 0.08);
   border: 1px solid rgba(13, 148, 136, 0.2);
-  border-radius: 20px;
-  padding: 4px 12px;
+  border-radius: 8px;
+  padding: 4px 10px;
 }
 
 .pw-breadcrumb-role {
   color: #64748b;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .pw-breadcrumb-sep {
-  color: #cbd5e1;
+  color: #94a3b8;
   font-size: 11px;
 }
 
 .pw-breadcrumb-module {
   color: #0d9488;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 [data-theme="dark"] .pw-topbar-breadcrumb {
@@ -1168,7 +1168,7 @@ html, body {
 }
 
 [data-theme="dark"] .pw-breadcrumb-sep {
-  color: #475569;
+  color: #64748b;
 }
 
 [data-theme="dark"] .pw-breadcrumb-module {
