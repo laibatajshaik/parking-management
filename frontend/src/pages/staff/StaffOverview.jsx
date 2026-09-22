@@ -1,6 +1,7 @@
 import { TrendingUp, ChevronRight, LogIn, Layers, Activity, CreditCard } from "lucide-react";
+import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
-export default function StaffOverview({ metrics, recentEntries }) {
+export default function StaffOverview({ metrics, recentEntries, userEmail }) {
   return (
     <>
       <div className="pw-metrics-four-grid">
@@ -128,6 +129,10 @@ export default function StaffOverview({ metrics, recentEntries }) {
             </table>
           </div>
         </div>
+      </div>
+
+      <div style={{ marginTop: "18px" }}>
+        <DashboardNotifications userEmail={userEmail || "staff@shnoor.com"} title="Staff Alerts & Live System Updates" />
       </div>
 
       <div className="pw-quick-actions-section">

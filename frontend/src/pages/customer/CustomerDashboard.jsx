@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { LayoutDashboard, BookmarkCheck, FileText, CreditCard, Car, Tag, User, HelpCircle, Bell, LogOut, Menu, Search, MapPin, ChevronDown, Crown } from "lucide-react";
+import { LayoutDashboard, BookmarkCheck, FileText, CreditCard, Car, Tag, User, HelpCircle, LogOut, Menu, Search, MapPin, ChevronDown, Crown } from "lucide-react";
 import CustomerOverview from "./CustomerOverview.jsx";
 import MyParking from "./MyParking.jsx";
 import Payments from "./Payments.jsx";
@@ -11,6 +11,8 @@ import CustomerParkingPlans from "./CustomerParkingPlans.jsx";
 import CustomerProfile from "./CustomerProfile.jsx";
 import CustomerSupport from "./CustomerSupport.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
+import NotificationBell from "../../components/NotificationBell.jsx";
+import { API_BASE_URL } from "../../config/api.js";
 
 const CUSTOMER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
@@ -132,6 +134,18 @@ export default function CustomerDashboard({ setView }) {
     try {
       const email = currentUser?.email || "customer@shnoor.com";
       localStorage.setItem(`shnoor_premium_${email}`, JSON.stringify(info));
+      fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_email: email,
+          customer_name: currentUser?.name || "Customer",
+          plan_name: info.planName || info.plan || "Monthly VIP Plan",
+          amount: info.amount || 2500,
+          slot: info.slot,
+          vehicle: info.vehicle
+        })
+      }).catch(() => {});
     } catch (err) { void err; }
   };
 
@@ -284,10 +298,7 @@ export default function CustomerDashboard({ setView }) {
 
           <div className="pw-topbar-right">
             <ThemeToggle />
-            <div className="pw-topbar-bell">
-              <Bell size={18} />
-              <span className="pw-bell-dot" style={{ width: "8px", height: "8px", fontSize: "0.6rem", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", background: isPremiumActive ? "#C99A2E" : "#ef4444" }}>1</span>
-            </div>
+            <NotificationBell userEmail={currentUser?.email} />
 
             <div className="pw-user-profile-pill">
               <div className="pw-avatar-initials" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488", color: "#ffffff" }}>

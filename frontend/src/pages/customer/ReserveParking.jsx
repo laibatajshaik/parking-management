@@ -206,20 +206,64 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     setCurrentStep(4);
   };
 
-  const handleCompletePayment = () => {
+  const handleCompletePayment = async () => {
     const isMonthly = isCurrentPlanMonthly();
-    if (isMonthly && onActivatePremium) {
-      onActivatePremium({
-        active: true,
-        plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-        planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-        amount: getPlanCost(),
-        validFrom: "02 Sep 2025",
-        validUntil: "02 Oct 2025",
-        remainingDays: 30,
-        slot: `${selectedSlot} (${selectedZone})`,
-        vehicle: vehiclePlate
+    const custEmail = loggedInUser?.email || "customer@shnoor.com";
+    const custName = loggedInUser?.name || "Customer";
+
+    try {
+      await fetch(`${API_BASE_URL}/api/customer/reserve-slot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: custName,
+          customer_email: custEmail,
+          customer_phone: loggedInUser?.phone || "+91 98765 43210",
+          vehicle_number: vehiclePlate,
+          vehicle_type: selectedPlanObject?.vehicle_type || "Car",
+          model: vehicleModel,
+          slot_number: selectedSlot,
+          zone: selectedZone,
+          duration_hours: selectedPlanObject?.duration_hours || 2,
+          total_amount: getPlanCost(),
+          plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
+          plan_name: selectedPlanObject?.plan_name || "Standard Parking"
+        })
       });
+    } catch (err) {
+      void err;
+    }
+
+    if (isMonthly) {
+      if (onActivatePremium) {
+        onActivatePremium({
+          active: true,
+          plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+          planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+          amount: getPlanCost(),
+          validFrom: "02 Sep 2025",
+          validUntil: "02 Oct 2025",
+          remainingDays: 30,
+          slot: `${selectedSlot} (${selectedZone})`,
+          vehicle: vehiclePlate
+        });
+      }
+      try {
+        await fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_email: custEmail,
+            customer_name: custName,
+            plan_name: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+            amount: getPlanCost(),
+            slot: `${selectedSlot} (${selectedZone})`,
+            vehicle: vehiclePlate
+          })
+        });
+      } catch (err) {
+        void err;
+      }
     }
     setIsSuccessModalOpen(true);
   };

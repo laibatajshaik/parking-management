@@ -1,6 +1,7 @@
 import { TrendingUp, ChevronRight } from "lucide-react";
+import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
-export default function AdminOverview({ metrics, recentBookings, setActiveTab }) {
+export default function AdminOverview({ metrics, recentBookings, setActiveTab, userEmail }) {
   return (
     <>
       <div className="pw-metrics-four-grid">
@@ -206,6 +207,10 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab })
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div style={{ marginTop: "18px" }}>
+        <DashboardNotifications userEmail={userEmail || "admin@shnoor.com"} title="Admin Activity Stream & System Alerts" />
       </div>
     </>
   );

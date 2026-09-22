@@ -6,6 +6,42 @@ import pool from "./db.js";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import notificationRoutes from "./modules/notifications/notificationRoutes.js";
+import {
+  notifyUser,
+  notifyUsers,
+  notifyAdmins,
+  notifyStaff,
+  notifyStaffAndAdmins,
+  notifyActiveCustomers,
+  notifyCustomersAndStaff,
+  notifyAllActiveUsers,
+  getActiveAdminEmails,
+  getActiveStaffEmails,
+  getActiveCustomerEmails
+} from "./modules/notifications/notificationService.js";
+import {
+  sendEmail,
+  sendEmails,
+  sendNewParkingPlanEmail,
+  sendPricingPlanUpdatedEmail,
+  sendReservationConfirmedEmail,
+  sendReservationValidatedEmail,
+  sendReservationCancelledEmail,
+  sendPaymentSuccessfulEmail,
+  sendPaymentFailedEmail,
+  sendVehicleEntryEmail,
+  sendParkingSessionStartedEmail,
+  sendParkingSessionCompletedEmail,
+  sendDigitalReceiptEmail,
+  sendPremiumActivatedEmail,
+  sendStaffNewReservationEmail,
+  sendStaffOperationalUpdateEmail,
+  sendNewUserAdminEmail,
+  sendAdminReservationUpdateEmail,
+  sendAdminPaymentUpdateEmail,
+  sendAdminSystemUpdateEmail
+} from "./modules/email/emailService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +54,7 @@ const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("Shnoor Parking Backend is running");
@@ -344,6 +381,18 @@ const initDbSchema = async () => {
         ON CONFLICT (ticket_code) DO NOTHING;
       `);
     }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_email VARCHAR(150) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'info',
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
   } catch (err) {
     console.error("Schema init error:", err);
   }
@@ -375,6 +424,23 @@ app.post("/api/signup", async (req, res) => {
       "INSERT INTO users (name, email, password, phone, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
       [name, email, hashedPassword, userPhone, dbRole]
     );
+
+    await notifyAdmins({
+      title: "New User Registered",
+      message: `New customer registered: ${email}`,
+      type: "user"
+    });
+    await notifyUser(email, {
+      title: "Welcome to Shnoor Parking",
+      message: `Welcome ${name}! Your account has been registered successfully.`,
+      type: "user"
+    });
+    try {
+      const adminEmails = await getActiveAdminEmails();
+      await sendNewUserAdminEmail({ customerName: name, customerEmail: email, adminEmails });
+    } catch (e) {
+      console.error(e);
+    }
 
     res.status(201).json({ success: true, message: "User registered successfully" });
   } catch (err) {
@@ -680,6 +746,12 @@ app.put("/api/admin/slots/:id", async (req, res) => {
       return res.status(404).json({ error: "Parking slot not found" });
     }
 
+    await notifyStaffAndAdmins({
+      title: "Parking Slot Updated",
+      message: `Slot ${slot_number} in ${zone} (${slotType}) updated to status "${slotStatus}".`,
+      type: "slot"
+    });
+
     res.json({ success: true, slot: updateRes.rows[0], message: "Parking slot updated successfully" });
   } catch (err) {
     console.error(err);
@@ -725,6 +797,27 @@ app.post("/api/parking-slots/:slotNumber/status", async (req, res) => {
       return res.status(404).json({ error: "Slot not found" });
     }
 
+    await notifyStaff({
+      title: "Important Parking/Operational Update",
+      message: `Parking slot ${slotNumber} status updated to "${normalizedStatus}".`,
+      type: "parking"
+    });
+    await notifyAdmins({
+      title: "Important Parking Activity",
+      message: `Parking slot ${slotNumber} status changed to "${normalizedStatus}".`,
+      type: "parking"
+    });
+    try {
+      const staffEmails = await getActiveStaffEmails();
+      await sendStaffOperationalUpdateEmail({
+        title: "Bay Status Change",
+        message: `Parking slot ${slotNumber} status updated to "${normalizedStatus}".`,
+        staffEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     res.json({ success: true, slot: slotResult.rows[0] });
   } catch (err) {
     console.error(err);
@@ -755,6 +848,13 @@ app.post("/api/parking-slots/:slotNumber/toggle", async (req, res) => {
     }
 
     await pool.query("UPDATE parking_slots SET is_available = $1, status = $2 WHERE slot_number = $3", [isAvailable, newStatus, slotNumber]);
+
+    await notifyStaffAndAdmins({
+      title: "Parking Slot Status Toggled",
+      message: `Slot ${slotNumber} status toggled to "${newStatus}".`,
+      type: "slot"
+    });
+
     res.json({ success: true, is_available: isAvailable, status: newStatus });
   } catch (err) {
     console.error(err);
@@ -836,6 +936,46 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
       "INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, duration, fee, status) VALUES ($1, $2, $3, 'Ongoing', '₹50.00', 'Parked') RETURNING *",
       [vPlate, vSlot, vEntryTime]
     );
+
+    const targetOwnerEmail = vehicleData?.owner_email || vEmail;
+    await notifyUser(targetOwnerEmail, {
+      title: "Vehicle Entry Recorded",
+      message: `Your vehicle ${vPlate} has entered the parking area.`,
+      type: "parking"
+    });
+    await notifyUser(targetOwnerEmail, {
+      title: "Parking Session Started",
+      message: `Your parking session for vehicle ${vPlate} at bay ${vSlot} has started.`,
+      type: "parking"
+    });
+    await notifyStaff({
+      title: "Vehicle Entry",
+      message: `Vehicle ${vPlate} (${vType}) entered and parked at slot ${vSlot}.`,
+      type: "parking"
+    });
+    await notifyAdmins({
+      title: "Important Parking Activity",
+      message: `Vehicle ${vPlate} entered slot ${vSlot}.`,
+      type: "parking"
+    });
+
+    try {
+      const timeStr = vEntryTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+      await sendVehicleEntryEmail({
+        vehicleNumber: vPlate,
+        slotNumber: vSlot,
+        entryTime: timeStr,
+        recipient: targetOwnerEmail
+      });
+      await sendParkingSessionStartedEmail({
+        vehicleNumber: vPlate,
+        slotNumber: vSlot,
+        entryTime: timeStr,
+        recipient: targetOwnerEmail
+      });
+    } catch (e) {
+      console.error(e);
+    }
 
     res.status(201).json({
       success: true,
@@ -1043,6 +1183,18 @@ app.post("/api/admin/vehicles", async (req, res) => {
       [vehicle_number.toUpperCase(), vSlot, vStatus]
     );
 
+    await notifyUser(owner_email, {
+      title: "Vehicle Registered",
+      message: `Your vehicle ${vehicle_number.toUpperCase()} (${vehicle_type} - ${vModel}) has been successfully registered.`,
+      type: "vehicle"
+    });
+
+    await notifyAdmins({
+      title: "New Vehicle Registered",
+      message: `Vehicle ${vehicle_number.toUpperCase()} was registered for ${owner_name}.`,
+      type: "vehicle"
+    });
+
     const emailResult = await sendVehicleRegistrationEmail(insertRes.rows[0]);
 
     res.status(201).json({
@@ -1141,6 +1293,23 @@ app.post("/api/admin/users", async (req, res) => {
       "INSERT INTO users (name, email, password, phone, role, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, phone, role, status, created_at",
       [name, email, hashedPassword, userPhone, userRole, userStatus]
     );
+
+    await notifyUser(email, {
+      title: "Account Created",
+      message: `Your account has been created with role ${userRole} and status ${userStatus}.`,
+      type: "user"
+    });
+    await notifyAdmins({
+      title: "New User Registered",
+      message: `New customer registered: ${email}`,
+      type: "user"
+    });
+    try {
+      const adminEmails = await getActiveAdminEmails();
+      await sendNewUserAdminEmail({ customerName: name, customerEmail: email, adminEmails });
+    } catch (e) {
+      console.error(e);
+    }
 
     res.status(201).json({ success: true, user: insertResult.rows[0], message: "User added successfully" });
   } catch (err) {
@@ -1514,6 +1683,57 @@ app.post("/api/staff/process-payment", async (req, res) => {
       [exitDate, dur, `₹${numAmount.toFixed(2)}`, vehicle_number.toUpperCase()]
     );
 
+    const payCustEmail = customer_email || "customer@shnoor.com";
+    await notifyUser(payCustEmail, {
+      title: "Payment Successful",
+      message: `Payment of ₹${numAmount.toFixed(2)} received for vehicle ${vehicle_number.toUpperCase()}.`,
+      type: "payment"
+    });
+    await notifyUser(payCustEmail, {
+      title: "Receipt Available",
+      message: "Your digital parking receipt is now available.",
+      type: "receipt"
+    });
+    await notifyStaff({
+      title: "Payment Received",
+      message: `Payment of ₹${numAmount.toFixed(2)} received for ${vehicle_number.toUpperCase()} via ${payMethod}.`,
+      type: "payment"
+    });
+    await notifyAdmins({
+      title: "Important Payment Activity",
+      message: `Payment of ₹${numAmount.toFixed(2)} received for vehicle ${vehicle_number.toUpperCase()} (${txnId}).`,
+      type: "payment"
+    });
+
+    try {
+      const adminEmails = await getActiveAdminEmails();
+      await sendPaymentSuccessfulEmail({
+        amount: numAmount,
+        paymentMethod: payMethod,
+        vehicleNumber: vehicle_number.toUpperCase(),
+        txnId,
+        recipient: payCustEmail
+      });
+      await sendDigitalReceiptEmail({
+        receiptNumber: txnId,
+        amount: numAmount,
+        vehicleNumber: vehicle_number.toUpperCase(),
+        slotNumber: slot_number,
+        duration: dur,
+        recipient: payCustEmail
+      });
+      await sendAdminPaymentUpdateEmail({
+        title: "Payment Collected",
+        message: `Payment of ₹${numAmount.toFixed(2)} received for vehicle ${vehicle_number.toUpperCase()}.`,
+        amount: numAmount,
+        vehicleNumber: vehicle_number.toUpperCase(),
+        txnId,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     res.status(201).json({
       success: true,
       message: `Payment of ₹${numAmount.toFixed(2)} processed successfully for ${vehicle_number.toUpperCase()}`,
@@ -1790,6 +2010,51 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
         payMethod
       ]
     );
+
+    const exitCustEmail = ownerEmail || "customer@shnoor.com";
+    await notifyUser(exitCustEmail, {
+      title: "Parking Completed",
+      message: `Your parking session for vehicle ${vehicle_number.toUpperCase()} has been completed.`,
+      type: "parking"
+    });
+    await notifyUser(exitCustEmail, {
+      title: "Receipt Available",
+      message: "Your digital parking receipt is now available.",
+      type: "receipt"
+    });
+    await notifyStaff({
+      title: "Vehicle Exit",
+      message: `Vehicle ${vehicle_number.toUpperCase()} exited slot ${slotToFree || ''}.`,
+      type: "parking"
+    });
+    await notifyAdmins({
+      title: "Important Parking Activity",
+      message: `Vehicle ${vehicle_number.toUpperCase()} exited slot ${slotToFree || ''}.`,
+      type: "parking"
+    });
+
+    try {
+      await sendParkingSessionCompletedEmail({
+        vehicleNumber: vehicle_number.toUpperCase(),
+        slotNumber: slotToFree || "Assigned Bay",
+        entryTime: entryDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        exitTime: exitDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        duration: dur,
+        fee: `₹${rawFee.toFixed(2)}`,
+        paymentMethod: payMethod,
+        recipient: exitCustEmail
+      });
+      await sendDigitalReceiptEmail({
+        receiptNumber: txnId,
+        amount: rawFee,
+        vehicleNumber: vehicle_number.toUpperCase(),
+        slotNumber: slotToFree || "Assigned Bay",
+        duration: dur,
+        recipient: exitCustEmail
+      });
+    } catch (e) {
+      console.error(e);
+    }
 
     res.status(200).json({
       success: true,
@@ -2085,6 +2350,48 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       );
     }
 
+    const custEmail = customer_email || "customer@shnoor.com";
+    await notifyUser(custEmail, {
+      title: "Reservation Confirmed",
+      message: `Your parking slot ${slot_number} has been reserved.`,
+      type: "reservation"
+    });
+    await notifyStaff({
+      title: "New Reservation",
+      message: `New reservation #${bookingId} for vehicle ${vPlate} at slot ${slot_number}.`,
+      type: "reservation"
+    });
+    await notifyStaff({
+      title: "Reservation Requires Validation",
+      message: `Reservation #${bookingId} is scheduled and requires check-in validation upon arrival.`,
+      type: "reservation"
+    });
+    await notifyAdmins({
+      title: "New Reservation",
+      message: `New reservation #${bookingId} for vehicle ${vPlate} at slot ${slot_number}.`,
+      type: "reservation"
+    });
+    try {
+      const staffEmails = await getActiveStaffEmails();
+      const adminEmails = await getActiveAdminEmails();
+      await sendReservationConfirmedEmail({
+        reservation: insertRes.rows[0],
+        recipient: custEmail
+      });
+      await sendStaffNewReservationEmail({
+        reservation: insertRes.rows[0],
+        staffEmails
+      });
+      await sendAdminReservationUpdateEmail({
+        title: "New Reservation Created",
+        message: `New reservation #${bookingId} created for vehicle ${vPlate} at slot ${slot_number}.`,
+        booking: insertRes.rows[0],
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     res.status(201).json({
       success: true,
       message: `Reservation confirmed for ${vPlate} at slot ${slot_number}`,
@@ -2163,6 +2470,59 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
       [booking.vehicle_number, booking.slot_number, now, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
     );
 
+    if (booking.customer_email) {
+      await notifyUser(booking.customer_email, {
+        title: "Reservation Validated",
+        message: `Your reservation #${booking.booking_id} has been validated at the gate.`,
+        type: "reservation"
+      });
+      await notifyUser(booking.customer_email, {
+        title: "Parking Session Started",
+        message: `Your parking session for vehicle ${booking.vehicle_number} has started at bay ${booking.slot_number}.`,
+        type: "parking"
+      });
+      try {
+        await sendReservationValidatedEmail({
+          reservation: booking,
+          recipient: booking.customer_email
+        });
+        await sendParkingSessionStartedEmail({
+          vehicleNumber: booking.vehicle_number,
+          slotNumber: booking.slot_number,
+          recipient: booking.customer_email
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    await notifyStaff({
+      title: "Important Parking/Operational Update",
+      message: `Bay ${booking.slot_number} checked in for ${booking.vehicle_number}.`,
+      type: "parking"
+    });
+    await notifyAdmins({
+      title: "Important Reservation Update",
+      message: `Reservation #${booking.booking_id} validated by staff.`,
+      type: "reservation"
+    });
+    await notifyAdmins({
+      title: "Important Parking Activity",
+      message: `Vehicle ${booking.vehicle_number} checked in to bay ${booking.slot_number}.`,
+      type: "parking"
+    });
+    try {
+      const adminEmails = await getActiveAdminEmails();
+      await sendAdminReservationUpdateEmail({
+        title: "Reservation Validated",
+        message: `Reservation #${booking.booking_id} validated by staff. Vehicle ${booking.vehicle_number} checked into bay ${booking.slot_number}.`,
+        booking,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     res.json({
       success: true,
       message: `Reservation ${booking.booking_id} validated successfully. Vehicle ${booking.vehicle_number} checked in to bay ${booking.slot_number}.`,
@@ -2199,17 +2559,73 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
         "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
         [updatedBooking.slot_number]
       );
+      if (updatedBooking.customer_email) {
+        await notifyUser(updatedBooking.customer_email, {
+          title: "Reservation Cancelled",
+          message: `Your reservation #${updatedBooking.booking_id} has been cancelled.`,
+          type: "reservation"
+        });
+        try {
+          await sendReservationCancelledEmail({
+            reservation: updatedBooking,
+            recipient: updatedBooking.customer_email
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      await notifyStaff({
+        title: "Important Parking/Operational Update",
+        message: `Reservation #${updatedBooking.booking_id} has been cancelled. Bay ${updatedBooking.slot_number} is now available.`,
+        type: "reservation"
+      });
+      await notifyAdmins({
+        title: "Important Reservation Update",
+        message: `Reservation #${updatedBooking.booking_id} was cancelled.`,
+        type: "reservation"
+      });
+      try {
+        const adminEmails = await getActiveAdminEmails();
+        await sendAdminReservationUpdateEmail({
+          title: "Reservation Cancelled",
+          message: `Reservation #${updatedBooking.booking_id} for bay ${updatedBooking.slot_number} has been cancelled.`,
+          booking: updatedBooking,
+          adminEmails
+        });
+      } catch (e) {
+        console.error(e);
+      }
     } else if (status.toLowerCase() === "confirmed") {
       await pool.query(
         "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
         [updatedBooking.slot_number]
       );
+      if (updatedBooking.customer_email) {
+        await notifyUser(updatedBooking.customer_email, {
+          title: "Reservation Confirmed",
+          message: `Your reservation ${updatedBooking.booking_id} for bay ${updatedBooking.slot_number} has been confirmed.`,
+          type: "reservation"
+        });
+      }
+      await notifyStaff({
+        title: "Reservation Confirmed by Admin",
+        message: `Booking ${updatedBooking.booking_id} (${updatedBooking.slot_number}) was confirmed by Admin.`,
+        type: "reservation"
+      });
     } else if (status.toLowerCase() === "checked in") {
       await pool.query(
         "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
         [updatedBooking.slot_number]
       );
+      if (updatedBooking.customer_email) {
+        await notifyUser(updatedBooking.customer_email, {
+          title: "Checked In Successfully",
+          message: `Your vehicle ${updatedBooking.vehicle_number} has been checked into bay ${updatedBooking.slot_number}.`,
+          type: "vehicle"
+        });
+      }
     }
+
 
     res.json({
       success: true,
@@ -2290,7 +2706,7 @@ app.post("/api/pricing-plans", async (req, res) => {
     return res.status(400).json({ error: "Plan name and rate are required" });
   }
 
-  const pCode = plan_code || `PLAN-${(vehicle_type || "CAR").toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+  const pCode = plan_code || `PLAN-${(vehicle_type || "CAR").toUpperCase()}-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
   const pRate = parseFloat(rate) || 50.00;
   const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
   const pActive = is_active !== false;
@@ -2302,6 +2718,45 @@ app.post("/api/pricing-plans", async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [pCode, plan_name, vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive]
     );
+
+    await notifyCustomersAndStaff({
+      title: "New Parking Plan Available",
+      message: `A new parking plan "${plan_name}" has been added. Check the Pricing section for details.`,
+      type: "pricing"
+    });
+    await notifyStaff({
+      title: "Important Parking/Operational Update",
+      message: `A new parking plan "${plan_name}" has been added.`,
+      type: "pricing"
+    });
+    await notifyAdmins({
+      title: "Pricing Update",
+      message: `New pricing plan "${plan_name}" was published.`,
+      type: "pricing"
+    });
+    try {
+      const customerEmails = await getActiveCustomerEmails();
+      const staffEmails = await getActiveStaffEmails();
+      const adminEmails = await getActiveAdminEmails();
+      await sendNewParkingPlanEmail({
+        plan: insertRes.rows[0],
+        recipients: customerEmails
+      });
+      await sendStaffOperationalUpdateEmail({
+        title: "New Parking Plan Added",
+        message: `A new parking plan "${plan_name}" has been added.`,
+        details: `Rate: ₹${pRate.toFixed(2)} (${billing_type || "Hourly"})`,
+        staffEmails
+      });
+      await sendAdminSystemUpdateEmail({
+        title: "New Pricing Plan Published",
+        message: `Pricing plan "${plan_name}" was created.`,
+        details: `Rate: ₹${pRate.toFixed(2)}`,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
 
     res.status(201).json({
       success: true,
@@ -2326,13 +2781,50 @@ app.put("/api/pricing-plans/:id", async (req, res) => {
 
     const updateRes = await pool.query(
       `UPDATE pricing_plans 
-       SET plan_code = $1, plan_name = $2, vehicle_type = $3, billing_type = $4, rate = $5, duration_hours = $6, description = $7, features = $8, is_active = $9
+       SET plan_code = COALESCE($1, plan_code), plan_name = $2, vehicle_type = $3, billing_type = $4, rate = $5, duration_hours = $6, description = $7, features = $8, is_active = $9
        WHERE id = $10 RETURNING *`,
-      [plan_code, plan_name, vehicle_type, billing_type, pRate, pDur, description, pFeatures, pActive, id]
+      [plan_code || null, plan_name, vehicle_type, billing_type, pRate, pDur, description, pFeatures, pActive, id]
     );
 
     if (updateRes.rowCount === 0) {
       return res.status(404).json({ error: "Pricing plan not found" });
+    }
+
+    await notifyCustomersAndStaff({
+      title: "Parking Plan Updated",
+      message: `The "${plan_name}" parking plan has been updated.`,
+      type: "pricing"
+    });
+    await notifyStaff({
+      title: "Important Parking/Operational Update",
+      message: `The "${plan_name}" parking plan has been updated.`,
+      type: "pricing"
+    });
+    await notifyAdmins({
+      title: "Pricing Update",
+      message: `The "${plan_name}" parking plan has been updated.`,
+      type: "pricing"
+    });
+    try {
+      const customerEmails = await getActiveCustomerEmails();
+      const staffEmails = await getActiveStaffEmails();
+      const adminEmails = await getActiveAdminEmails();
+      await sendPricingPlanUpdatedEmail({
+        plan: updateRes.rows[0],
+        recipients: customerEmails
+      });
+      await sendStaffOperationalUpdateEmail({
+        title: "Pricing Plan Updated",
+        message: `The "${plan_name}" parking plan has been updated.`,
+        staffEmails
+      });
+      await sendAdminSystemUpdateEmail({
+        title: "Pricing Plan Updated",
+        message: `Pricing plan "${plan_name}" was updated.`,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
     }
 
     res.json({
@@ -2360,10 +2852,48 @@ app.patch("/api/pricing-plans/:id/status", async (req, res) => {
       return res.status(404).json({ error: "Pricing plan not found" });
     }
 
+    const plan = updateRes.rows[0];
+    await notifyCustomersAndStaff({
+      title: "Parking Plan Updated",
+      message: `The "${plan.plan_name}" parking plan has been updated.`,
+      type: "pricing"
+    });
+    await notifyStaff({
+      title: "Important Parking/Operational Update",
+      message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+      type: "pricing"
+    });
+    await notifyAdmins({
+      title: "Pricing Update",
+      message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+      type: "pricing"
+    });
+    try {
+      const customerEmails = await getActiveCustomerEmails();
+      const staffEmails = await getActiveStaffEmails();
+      const adminEmails = await getActiveAdminEmails();
+      await sendPricingPlanUpdatedEmail({
+        plan,
+        recipients: customerEmails
+      });
+      await sendStaffOperationalUpdateEmail({
+        title: "Pricing Plan Status Updated",
+        message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+        staffEmails
+      });
+      await sendAdminSystemUpdateEmail({
+        title: "Pricing Plan Status Updated",
+        message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     res.json({
       success: true,
-      message: `Plan "${updateRes.rows[0].plan_name}" status updated to ${is_active ? "Active" : "Inactive"}`,
-      plan: updateRes.rows[0]
+      message: `Plan "${plan.plan_name}" status updated to ${is_active ? "Active" : "Inactive"}`,
+      plan
     });
   } catch (err) {
     console.error(err);
@@ -2379,15 +2909,49 @@ app.delete("/api/pricing-plans/:id", async (req, res) => {
       return res.status(404).json({ error: "Pricing plan not found" });
     }
 
+    const plan = delRes.rows[0];
+    await notifyCustomersAndStaff({
+      title: "Parking Plan Updated",
+      message: `Pricing plan "${plan.plan_name}" has been removed.`,
+      type: "pricing"
+    });
+    await notifyStaff({
+      title: "Important Parking/Operational Update",
+      message: `Pricing plan "${plan.plan_name}" has been removed.`,
+      type: "pricing"
+    });
+    await notifyAdmins({
+      title: "Important System Activity",
+      message: `Pricing plan "${plan.plan_name}" was deleted.`,
+      type: "pricing"
+    });
+    try {
+      const staffEmails = await getActiveStaffEmails();
+      const adminEmails = await getActiveAdminEmails();
+      await sendStaffOperationalUpdateEmail({
+        title: "Pricing Plan Removed",
+        message: `Pricing plan "${plan.plan_name}" has been removed.`,
+        staffEmails
+      });
+      await sendAdminSystemUpdateEmail({
+        title: "Pricing Plan Deleted",
+        message: `Pricing plan "${plan.plan_name}" has been deleted.`,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     res.json({
       success: true,
-      message: `Pricing plan "${delRes.rows[0].plan_name}" deleted successfully`
+      message: `Pricing plan "${plan.plan_name}" deleted successfully`
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error deleting pricing plan" });
   }
 });
+
 
 
 app.get("/api/support-tickets", async (req, res) => {
@@ -2441,6 +3005,18 @@ app.post("/api/support-tickets", async (req, res) => {
       ]
     );
 
+    await notifyStaffAndAdmins({
+      title: "New Support Ticket",
+      message: `Ticket ${ticket_code} submitted by ${customer_name || customer_email}: "${subject}".`,
+      type: "support"
+    });
+
+    await notifyUser(customer_email, {
+      title: "Support Ticket Received",
+      message: `Your support ticket ${ticket_code} ("${subject}") has been received. Our team will review it shortly.`,
+      type: "support"
+    });
+
     res.status(201).json({
       success: true,
       message: "Support ticket created successfully",
@@ -2466,10 +3042,19 @@ app.put("/api/support-tickets/:id/status", async (req, res) => {
       return res.status(404).json({ error: "Support ticket not found" });
     }
 
+    const ticket = updateRes.rows[0];
+    if (ticket.customer_email) {
+      await notifyUser(ticket.customer_email, {
+        title: `Ticket ${ticket.ticket_code} Status Updated`,
+        message: `Your ticket has been marked as "${status}".`,
+        type: "support"
+      });
+    }
+
     res.json({
       success: true,
       message: `Ticket status updated to ${status}`,
-      ticket: updateRes.rows[0]
+      ticket
     });
   } catch (err) {
     console.error(err);
@@ -2597,6 +3182,14 @@ app.post("/api/support-tickets/:id/reply", async (req, res) => {
       [JSON.stringify(messages), ticket.id]
     );
 
+    if (ticket.customer_email) {
+      await notifyUser(ticket.customer_email, {
+        title: `Reply on Ticket ${ticket.ticket_code}`,
+        message: `${sender || "Support"}: ${text.slice(0, 100)}`,
+        type: "support"
+      });
+    }
+
     res.json({
       success: true,
       message: "Reply sent successfully",
@@ -2608,8 +3201,65 @@ app.post("/api/support-tickets/:id/reply", async (req, res) => {
   }
 });
 
+app.post("/api/customer/activate-premium", async (req, res) => {
+  const { user_email, customer_name, plan_name, amount, slot, vehicle } = req.body;
+  const email = user_email || "customer@shnoor.com";
+  const plan = plan_name || "Monthly VIP Priority Pass";
+  const planAmount = parseFloat(amount) || 2500.00;
+
+  try {
+    await notifyUser(email, {
+      title: "Premium Plan Activated",
+      message: `Your Premium parking plan "${plan}" has been activated.`,
+      type: "premium"
+    });
+
+    await notifyAdmins({
+      title: "Important System Activity",
+      message: `Customer ${customer_name || email} activated ${plan} (₹${planAmount.toFixed(2)}).`,
+      type: "premium"
+    });
+
+    try {
+      const adminEmails = await getActiveAdminEmails();
+      await sendPremiumActivatedEmail({
+        customerName: customer_name || "Member",
+        planName: plan,
+        amount: planAmount,
+        recipient: email
+      });
+      await sendAdminSystemUpdateEmail({
+        title: "VIP Membership Subscription",
+        message: `Customer ${customer_name || email} subscribed to ${plan}.`,
+        details: `Amount: ₹${planAmount.toFixed(2)}`,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
+    res.json({
+      success: true,
+      message: `${plan} activated successfully for ${email}`,
+      planInfo: {
+        active: true,
+        plan,
+        amount: planAmount,
+        slot: slot || "A-01 (VIP Zone)",
+        vehicle: vehicle || "KA01 AB 1234",
+        validFrom: new Date().toISOString(),
+        validUntil: new Date(Date.now() + 30 * 86400000).toISOString()
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error activating premium plan" });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+

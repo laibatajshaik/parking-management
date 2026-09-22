@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { LayoutDashboard, Calculator, Car, Calendar, MapPin, CreditCard, FileText, BarChart3, HelpCircle, Bell, LogOut as LogOutIcon, Search, Menu, CheckCircle, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Calculator, Car, Calendar, MapPin, CreditCard, FileText, BarChart3, HelpCircle, LogOut as LogOutIcon, Search, Menu, CheckCircle, ChevronDown } from "lucide-react";
 import StaffOverview from "./StaffOverview.jsx";
 import VehicleEntry from "./VehicleEntry.jsx";
 import ActiveParking from "./ActiveParking.jsx";
@@ -14,6 +14,7 @@ import StaffParkingRecords from "./StaffParkingRecords.jsx";
 import StaffShiftReports from "./StaffShiftReports.jsx";
 import StaffSupport from "./StaffSupport.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
+import NotificationBell from "../../components/NotificationBell.jsx";
 
 const STAFF_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
@@ -37,6 +38,14 @@ export default function StaffDashboard({ setView }) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
   const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("shnoor_current_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     if (tab) {
@@ -105,6 +114,7 @@ export default function StaffDashboard({ setView }) {
         }
         return;
       }
+      setCurrentUser(parsed);
     } catch {
       if (setView) {
         setView("login");
@@ -258,10 +268,7 @@ export default function StaffDashboard({ setView }) {
 
           <div className="pw-topbar-right">
             <ThemeToggle />
-            <div className="pw-topbar-bell">
-              <Bell size={18} />
-              <span className="pw-bell-dot" style={{ width: "8px", height: "8px", fontSize: "0.6rem", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", background: "#ef4444" }}>1</span>
-            </div>
+            <NotificationBell userEmail={currentUser?.email || "staff@shnoor.com"} />
 
             <div className="pw-user-profile-pill">
               <div className="pw-avatar-initials" style={{ background: "#0d9488", color: "#ffffff" }}>LT</div>
@@ -304,6 +311,7 @@ export default function StaffDashboard({ setView }) {
               metrics={metrics}
               recentEntries={recentEntries}
               setActiveTab={handleTabChange}
+              userEmail={currentUser?.email || "staff@shnoor.com"}
             />
           )}
 

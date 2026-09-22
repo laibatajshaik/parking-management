@@ -11,7 +11,6 @@ import {
   BarChart3,
   Settings,
   HelpCircle,
-  Bell,
   Search,
   LogOut,
   Menu,
@@ -32,6 +31,7 @@ import ReportsAnalytics from "./ReportsAnalytics.jsx";
 import SystemSettings from "./SystemSettings.jsx";
 import SupportAuditLogs from "./SupportAuditLogs.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
+import NotificationBell from "../../components/NotificationBell.jsx";
 
 const ADMIN_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard, isWorking: true },
@@ -89,6 +89,14 @@ export default function AdminDashboard({ setView }) {
   });
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("shnoor_current_user");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     if (tab) {
@@ -226,6 +234,7 @@ export default function AdminDashboard({ setView }) {
         }
         return;
       }
+      setCurrentUser(parsed);
     } catch {
       if (setView) {
         setView("login");
@@ -406,10 +415,7 @@ export default function AdminDashboard({ setView }) {
 
           <div className="pw-topbar-right">
             <ThemeToggle />
-            <div className="pw-topbar-bell">
-              <Bell size={18} />
-              <span className="pw-bell-dot"></span>
-            </div>
+            <NotificationBell userEmail={currentUser?.email || "admin@shnoor.com"} />
 
             <div className="pw-user-profile-pill">
               <div className="pw-avatar-initials">T</div>
@@ -441,6 +447,7 @@ export default function AdminDashboard({ setView }) {
               metrics={metrics}
               recentBookings={recentBookings}
               setActiveTab={handleTabChange}
+              userEmail={currentUser?.email || "admin@shnoor.com"}
             />
           )}
 

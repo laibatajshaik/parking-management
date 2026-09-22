@@ -108,25 +108,34 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
     }
   ];
 
-  const fetchPlans = async () => {
-    setIsLoading(true);
+  const fetchPlans = async (initial = false) => {
+    if (initial) setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
       const data = await res.json();
-      setIsLoading(false);
+      if (initial) setIsLoading(false);
       if (data.success && data.plans && data.plans.length > 0) {
         setPlans(data.plans);
       } else {
         setPlans(defaultPlansFallback);
       }
     } catch {
-      setIsLoading(false);
+      if (initial) setIsLoading(false);
       setPlans(defaultPlansFallback);
     }
   };
 
   useEffect(() => {
-    fetchPlans();
+    fetchPlans(true);
+    const interval = setInterval(() => fetchPlans(false), 5000);
+    const handlePlanUpdate = () => fetchPlans(false);
+    window.addEventListener("shnoor_plan_updated", handlePlanUpdate);
+    window.addEventListener("storage", handlePlanUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("shnoor_plan_updated", handlePlanUpdate);
+      window.removeEventListener("storage", handlePlanUpdate);
+    };
   }, []);
 
   const getVehicleIcon = (type, isMonthly) => {

@@ -1,6 +1,7 @@
 import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCard, Zap, QrCode, Crown, Sparkles, Award, KeyRound } from "lucide-react";
+import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
-export default function CustomerOverview({ recentParkings, onNavigate, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser }) {
+export default function CustomerOverview({ recentParkings, onNavigate, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       {isPremiumActive && (
@@ -243,6 +244,8 @@ export default function CustomerOverview({ recentParkings, onNavigate, onViewRec
           </div>
         </div>
       </div>
+
+      <DashboardNotifications userEmail={currentUser?.email || loggedInUser?.email} />
 
       <div className="pw-find-parking-section" style={{ marginTop: "6px" }}>
         <h3 className="pw-section-title" style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginBottom: "8px" }}>Quick Customer Services</h3>

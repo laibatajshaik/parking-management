@@ -146,6 +146,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
         if (res.ok && data.success) {
           showNotification(`Pricing plan "${payload.plan_name}" updated successfully.`);
           setIsModalOpen(false);
+          window.dispatchEvent(new Event("shnoor_plan_updated"));
+          window.dispatchEvent(new Event("shnoor_notification_updated"));
           await fetchPlans();
         }
       } else {
@@ -158,6 +160,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
         if (res.ok && data.success) {
           showNotification(`New pricing plan "${payload.plan_name}" created successfully.`);
           setIsModalOpen(false);
+          window.dispatchEvent(new Event("shnoor_plan_updated"));
+          window.dispatchEvent(new Event("shnoor_notification_updated"));
           await fetchPlans();
         }
       }
@@ -175,6 +179,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
       const data = await res.json();
       if (res.ok && data.success) {
         showNotification(`Plan "${plan.plan_name}" is now ${newStatus ? "Active" : "Inactive"}.`);
+        window.dispatchEvent(new Event("shnoor_plan_updated"));
+        window.dispatchEvent(new Event("shnoor_notification_updated"));
         await fetchPlans();
       }
     } catch (err) { void err; }
@@ -189,6 +195,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
       if (res.ok && data.success) {
         showNotification("Pricing plan deleted successfully.");
         setDeleteConfirmId(null);
+        window.dispatchEvent(new Event("shnoor_plan_updated"));
+        window.dispatchEvent(new Event("shnoor_notification_updated"));
         await fetchPlans();
       }
     } catch (err) { void err; }
