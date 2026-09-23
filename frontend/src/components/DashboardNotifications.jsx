@@ -17,27 +17,40 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api.js";
 
-function formatRelativeTime(dateString) {
+function formatExactTime(dateString) {
   if (!dateString) return "";
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) return "";
   const now = new Date();
-  const diffMs = now - date;
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
 
-  if (diffSec < 60) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
 
-  return date.toLocaleDateString("en-IN", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
+  const timeStr = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
   });
+
+  if (isToday) {
+    return `Today, ${timeStr}`;
+  }
+  if (isYesterday) {
+    return `Yesterday, ${timeStr}`;
+  }
+  const dateStr = date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short"
+  });
+  return `${dateStr}, ${timeStr}`;
 }
 
 function getNotificationIcon(type) {
@@ -317,7 +330,7 @@ export default function DashboardNotifications({ userEmail = "", maxItems = 5, t
                     }}
                   >
                     <Clock size={11} />
-                    <span>{formatRelativeTime(item.created_at)}</span>
+                    <span>{formatExactTime(item.created_at)}</span>
                   </span>
                 </div>
 

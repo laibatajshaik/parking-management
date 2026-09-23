@@ -42,6 +42,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [actionSuccess, setActionSuccess] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const fetchPlans = async () => {
     setIsLoading(true);
@@ -87,7 +89,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
 
   const handleOpenCreateModal = () => {
     resetForm();
-    const randomCode = `PLAN-${vehicleType.toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+    setFormError("");
+    const randomCode = `PLAN-${vehicleType.toUpperCase()}-${Date.now().toString().slice(-4)}`;
     setPlanCode(randomCode);
     setIsModalOpen(true);
   };
@@ -105,6 +108,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
     setFeatureInput("");
     setIsActive(p.is_active !== false);
     setIsEditing(true);
+    setFormError("");
     setIsModalOpen(true);
   };
 
@@ -122,6 +126,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
   const handleSavePlan = async (e) => {
     e.preventDefault();
     if (!planName.trim() || !rate) return;
+    setFormError("");
+    setIsSaving(true);
 
     const payload = {
       plan_code: planCode.trim() || `PLAN-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -143,12 +149,15 @@ export default function PricingPlans({ setStatusActionMessage }) {
           body: JSON.stringify(payload)
         });
         const data = await res.json();
+        setIsSaving(false);
         if (res.ok && data.success) {
           showNotification(`Pricing plan "${payload.plan_name}" updated successfully.`);
           setIsModalOpen(false);
           window.dispatchEvent(new Event("shnoor_plan_updated"));
           window.dispatchEvent(new Event("shnoor_notification_updated"));
           await fetchPlans();
+        } else {
+          setFormError(data.error || "Failed to update pricing plan.");
         }
       } else {
         const res = await fetch(`${API_BASE_URL}/api/pricing-plans`, {
@@ -157,15 +166,21 @@ export default function PricingPlans({ setStatusActionMessage }) {
           body: JSON.stringify(payload)
         });
         const data = await res.json();
+        setIsSaving(false);
         if (res.ok && data.success) {
           showNotification(`New pricing plan "${payload.plan_name}" created successfully.`);
           setIsModalOpen(false);
           window.dispatchEvent(new Event("shnoor_plan_updated"));
           window.dispatchEvent(new Event("shnoor_notification_updated"));
           await fetchPlans();
+        } else {
+          setFormError(data.error || "Failed to create pricing plan.");
         }
       }
-    } catch (err) { void err; }
+    } catch {
+      setIsSaving(false);
+      setFormError("A network or server error occurred. Please check your connection.");
+    }
   };
 
   const handleToggleStatus = async (plan) => {
@@ -461,6 +476,25 @@ export default function PricingPlans({ setStatusActionMessage }) {
             </div>
 
             <form onSubmit={handleSavePlan} className="pw-modal-form" style={{ marginTop: "16px" }}>
+              {formError && (
+                <div
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.15)",
+                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                    borderRadius: "8px",
+                    padding: "10px 14px",
+                    color: "#fca5a5",
+                    fontSize: "0.85rem",
+                    marginBottom: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px"
+                  }}
+                >
+                  <AlertTriangle size={16} />
+                  <span>{formError}</span>
+                </div>
+              )}
               <div className="pw-form-two-col-grid">
                 <div>
                   <label className="pw-clean-label">Plan Code *</label>
@@ -606,8 +640,8 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="pw-btn-primary">
-                  {isEditing ? "Save Plan Changes" : "Create Pricing Plan"}
+                <button type="submit" className="pw-btn-primary" disabled={isSaving}>
+                  {isSaving ? "Saving..." : isEditing ? "Save Plan Changes" : "Create Pricing Plan"}
                 </button>
               </div>
             </form>

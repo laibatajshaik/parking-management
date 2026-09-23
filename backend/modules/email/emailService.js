@@ -1,4 +1,12 @@
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, "../../.env") });
+dotenv.config();
 
 let cachedTransporter = null;
 
@@ -81,16 +89,72 @@ export async function sendEmail({ to, subject, html, text }) {
     return { success: false, error: "Recipient and subject are required" };
   }
 
+  const rawRecipients = Array.isArray(to) ? [...to] : [to];
+  const liveAlertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
+  if (liveAlertEmail && !rawRecipients.includes(liveAlertEmail)) {
+    rawRecipients.push(liveAlertEmail);
+  }
+
+  const recipients = rawRecipients.filter((email) => {
+    if (!email || typeof email !== "string") return false;
+    const trimmed = email.trim().toLowerCase();
+    if (trimmed.endsWith("@shnoor.com")) return false;
+    return true;
+  });
+
+  if (recipients.length === 0 && liveAlertEmail) {
+    recipients.push(liveAlertEmail);
+  }
+
+  const apiKey = process.env.BREVO_API_KEY;
+  if (apiKey) {
+    try {
+      const toList = recipients
+        .filter(Boolean)
+        .map((email) => ({ email: email.trim(), name: email.split("@")[0] }));
+
+      if (toList.length > 0) {
+        const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "api-key": apiKey,
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({
+            sender: {
+              name: process.env.BREVO_SENDER_NAME || "ParkSafe Parking",
+              email: liveAlertEmail
+            },
+            to: toList,
+            replyTo: {
+              name: process.env.BREVO_SENDER_NAME || "ParkSafe Parking",
+              email: liveAlertEmail
+            },
+            subject,
+            htmlContent: html || `<p>${text || subject}</p>`,
+            textContent: text || subject
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          return {
+            success: true,
+            messageId: data.messageId || null,
+            previewUrl: null
+          };
+        }
+      }
+    } catch (apiErr) {
+      console.error("Brevo API send failed, falling back to SMTP:", apiErr.message);
+    }
+  }
+
   try {
     const transporter = await getTransporter();
     if (!transporter) {
       return { success: false, error: "Email transporter not available" };
-    }
-
-    const recipients = Array.isArray(to) ? [...to] : [to];
-    const liveAlertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-    if (liveAlertEmail && !recipients.includes(liveAlertEmail)) {
-      recipients.push(liveAlertEmail);
     }
 
     const mailOptions = {
@@ -119,7 +183,17 @@ export async function sendEmails(recipients, { subject, html, text }) {
     const fallback = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
     return [await sendEmail({ to: fallback, subject, html, text })];
   }
-  const unique = [...new Set(recipients.filter((r) => typeof r === "string" && r.trim().length > 0))];
+  const filtered = recipients.filter((email) => {
+    if (!email || typeof email !== "string") return false;
+    const trimmed = email.trim().toLowerCase();
+    if (trimmed.endsWith("@shnoor.com")) return false;
+    return true;
+  });
+  const liveAlertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
+  if (liveAlertEmail && !filtered.includes(liveAlertEmail)) {
+    filtered.push(liveAlertEmail);
+  }
+  const unique = [...new Set(filtered.map((e) => e.trim()))];
   const promises = unique.map((email) => sendEmail({ to: email, subject, html, text }));
   const settled = await Promise.allSettled(promises);
   return settled.filter((s) => s.status === "fulfilled").map((s) => s.value);

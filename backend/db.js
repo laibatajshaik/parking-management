@@ -10,19 +10,29 @@ dotenv.config();
 
 const { Pool } = pg;
 
+pg.types.setTypeParser(1114, (str) => {
+  return str ? new Date(str + "Z").toISOString() : null;
+});
+
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: {
         rejectUnauthorized: false
-      }
+      },
+      idleTimeoutMillis: 30000
     })
   : new Pool({
       host: process.env.DB_HOST || "localhost",
       port: parseInt(process.env.DB_PORT) || 5432,
       user: process.env.DB_USER || "postgres",
       password: process.env.DB_PASSWORD || "postgres",
-      database: process.env.DB_NAME || "shnoor_parking"
+      database: process.env.DB_NAME || "shnoor_parking",
+      idleTimeoutMillis: 30000
     });
+
+pool.on("error", (err) => {
+  console.error("Postgres pool idle client error:", err.message);
+});
 
 export default pool;

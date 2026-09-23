@@ -2706,63 +2706,78 @@ app.post("/api/pricing-plans", async (req, res) => {
     return res.status(400).json({ error: "Plan name and rate are required" });
   }
 
-  const pCode = plan_code || `PLAN-${(vehicle_type || "CAR").toUpperCase()}-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
   const pRate = parseFloat(rate) || 50.00;
   const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
   const pActive = is_active !== false;
   const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];
 
+  let pCode = (plan_code || "").trim();
+  if (!pCode) {
+    pCode = `PLAN-${(vehicle_type || "CAR").toUpperCase()}-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+  } else {
+    try {
+      const existing = await pool.query("SELECT id FROM pricing_plans WHERE LOWER(plan_code) = LOWER($1)", [pCode]);
+      if (existing.rowCount > 0) {
+        pCode = `${pCode}-${Date.now().toString().slice(-4)}`;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   try {
     const insertRes = await pool.query(
       `INSERT INTO pricing_plans (plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [pCode, plan_name, vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive]
+      [pCode, plan_name.trim(), vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive]
     );
-
-    await notifyCustomersAndStaff({
-      title: "New Parking Plan Available",
-      message: `A new parking plan "${plan_name}" has been added. Check the Pricing section for details.`,
-      type: "pricing"
-    });
-    await notifyStaff({
-      title: "Important Parking/Operational Update",
-      message: `A new parking plan "${plan_name}" has been added.`,
-      type: "pricing"
-    });
-    await notifyAdmins({
-      title: "Pricing Update",
-      message: `New pricing plan "${plan_name}" was published.`,
-      type: "pricing"
-    });
-    try {
-      const customerEmails = await getActiveCustomerEmails();
-      const staffEmails = await getActiveStaffEmails();
-      const adminEmails = await getActiveAdminEmails();
-      await sendNewParkingPlanEmail({
-        plan: insertRes.rows[0],
-        recipients: customerEmails
-      });
-      await sendStaffOperationalUpdateEmail({
-        title: "New Parking Plan Added",
-        message: `A new parking plan "${plan_name}" has been added.`,
-        details: `Rate: ₹${pRate.toFixed(2)} (${billing_type || "Hourly"})`,
-        staffEmails
-      });
-      await sendAdminSystemUpdateEmail({
-        title: "New Pricing Plan Published",
-        message: `Pricing plan "${plan_name}" was created.`,
-        details: `Rate: ₹${pRate.toFixed(2)}`,
-        adminEmails
-      });
-    } catch (e) {
-      console.error(e);
-    }
 
     res.status(201).json({
       success: true,
       message: `Pricing plan "${plan_name}" created successfully`,
       plan: insertRes.rows[0]
     });
+
+    (async () => {
+      await notifyCustomersAndStaff({
+        title: "New Parking Plan Available",
+        message: `A new parking plan "${plan_name}" has been added. Check the Pricing section for details.`,
+        type: "pricing"
+      });
+      await notifyStaff({
+        title: "Important Parking/Operational Update",
+        message: `A new parking plan "${plan_name}" has been added.`,
+        type: "pricing"
+      });
+      await notifyAdmins({
+        title: "Pricing Update",
+        message: `New pricing plan "${plan_name}" was published.`,
+        type: "pricing"
+      });
+      try {
+        const customerEmails = await getActiveCustomerEmails();
+        const staffEmails = await getActiveStaffEmails();
+        const adminEmails = await getActiveAdminEmails();
+        await sendNewParkingPlanEmail({
+          plan: insertRes.rows[0],
+          recipients: customerEmails
+        });
+        await sendStaffOperationalUpdateEmail({
+          title: "New Parking Plan Added",
+          message: `A new parking plan "${plan_name}" has been added.`,
+          details: `Rate: ₹${pRate.toFixed(2)} (${billing_type || "Hourly"})`,
+          staffEmails
+        });
+        await sendAdminSystemUpdateEmail({
+          title: "New Pricing Plan Published",
+          message: `Pricing plan "${plan_name}" was created.`,
+          details: `Rate: ₹${pRate.toFixed(2)}`,
+          adminEmails
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })().catch(console.error);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error creating pricing plan" });
@@ -2790,48 +2805,50 @@ app.put("/api/pricing-plans/:id", async (req, res) => {
       return res.status(404).json({ error: "Pricing plan not found" });
     }
 
-    await notifyCustomersAndStaff({
-      title: "Parking Plan Updated",
-      message: `The "${plan_name}" parking plan has been updated.`,
-      type: "pricing"
-    });
-    await notifyStaff({
-      title: "Important Parking/Operational Update",
-      message: `The "${plan_name}" parking plan has been updated.`,
-      type: "pricing"
-    });
-    await notifyAdmins({
-      title: "Pricing Update",
-      message: `The "${plan_name}" parking plan has been updated.`,
-      type: "pricing"
-    });
-    try {
-      const customerEmails = await getActiveCustomerEmails();
-      const staffEmails = await getActiveStaffEmails();
-      const adminEmails = await getActiveAdminEmails();
-      await sendPricingPlanUpdatedEmail({
-        plan: updateRes.rows[0],
-        recipients: customerEmails
-      });
-      await sendStaffOperationalUpdateEmail({
-        title: "Pricing Plan Updated",
-        message: `The "${plan_name}" parking plan has been updated.`,
-        staffEmails
-      });
-      await sendAdminSystemUpdateEmail({
-        title: "Pricing Plan Updated",
-        message: `Pricing plan "${plan_name}" was updated.`,
-        adminEmails
-      });
-    } catch (e) {
-      console.error(e);
-    }
-
     res.json({
       success: true,
       message: `Pricing plan "${plan_name}" updated successfully`,
       plan: updateRes.rows[0]
     });
+
+    (async () => {
+      await notifyCustomersAndStaff({
+        title: "Parking Plan Updated",
+        message: `The "${plan_name}" parking plan has been updated.`,
+        type: "pricing"
+      });
+      await notifyStaff({
+        title: "Important Parking/Operational Update",
+        message: `The "${plan_name}" parking plan has been updated.`,
+        type: "pricing"
+      });
+      await notifyAdmins({
+        title: "Pricing Update",
+        message: `The "${plan_name}" parking plan has been updated.`,
+        type: "pricing"
+      });
+      try {
+        const customerEmails = await getActiveCustomerEmails();
+        const staffEmails = await getActiveStaffEmails();
+        const adminEmails = await getActiveAdminEmails();
+        await sendPricingPlanUpdatedEmail({
+          plan: updateRes.rows[0],
+          recipients: customerEmails
+        });
+        await sendStaffOperationalUpdateEmail({
+          title: "Pricing Plan Updated",
+          message: `The "${plan_name}" parking plan has been updated.`,
+          staffEmails
+        });
+        await sendAdminSystemUpdateEmail({
+          title: "Pricing Plan Updated",
+          message: `Pricing plan "${plan_name}" was updated.`,
+          adminEmails
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })().catch(console.error);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error updating pricing plan" });
@@ -2853,48 +2870,51 @@ app.patch("/api/pricing-plans/:id/status", async (req, res) => {
     }
 
     const plan = updateRes.rows[0];
-    await notifyCustomersAndStaff({
-      title: "Parking Plan Updated",
-      message: `The "${plan.plan_name}" parking plan has been updated.`,
-      type: "pricing"
-    });
-    await notifyStaff({
-      title: "Important Parking/Operational Update",
-      message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
-      type: "pricing"
-    });
-    await notifyAdmins({
-      title: "Pricing Update",
-      message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
-      type: "pricing"
-    });
-    try {
-      const customerEmails = await getActiveCustomerEmails();
-      const staffEmails = await getActiveStaffEmails();
-      const adminEmails = await getActiveAdminEmails();
-      await sendPricingPlanUpdatedEmail({
-        plan,
-        recipients: customerEmails
-      });
-      await sendStaffOperationalUpdateEmail({
-        title: "Pricing Plan Status Updated",
-        message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
-        staffEmails
-      });
-      await sendAdminSystemUpdateEmail({
-        title: "Pricing Plan Status Updated",
-        message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
-        adminEmails
-      });
-    } catch (e) {
-      console.error(e);
-    }
 
     res.json({
       success: true,
       message: `Plan "${plan.plan_name}" status updated to ${is_active ? "Active" : "Inactive"}`,
       plan
     });
+
+    (async () => {
+      await notifyCustomersAndStaff({
+        title: "Parking Plan Updated",
+        message: `The "${plan.plan_name}" parking plan has been updated.`,
+        type: "pricing"
+      });
+      await notifyStaff({
+        title: "Important Parking/Operational Update",
+        message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+        type: "pricing"
+      });
+      await notifyAdmins({
+        title: "Pricing Update",
+        message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+        type: "pricing"
+      });
+      try {
+        const customerEmails = await getActiveCustomerEmails();
+        const staffEmails = await getActiveStaffEmails();
+        const adminEmails = await getActiveAdminEmails();
+        await sendPricingPlanUpdatedEmail({
+          plan,
+          recipients: customerEmails
+        });
+        await sendStaffOperationalUpdateEmail({
+          title: "Pricing Plan Status Updated",
+          message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+          staffEmails
+        });
+        await sendAdminSystemUpdateEmail({
+          title: "Pricing Plan Status Updated",
+          message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
+          adminEmails
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })().catch(console.error);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error updating plan status" });
@@ -2910,42 +2930,45 @@ app.delete("/api/pricing-plans/:id", async (req, res) => {
     }
 
     const plan = delRes.rows[0];
-    await notifyCustomersAndStaff({
-      title: "Parking Plan Updated",
-      message: `Pricing plan "${plan.plan_name}" has been removed.`,
-      type: "pricing"
-    });
-    await notifyStaff({
-      title: "Important Parking/Operational Update",
-      message: `Pricing plan "${plan.plan_name}" has been removed.`,
-      type: "pricing"
-    });
-    await notifyAdmins({
-      title: "Important System Activity",
-      message: `Pricing plan "${plan.plan_name}" was deleted.`,
-      type: "pricing"
-    });
-    try {
-      const staffEmails = await getActiveStaffEmails();
-      const adminEmails = await getActiveAdminEmails();
-      await sendStaffOperationalUpdateEmail({
-        title: "Pricing Plan Removed",
-        message: `Pricing plan "${plan.plan_name}" has been removed.`,
-        staffEmails
-      });
-      await sendAdminSystemUpdateEmail({
-        title: "Pricing Plan Deleted",
-        message: `Pricing plan "${plan.plan_name}" has been deleted.`,
-        adminEmails
-      });
-    } catch (e) {
-      console.error(e);
-    }
 
     res.json({
       success: true,
       message: `Pricing plan "${plan.plan_name}" deleted successfully`
     });
+
+    (async () => {
+      await notifyCustomersAndStaff({
+        title: "Parking Plan Updated",
+        message: `Pricing plan "${plan.plan_name}" has been removed.`,
+        type: "pricing"
+      });
+      await notifyStaff({
+        title: "Important Parking/Operational Update",
+        message: `Pricing plan "${plan.plan_name}" has been removed.`,
+        type: "pricing"
+      });
+      await notifyAdmins({
+        title: "Important System Activity",
+        message: `Pricing plan "${plan.plan_name}" was deleted.`,
+        type: "pricing"
+      });
+      try {
+        const staffEmails = await getActiveStaffEmails();
+        const adminEmails = await getActiveAdminEmails();
+        await sendStaffOperationalUpdateEmail({
+          title: "Pricing Plan Removed",
+          message: `Pricing plan "${plan.plan_name}" has been removed.`,
+          staffEmails
+        });
+        await sendAdminSystemUpdateEmail({
+          title: "Pricing Plan Deleted",
+          message: `Pricing plan "${plan.plan_name}" has been deleted.`,
+          adminEmails
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })().catch(console.error);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error deleting pricing plan" });
@@ -3261,5 +3284,13 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
 });
 
