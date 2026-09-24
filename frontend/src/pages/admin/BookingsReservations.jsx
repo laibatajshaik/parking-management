@@ -499,8 +499,8 @@ export default function BookingsReservations({ setStatusActionMessage }) {
             <span>Assigned Bay</span>
             <span>Reserved Window</span>
             <span>Duration & Fee</span>
-            <span>Status</span>
-            <span style={{ textAlign: "right" }}>Actions</span>
+            <span style={{ textAlign: "center" }}>Status</span>
+            <span style={{ textAlign: "center" }}>Actions</span>
           </div>
 
           <div className="pw-user-cards-stack">
@@ -567,19 +567,20 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       </div>
                     </div>
 
-                    <div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {getStatusBadge(b.status)}
                     </div>
 
-                    <div className="pw-user-card-actions-col" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px", flexWrap: "nowrap" }}>
+                    <div className="pw-user-card-actions-col" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", flexWrap: "nowrap" }}>
                       {b.status === "Confirmed" && (
                         <button
                           type="button"
-                          className="pw-btn-action-view-receipt"
+                          className="pw-btn-action-view"
                           onClick={() => handleUpdateStatus(b.id, "Checked In")}
                           title="Check-In / Validate customer arrival"
-                          style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0 }}
+                          style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0, color: "#0f766e", borderColor: "#99f6e4" }}
                         >
+                          <CheckCircle2 size={12} style={{ color: "#0d9488" }} />
                           <span>Check-In</span>
                         </button>
                       )}
@@ -587,11 +588,12 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       {b.status === "Pending" && (
                         <button
                           type="button"
-                          className="pw-btn-action-view-receipt"
+                          className="pw-btn-action-view"
                           onClick={() => handleUpdateStatus(b.id, "Confirmed")}
                           title="Confirm reservation"
-                          style={{ padding: "5px 9px", fontSize: "0.74rem", background: "var(--bg-teal-sub, #ecfdf5)", color: "#047857", whiteSpace: "nowrap", flexShrink: 0 }}
+                          style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0, color: "#047857", borderColor: "#a7f3d0" }}
                         >
+                          <CheckCircle size={12} style={{ color: "#16a34a" }} />
                           <span>Confirm</span>
                         </button>
                       )}

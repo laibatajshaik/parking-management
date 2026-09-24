@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
+import { OAuth2Client } from "google-auth-library";
 import pool from "./db.js";
 import dotenv from "dotenv";
 import path from "path";
@@ -47,6 +48,10 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 dotenv.config();
 
+const googleOAuthClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID || "265505874428-n49qnrsvk6tck6bd1bprrp13k36j8n3e.apps.googleusercontent.com"
+);
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -69,6 +74,7 @@ const initDbSchema = async () => {
         phone VARCHAR(50) DEFAULT '+91 98765 43210',
         role VARCHAR(50) DEFAULT 'customer',
         status VARCHAR(50) DEFAULT 'Active',
+        google_id VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -78,6 +84,9 @@ const initDbSchema = async () => {
     `);
     await pool.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Active';
+    `);
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
     `);
 
     const adminPass = await bcrypt.hash("admin", 10);
@@ -399,19 +408,16 @@ const initDbSchema = async () => {
 initDbSchema();
 
 app.post("/api/signup", async (req, res) => {
-  const { name, email, password, phone, role } = req.body;
+  const { name, email, password, phone } = req.body;
 
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !name.trim() || !email.trim() || !password.trim()) {
     return res.status(400).json({ error: "All fields are required" });
   }
 
-  let dbRole = "customer";
-  if (role === "admin" || role === "staff" || role === "customer") {
-    dbRole = role;
-  }
+  const dbRole = "customer";
 
   try {
-    const userExist = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userExist = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email.trim()]);
     if (userExist.rowCount > 0) {
       return res.status(400).json({ error: "Email is already registered" });
     }
@@ -420,28 +426,28 @@ app.post("/api/signup", async (req, res) => {
     const userPhone = phone || "+91 98765 43210";
     await pool.query(
       "INSERT INTO users (name, email, password, phone, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
-      [name, email, hashedPassword, userPhone, dbRole]
+      [name.trim(), email.trim(), hashedPassword, userPhone, dbRole]
     );
 
     await notifyAdmins({
       title: "New User Registered",
-      message: `New customer registered: ${email}`,
+      message: `New customer registered: ${email.trim()}`,
       type: "user"
     });
-    await notifyUser(email, {
+    await notifyUser(email.trim(), {
       title: "Welcome to Shnoor Parking",
-      message: `Welcome ${name}! Your account has been registered successfully.`,
+      message: `Welcome ${name.trim()}! Your account has been registered successfully.`,
       type: "user"
     });
     try {
       await sendAccountCreatedEmail({
-        customerName: name,
-        customerEmail: email,
+        customerName: name.trim(),
+        customerEmail: email.trim(),
         role: dbRole,
         phone: userPhone
       });
       const adminEmails = await getActiveAdminEmails();
-      await sendNewUserAdminEmail({ customerName: name, customerEmail: email, adminEmails });
+      await sendNewUserAdminEmail({ customerName: name.trim(), customerEmail: email.trim(), adminEmails });
     } catch (e) {
       console.error(e);
     }
@@ -456,12 +462,12 @@ app.post("/api/signup", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (!email || !password || !email.trim() || !password.trim()) {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
   try {
-    const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userResult = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email.trim()]);
     if (userResult.rowCount === 0) {
       return res.status(400).json({ error: "Invalid credentials" });
     }
@@ -472,6 +478,10 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
+    if (user.status && user.status.toLowerCase() === "inactive") {
+      return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
+    }
+
     res.json({
       success: true,
       user: {
@@ -480,12 +490,238 @@ app.post("/api/login", async (req, res) => {
         email: user.email,
         phone: user.phone || "+91 98765 43210",
         role: user.role,
-        status: user.status || "Active"
+        status: user.status || "Active",
+        google_id: user.google_id || null
       }
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error during login" });
+  }
+});
+
+app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
+  const { credential, access_token } = req.body;
+
+  if (!credential && !access_token) {
+    return res.status(401).json({ error: "Google token is required" });
+  }
+
+  try {
+    let email = "";
+    let displayName = "";
+    let picture = "";
+    let googleId = "";
+
+    if (credential) {
+      try {
+        const ticket = await googleOAuthClient.verifyIdToken({
+          idToken: credential,
+          audience: process.env.GOOGLE_CLIENT_ID || "265505874428-n49qnrsvk6tck6bd1bprrp13k36j8n3e.apps.googleusercontent.com"
+        });
+        const payload = ticket.getPayload();
+        if (payload) {
+          googleId = payload.sub || "";
+          email = (payload.email || "").trim().toLowerCase();
+          displayName = payload.name || payload.given_name || email.split("@")[0];
+          picture = payload.picture || "";
+        }
+      } catch {
+        try {
+          const gRes = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(credential));
+          if (gRes.ok) {
+            const gData = await gRes.json();
+            if (gData && gData.email) {
+              googleId = gData.sub || "";
+              email = gData.email.trim().toLowerCase();
+              displayName = gData.name || gData.given_name || email.split("@")[0];
+              picture = gData.picture || "";
+            }
+          }
+        } catch {
+          void 0;
+        }
+      }
+    } else if (access_token) {
+      try {
+        const uRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${access_token}` }
+        });
+        if (uRes.ok) {
+          const uData = await uRes.json();
+          if (uData && uData.email) {
+            googleId = uData.sub || "";
+            email = uData.email.trim().toLowerCase();
+            displayName = uData.name || uData.given_name || email.split("@")[0];
+            picture = uData.picture || "";
+          }
+        }
+      } catch {
+        void 0;
+      }
+    }
+
+    if (!email) {
+      return res.status(401).json({ error: "Invalid or expired Google token" });
+    }
+
+    let userResult = null;
+    if (googleId) {
+      userResult = await pool.query("SELECT * FROM users WHERE google_id = $1", [googleId]);
+    }
+    if (!userResult || userResult.rowCount === 0) {
+      userResult = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+    }
+
+    if (userResult.rowCount > 0) {
+      const existingUser = userResult.rows[0];
+
+      if (existingUser.role === "staff") {
+        return res.status(403).json({
+          error: "Google login is available for customers only. Please use your staff credentials."
+        });
+      }
+
+      if (existingUser.role === "admin") {
+        return res.status(403).json({
+          error: "Google login is available for customers only. Please use your admin credentials."
+        });
+      }
+
+      if (googleId && !existingUser.google_id) {
+        await pool.query("UPDATE users SET google_id = $1 WHERE id = $2", [googleId, existingUser.id]);
+      }
+
+      return res.json({
+        success: true,
+        isNewUser: false,
+        user: {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          phone: existingUser.phone || "+91 98765 43210",
+          role: "customer",
+          status: existingUser.status || "Active",
+          google_id: googleId || existingUser.google_id,
+          picture: picture || null
+        }
+      });
+    }
+
+    const randomPassword = await bcrypt.hash("google_auth_" + Date.now() + "_" + Math.random(), 10);
+    const userPhone = "+91 98765 43210";
+
+    const insertResult = await pool.query(
+      "INSERT INTO users (name, email, password, phone, role, status, google_id) VALUES ($1, $2, $3, $4, 'customer', 'Active', $5) RETURNING id, name, email, phone, role, status, google_id, created_at",
+      [displayName, email, randomPassword, userPhone, googleId || null]
+    );
+
+    const newUser = insertResult.rows[0];
+
+    await notifyAdmins({
+      title: "New User Registered",
+      message: `New customer registered via Google: ${email}`,
+      type: "user"
+    });
+
+    await notifyUser(email, {
+      title: "Welcome to Shnoor Parking",
+      message: `Welcome ${displayName}! Your account has been registered successfully via Google.`,
+      type: "user"
+    });
+
+    try {
+      await sendAccountCreatedEmail({
+        customerName: displayName,
+        customerEmail: email,
+        role: "customer",
+        phone: userPhone
+      });
+      const adminEmails = await getActiveAdminEmails();
+      await sendNewUserAdminEmail({
+        customerName: displayName,
+        customerEmail: email,
+        adminEmails
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
+    return res.status(201).json({
+      success: true,
+      isNewUser: true,
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone || userPhone,
+        role: "customer",
+        status: newUser.status || "Active",
+        google_id: newUser.google_id,
+        picture: picture || null
+      }
+    });
+  } catch (err) {
+    console.error("Google auth server error:", err);
+    return res.status(500).json({ error: "Server error during Google authentication" });
+  }
+});
+
+app.post("/api/admin/staff", async (req, res) => {
+  let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.body.adminEmail || "";
+  const authHeader = req.headers["authorization"] || "";
+  if (!adminEmail && authHeader) {
+    adminEmail = authHeader.replace(/^Bearer\s+/i, "").trim();
+  }
+
+  if (!adminEmail) {
+    return res.status(401).json({ error: "Unauthorized: Admin authentication required" });
+  }
+
+  try {
+    const adminResult = await pool.query("SELECT id, name, email, role, status FROM users WHERE LOWER(email) = LOWER($1)", [adminEmail]);
+    if (adminResult.rowCount === 0 || (adminResult.rows[0].status && adminResult.rows[0].status.toLowerCase() === "inactive")) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or inactive admin account" });
+    }
+
+    const adminUser = adminResult.rows[0];
+    if (adminUser.role !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Administrator privileges required" });
+    }
+
+    const { name, email, password, phone, status } = req.body;
+    if (!name || !email || !password || !name.trim() || !email.trim() || !password.trim()) {
+      return res.status(400).json({ error: "Name, email, and password are required" });
+    }
+
+    const duplicateCheck = await pool.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [email.trim()]);
+    if (duplicateCheck.rowCount > 0) {
+      return res.status(400).json({ error: "Email is already registered" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userPhone = phone || "+91 98765 43210";
+    const userStatus = status || "Active";
+
+    const insertResult = await pool.query(
+      "INSERT INTO users (name, email, password, phone, role, status) VALUES ($1, $2, $3, $4, 'staff', $5) RETURNING id, name, email, phone, role, status, created_at",
+      [name.trim(), email.trim(), hashedPassword, userPhone, userStatus]
+    );
+
+    await notifyUser(email.trim(), {
+      title: "Staff Account Created",
+      message: `Welcome ${name.trim()}! Your staff account has been created by the administrator.`,
+      type: "user"
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Staff account created successfully",
+      user: insertResult.rows[0]
+    });
+  } catch (err) {
+    console.error("Staff creation error:", err);
+    res.status(500).json({ error: "Server error creating staff account" });
   }
 });
 

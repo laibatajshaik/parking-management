@@ -103,6 +103,16 @@ export default function CustomerDashboard({ setView }) {
         return;
       }
       const parsed = JSON.parse(savedUser);
+      if (parsed.role !== "customer") {
+        if (parsed.role === "admin") {
+          navigate("/admin/dashboard/overview");
+        } else if (parsed.role === "staff") {
+          navigate("/staff/dashboard/overview");
+        } else {
+          navigate("/login");
+        }
+        return;
+      }
       setCurrentUser(parsed);
       const email = parsed.email || "";
       const savedPremium = email ? localStorage.getItem(`shnoor_premium_${email}`) : null;

@@ -3,6 +3,7 @@ import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "./components/ThemeToggle.jsx";
+import GoogleAuthButton from "./components/GoogleAuthButton.jsx";
 
 export default function Login({ setView }) {
   const [email, setEmail] = useState("");
@@ -82,6 +83,27 @@ export default function Login({ setView }) {
       setIsError(true);
       setMessage("Cannot connect to server");
     }
+  };
+
+  const handleGoogleSuccess = (user) => {
+    localStorage.setItem("shnoor_current_user", JSON.stringify(user));
+    localStorage.setItem("shnoor_auth_state", "true");
+    setMessage("Login successful with Google!");
+    setIsError(false);
+    setTimeout(() => {
+      if (user.role === "admin") {
+        setView("admin/dashboard/overview");
+      } else if (user.role === "staff") {
+        setView("staff/dashboard/overview");
+      } else {
+        setView("customer/dashboard/overview");
+      }
+    }, 600);
+  };
+
+  const handleGoogleError = (errMsg) => {
+    setIsError(true);
+    setMessage(errMsg || "Google login failed");
   };
 
   return (
@@ -171,6 +193,18 @@ export default function Login({ setView }) {
           >
             {isLoading ? "Logging in..." : "Login"}
           </button>
+
+          <div className="pw-auth-divider">
+            <span>OR</span>
+          </div>
+
+          <GoogleAuthButton
+            text="continue"
+            role="customer"
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+            disabled={isLoading}
+          />
 
           {message && (
             <p className={`pw-auth-msg ${isError ? "error" : "success"}`}>

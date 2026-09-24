@@ -127,16 +127,31 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      let adminEmail = "";
+      try {
+        const saved = localStorage.getItem("shnoor_current_user");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          adminEmail = parsed.email || "";
+        }
+      } catch {
+        void 0;
+      }
+
+      const endpoint = addFormData.role === "staff" ? `${API_BASE_URL}/api/admin/staff` : `${API_BASE_URL}/api/admin/users`;
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-email": adminEmail
+        },
         body: JSON.stringify(addFormData)
       });
       const data = await res.json();
       setIsAddingUser(false);
 
       if (res.ok && data.success) {
-        setStatusActionMessage(`User ${addFormData.name} added successfully`);
+        setStatusActionMessage(data.message || `User ${addFormData.name} added successfully`);
         setIsAddUserModalOpen(false);
         setAddFormData({
           name: "",
@@ -351,7 +366,7 @@ export default function UserManagement({
                     <div className="pw-user-avatar-small">{initials}</div>
                     <div>
                       <div className="pw-user-name-bold">{u.name}</div>
-                      <span className={`pw-role-badge ${roleKey}`} style={{ marginTop: "4px" }}>
+                      <span className={`pw-role-badge ${roleKey}`} style={{ marginTop: "2px" }}>
                         {u.role ? u.role.toUpperCase() : "CUSTOMER"}
                       </span>
                     </div>
