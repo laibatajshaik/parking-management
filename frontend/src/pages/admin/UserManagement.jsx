@@ -325,7 +325,7 @@ export default function UserManagement({
         <div className="pw-users-header-row pw-mgmt-grid-row pw-user-mgmt-grid">
           <span>User Profile</span>
           <span>Email & Phone</span>
-          <span>Registration Date</span>
+          <span>Registered On</span>
           <span>Status</span>
           <span style={{ textAlign: "right" }}>Actions</span>
         </div>
@@ -369,7 +369,7 @@ export default function UserManagement({
                   </div>
 
                   <div className="pw-user-card-date-col">
-                    <span className="pw-user-col-label">Registered</span>
+                    <span className="pw-user-col-label">Registered On</span>
                     <span className="pw-user-col-value">{formatDate(u.created_at)}</span>
                   </div>
 
@@ -729,7 +729,7 @@ export default function UserManagement({
                 </div>
 
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Registration Date</span>
+                  <span className="pw-detail-label">Registered On</span>
                   <span className="pw-detail-value">{formatDate(selectedUser.created_at)}</span>
                 </div>
 

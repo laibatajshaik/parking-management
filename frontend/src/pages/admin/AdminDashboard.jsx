@@ -80,6 +80,31 @@ const INITIAL_24_SLOTS = [
   { id: 24, slot_number: "D-06", zone: "Zone D", slot_type: "Bike", status: "available", is_available: true, hourly_rate: "25" },
 ];
 
+function formatExactDateTime(dateStr) {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString("en-IN", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+const INITIAL_RECENT_BOOKINGS = [
+  { id: "#BK12345", user: "Laiba", location: "Downtown Plaza", vehicle: "KA01 AB 1234", date: "23 Sep 2026, 09:00 am", status: "Confirmed", amount: "₹150.00" },
+  { id: "#BK12344", user: "Laiba Taj", location: "City Mall Parking", vehicle: "KA02 CD 5678", date: "23 Sep 2026, 08:00 am", status: "Pending", amount: "₹100.00" },
+  { id: "#BK12343", user: "Taj", location: "Airport Parking", vehicle: "KA03 EF 9012", date: "23 Sep 2026, 06:00 am", status: "Completed", amount: "₹300.00" },
+  { id: "#BK12342", user: "Laiba", location: "Grand Center", vehicle: "KA04 GH 3456", date: "23 Sep 2026, 02:00 am", status: "Confirmed", amount: "₹225.00" },
+];
+
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
   const { tab } = useParams();
@@ -142,12 +167,7 @@ export default function AdminDashboard({ setView }) {
     totalUsers: "12",
   });
 
-  const [recentBookings, setRecentBookings] = useState([
-    { id: "#BK12345", user: "Laiba", location: "Downtown Plaza", vehicle: "KA01 AB 1234", date: "May 27, 2026", status: "Confirmed", amount: "₹150.00" },
-    { id: "#BK12344", user: "Laiba Taj", location: "City Mall Parking", vehicle: "KA02 CD 5678", date: "May 27, 2026", status: "Pending", amount: "₹100.00" },
-    { id: "#BK12343", user: "Taj", location: "Airport Parking", vehicle: "KA03 EF 9012", date: "May 26, 2026", status: "Completed", amount: "₹300.00" },
-    { id: "#BK12342", user: "Laiba", location: "Grand Center", vehicle: "KA04 GH 3456", date: "May 26, 2026", status: "Confirmed", amount: "₹225.00" },
-  ]);
+  const [recentBookings, setRecentBookings] = useState(INITIAL_RECENT_BOOKINGS);
 
   const fetchUsers = () => {
     fetch(`${API_BASE_URL}/api/admin/users`)
@@ -198,13 +218,13 @@ export default function AdminDashboard({ setView }) {
             if (data.activeSessions && data.activeSessions.length > 0) {
               setRecentBookings(
                 data.activeSessions.slice(0, 4).map((s, idx) => ({
-                  id: `#BK${12340 + idx}`,
+                  id: s.booking_id || `#BK${12340 + idx}`,
                   user: s.user_name || (idx === 0 ? "Laiba" : idx === 1 ? "Laiba Taj" : "Taj"),
                   location: "Downtown Plaza",
                   vehicle: s.vehicle_number || "KA01 AB 1234",
-                  date: "May 27, 2026",
-                  status: s.status === "Active" ? "Confirmed" : "Completed",
-                  amount: idx === 0 ? "₹150.00" : idx === 1 ? "₹100.00" : idx === 2 ? "₹300.00" : "₹225.00"
+                  date: formatExactDateTime(s.created_at || s.entry_time || new Date()),
+                  status: s.status === "Active" ? "Confirmed" : (s.status || "Confirmed"),
+                  amount: s.amount || (idx === 0 ? "₹150.00" : idx === 1 ? "₹100.00" : idx === 2 ? "₹300.00" : "₹225.00")
                 }))
               );
             }
@@ -290,15 +310,7 @@ export default function AdminDashboard({ setView }) {
     return "available";
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "May 10, 2026";
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
-    } catch {
-      return dateStr;
-    }
-  };
+  const formatDate = formatExactDateTime;
 
   const getPageTitle = () => {
     if (activeTab === "pricing-plans") return "Pricing & Plans Management";

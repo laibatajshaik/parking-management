@@ -84,17 +84,26 @@ function buildHtmlTemplate({ title, subtitle, contentHtml, footerNote }) {
 </html>`;
 }
 
+function formatExactTimestamp(val) {
+  const d = val ? new Date(val) : new Date();
+  const dateObj = isNaN(d.getTime()) ? new Date() : d;
+  return dateObj.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
 export async function sendEmail({ to, subject, html, text }) {
   if (!to || !subject) {
     return { success: false, error: "Recipient and subject are required" };
   }
 
   const rawRecipients = Array.isArray(to) ? [...to] : [to];
-  const liveAlertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-  if (liveAlertEmail && !rawRecipients.includes(liveAlertEmail)) {
-    rawRecipients.push(liveAlertEmail);
-  }
-
   const recipients = rawRecipients.filter((email) => {
     if (!email || typeof email !== "string") return false;
     const trimmed = email.trim().toLowerCase();
@@ -102,11 +111,13 @@ export async function sendEmail({ to, subject, html, text }) {
     return true;
   });
 
-  if (recipients.length === 0 && liveAlertEmail) {
-    recipients.push(liveAlertEmail);
+  if (recipients.length === 0) {
+    return { success: true, message: "Skipped delivery: no valid non-dummy recipients" };
   }
 
   const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
+  const senderName = process.env.BREVO_SENDER_NAME || "ParkSafe Parking";
   if (apiKey) {
     try {
       const toList = recipients
@@ -123,13 +134,13 @@ export async function sendEmail({ to, subject, html, text }) {
           },
           body: JSON.stringify({
             sender: {
-              name: process.env.BREVO_SENDER_NAME || "ParkSafe Parking",
-              email: liveAlertEmail
+              name: senderName,
+              email: senderEmail
             },
             to: toList,
             replyTo: {
-              name: process.env.BREVO_SENDER_NAME || "ParkSafe Parking",
-              email: liveAlertEmail
+              name: senderName,
+              email: senderEmail
             },
             subject,
             htmlContent: html || `<p>${text || subject}</p>`,
@@ -158,7 +169,7 @@ export async function sendEmail({ to, subject, html, text }) {
     }
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || '"Shnoor Parking" <laibataj1306@gmail.com>',
+      from: process.env.SMTP_FROM || `"${senderName}" <${senderEmail}>`,
       to: recipients.join(", "),
       subject,
       text: text || subject,
@@ -180,8 +191,7 @@ export async function sendEmail({ to, subject, html, text }) {
 
 export async function sendEmails(recipients, { subject, html, text }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
-    const fallback = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-    return [await sendEmail({ to: fallback, subject, html, text })];
+    return [];
   }
   const filtered = recipients.filter((email) => {
     if (!email || typeof email !== "string") return false;
@@ -189,9 +199,8 @@ export async function sendEmails(recipients, { subject, html, text }) {
     if (trimmed.endsWith("@shnoor.com")) return false;
     return true;
   });
-  const liveAlertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-  if (liveAlertEmail && !filtered.includes(liveAlertEmail)) {
-    filtered.push(liveAlertEmail);
+  if (filtered.length === 0) {
+    return [];
   }
   const unique = [...new Set(filtered.map((e) => e.trim()))];
   const promises = unique.map((email) => sendEmail({ to: email, subject, html, text }));
@@ -290,6 +299,18 @@ export async function sendReservationConfirmedEmail({ reservation, recipient }) 
           <td class="val">${reservation?.slot_number || "Assigned Bay"} (${reservation?.zone || "Zone A"})</td>
         </tr>
         <tr>
+          <td class="label">Booking Date & Time</td>
+          <td class="val">${formatExactTimestamp(reservation?.created_at || new Date())}</td>
+        </tr>
+        <tr>
+          <td class="label">Reserved Start</td>
+          <td class="val">${formatExactTimestamp(reservation?.start_time)}</td>
+        </tr>
+        <tr>
+          <td class="label">Reserved Until</td>
+          <td class="val">${formatExactTimestamp(reservation?.end_time)}</td>
+        </tr>
+        <tr>
           <td class="label">Duration</td>
           <td class="val">${reservation?.duration_hours || 1} hr(s)</td>
         </tr>
@@ -330,6 +351,10 @@ export async function sendReservationValidatedEmail({ reservation, recipient }) 
           <td class="val">${reservation?.slot_number || "Assigned Bay"}</td>
         </tr>
         <tr>
+          <td class="label">Validated At</td>
+          <td class="val">${formatExactTimestamp(reservation?.validated_at || new Date())}</td>
+        </tr>
+        <tr>
           <td class="label">Status</td>
           <td class="val" style="color: #16a34a;">Checked In / Active</td>
         </tr>
@@ -360,6 +385,10 @@ export async function sendReservationCancelledEmail({ reservation, recipient }) 
         <tr>
           <td class="label">Slot Number</td>
           <td class="val">${reservation?.slot_number || "N/A"}</td>
+        </tr>
+        <tr>
+          <td class="label">Cancelled At</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
         </tr>
       </table>
     `
@@ -394,6 +423,10 @@ export async function sendPaymentSuccessfulEmail({ amount, paymentMethod, vehicl
           <td class="label">Payment Method</td>
           <td class="val">${paymentMethod || "UPI / Card"}</td>
         </tr>
+        <tr>
+          <td class="label">Payment Date & Time</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
+        </tr>
       </table>
     `
   });
@@ -418,6 +451,10 @@ export async function sendPaymentFailedEmail({ amount, vehicleNumber, reason, re
         <tr>
           <td class="label">Amount Due</td>
           <td class="val">₹${numAmount}</td>
+        </tr>
+        <tr>
+          <td class="label">Attempted At</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
         </tr>
         <tr>
           <td class="label">Status Reason</td>
@@ -450,7 +487,7 @@ export async function sendVehicleEntryEmail({ vehicleNumber, slotNumber, entryTi
         </tr>
         <tr>
           <td class="label">Entry Time</td>
-          <td class="val">${entryTime || new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</td>
+          <td class="val">${formatExactTimestamp(entryTime)}</td>
         </tr>
       </table>
     `
@@ -478,7 +515,7 @@ export async function sendParkingSessionStartedEmail({ vehicleNumber, slotNumber
         </tr>
         <tr>
           <td class="label">Session Start</td>
-          <td class="val">${entryTime || new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</td>
+          <td class="val">${formatExactTimestamp(entryTime)}</td>
         </tr>
         <tr>
           <td class="label">Status</td>
@@ -510,11 +547,11 @@ export async function sendParkingSessionCompletedEmail({ vehicleNumber, slotNumb
         </tr>
         <tr>
           <td class="label">Entry Time</td>
-          <td class="val">${entryTime || "N/A"}</td>
+          <td class="val">${formatExactTimestamp(entryTime)}</td>
         </tr>
         <tr>
           <td class="label">Exit Time</td>
-          <td class="val">${exitTime || new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</td>
+          <td class="val">${formatExactTimestamp(exitTime)}</td>
         </tr>
         <tr>
           <td class="label">Duration</td>
@@ -564,6 +601,10 @@ export async function sendDigitalReceiptEmail({ receiptNumber, amount, vehicleNu
           <td class="label">Total Paid</td>
           <td class="val" style="font-size: 16px; color: #0f766e;">₹${parseFloat(amount || 0).toFixed(2)}</td>
         </tr>
+        <tr>
+          <td class="label">Receipt Generated At</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
+        </tr>
       </table>
     `
   });
@@ -589,6 +630,10 @@ export async function sendPremiumActivatedEmail({ customerName, planName, amount
           <td class="val">₹${parseFloat(amount || 2500).toFixed(2)}</td>
         </tr>
         <tr>
+          <td class="label">Activated On</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
+        </tr>
+        <tr>
           <td class="label">Privileges</td>
           <td class="val">Unlimited 24/7 Access, Dedicated Bay, Express RFID Barrier</td>
         </tr>
@@ -598,55 +643,60 @@ export async function sendPremiumActivatedEmail({ customerName, planName, amount
   return await sendEmail({ to: recipient, subject, html, text: `Your Premium parking plan "${planName}" has been activated successfully.` });
 }
 
-export async function sendStaffNewReservationEmail({ reservation, staffEmails }) {
-  const subject = "New Reservation / Reservation Requires Validation";
+export async function sendStaffNewReservationEmail() {
+  return { success: true, message: "Staff emails disabled" };
+}
+
+export async function sendStaffOperationalUpdateEmail() {
+  return { success: true, message: "Staff emails disabled" };
+}
+
+export async function sendAccountCreatedEmail({ customerName, customerEmail, role = "customer", phone }) {
+  const subject = "Account Created Successfully";
   const html = buildHtmlTemplate({
-    title: "Staff Operational Alert: New Reservation",
-    subtitle: "Gate Check-in Required",
+    title: `Welcome to Shnoor Parking, ${customerName || "Valued Customer"}!`,
+    subtitle: "Account Registration Confirmation",
     contentHtml: `
       <p style="font-size: 14px; line-height: 1.5; color: #334155; margin: 0 0 14px 0;">
-        A new parking reservation has been placed and requires staff validation upon arrival.
+        Your account has been created successfully. You can now log into your customer portal, browse available parking slots, reserve spots in advance, and manage your vehicle passes.
       </p>
       <table class="info-table">
         <tr>
-          <td class="label">Booking ID</td>
-          <td class="val">${reservation?.booking_id}</td>
+          <td class="label">Full Name</td>
+          <td class="val">${customerName || "Customer"}</td>
         </tr>
         <tr>
-          <td class="label">Vehicle Plate</td>
-          <td class="val">${reservation?.vehicle_number}</td>
+          <td class="label">Registered Email</td>
+          <td class="val">${customerEmail}</td>
         </tr>
         <tr>
-          <td class="label">Reserved Bay</td>
-          <td class="val">${reservation?.slot_number}</td>
+          <td class="label">Registered On</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
         </tr>
         <tr>
-          <td class="label">Customer</td>
-          <td class="val">${reservation?.customer_name} (${reservation?.customer_phone || "N/A"})</td>
+          <td class="label">Phone</td>
+          <td class="val">${phone || "N/A"}</td>
         </tr>
         <tr>
-          <td class="label">Validation Code</td>
-          <td class="val" style="color: #0d9488;">${reservation?.validation_code}</td>
+          <td class="label">Account Role</td>
+          <td class="val" style="text-transform: capitalize;">${role || "Customer"}</td>
+        </tr>
+        <tr>
+          <td class="label">Account Status</td>
+          <td class="val" style="color: #0d9488; font-weight: 700;">Active & Verified</td>
         </tr>
       </table>
+      <div class="highlight-card" style="font-size: 13px; color: #0f766e;">
+        You can now log in anytime to reserve bays, view digital receipts, and track parking sessions.
+      </div>
     `
   });
-  return await sendEmails(staffEmails, { subject, html, text: `New reservation ${reservation?.booking_id} for vehicle ${reservation?.vehicle_number} requires validation.` });
-}
-
-export async function sendStaffOperationalUpdateEmail({ title, message, details, staffEmails }) {
-  const subject = "Important Parking Operational Update";
-  const html = buildHtmlTemplate({
-    title: title || "Parking Operational Alert",
-    subtitle: "Staff Dispatch",
-    contentHtml: `
-      <p style="font-size: 14px; line-height: 1.5; color: #334155; margin: 0 0 14px 0;">
-        ${message || "An operational change has occurred in the parking system."}
-      </p>
-      ${details ? `<div class="highlight-card">${details}</div>` : ""}
-    `
+  return await sendEmail({
+    to: customerEmail,
+    subject,
+    html,
+    text: `Welcome ${customerName}! Your Shnoor Parking account (${customerEmail}) has been created successfully.`
   });
-  return await sendEmails(staffEmails, { subject, html, text: message || subject });
 }
 
 export async function sendNewUserAdminEmail({ customerName, customerEmail, adminEmails }) {
@@ -669,7 +719,7 @@ export async function sendNewUserAdminEmail({ customerName, customerEmail, admin
         </tr>
         <tr>
           <td class="label">Registered On</td>
-          <td class="val">${new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
         </tr>
       </table>
     `
@@ -704,6 +754,10 @@ export async function sendAdminReservationUpdateEmail({ title, message, booking,
             <td class="label">Status</td>
             <td class="val">${booking.status}</td>
           </tr>
+          <tr>
+            <td class="label">Updated At</td>
+            <td class="val">${formatExactTimestamp(new Date())}</td>
+          </tr>
         </table>
       ` : ""}
     `
@@ -733,6 +787,10 @@ export async function sendAdminPaymentUpdateEmail({ title, message, amount, vehi
           <td class="label">Amount</td>
           <td class="val">₹${parseFloat(amount || 0).toFixed(2)}</td>
         </tr>
+        <tr>
+          <td class="label">Recorded At</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
+        </tr>
       </table>
     `
   });
@@ -748,6 +806,12 @@ export async function sendAdminSystemUpdateEmail({ title, message, details, admi
       <p style="font-size: 14px; line-height: 1.5; color: #334155; margin: 0 0 14px 0;">
         ${message || "A system-level update has been applied."}
       </p>
+      <table class="info-table">
+        <tr>
+          <td class="label">Event Time</td>
+          <td class="val">${formatExactTimestamp(new Date())}</td>
+        </tr>
+      </table>
       ${details ? `<div class="highlight-card">${details}</div>` : ""}
     `
   });
@@ -757,6 +821,7 @@ export async function sendAdminSystemUpdateEmail({ title, message, details, admi
 export default {
   sendEmail,
   sendEmails,
+  sendAccountCreatedEmail,
   sendNewParkingPlanEmail,
   sendPricingPlanUpdatedEmail,
   sendReservationConfirmedEmail,

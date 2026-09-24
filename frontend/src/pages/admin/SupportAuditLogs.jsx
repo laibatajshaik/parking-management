@@ -489,7 +489,7 @@ export default function SupportAuditLogs() {
                       const tCode = t.ticket_code || t.id;
                       const cName = t.customer_name || t.customer || "Customer";
                       const cEmail = t.customer_email || t.email || "";
-                      const dateText = t.created_at ? new Date(t.created_at).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : (t.createdAt || "Recent");
+                      const dateText = t.created_at ? new Date(t.created_at).toLocaleString("en-IN", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : (t.createdAt || "Recent");
                       const curPriority = t.priority || "Normal";
                       const curStatus = t.status || "Open";
 

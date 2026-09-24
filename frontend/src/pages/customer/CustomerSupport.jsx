@@ -275,7 +275,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
               ) : (
                 myTickets.map((t) => {
                   const tCode = t.ticket_code || t.id;
-                  const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recent";
+                  const dateStr = t.created_at ? new Date(t.created_at).toLocaleString("en-IN", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : "Recent";
                   return (
                     <div
                       key={tCode}

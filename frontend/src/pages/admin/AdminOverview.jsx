@@ -183,7 +183,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
                 <th>User</th>
                 <th>Location</th>
                 <th>Vehicle Number</th>
-                <th>Date</th>
+                <th>Date & Time</th>
                 <th>Status</th>
                 <th>Amount</th>
               </tr>

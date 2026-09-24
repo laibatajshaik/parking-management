@@ -162,33 +162,22 @@ export const getActiveAdminEmails = async () => {
     const res = await pool.query(
       "SELECT DISTINCT email FROM users WHERE LOWER(role) = 'admin' AND (status IS NULL OR LOWER(status) != 'inactive')"
     );
-    const emails = res.rows.map((r) => r.email).filter(Boolean);
-    const alertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-    if (alertEmail && !emails.includes(alertEmail)) {
-      emails.push(alertEmail);
+    const emails = res.rows
+      .map((r) => r.email)
+      .filter((e) => Boolean(e) && !e.toLowerCase().endsWith("@shnoor.com"));
+    const primaryAdmin = "laibataj1301@gmail.com";
+    if (!emails.includes(primaryAdmin)) {
+      emails.push(primaryAdmin);
     }
-    return emails.length > 0 ? emails : ["admin@shnoor.com"];
+    return emails;
   } catch (err) {
     console.error("Failed to get admin emails:", err.message);
-    return ["admin@shnoor.com"];
+    return ["laibataj1301@gmail.com"];
   }
 };
 
 export const getActiveStaffEmails = async () => {
-  try {
-    const res = await pool.query(
-      "SELECT DISTINCT email FROM users WHERE LOWER(role) = 'staff' AND (status IS NULL OR LOWER(status) != 'inactive')"
-    );
-    const emails = res.rows.map((r) => r.email).filter(Boolean);
-    const alertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-    if (alertEmail && !emails.includes(alertEmail)) {
-      emails.push(alertEmail);
-    }
-    return emails.length > 0 ? emails : ["staff@shnoor.com"];
-  } catch (err) {
-    console.error("Failed to get staff emails:", err.message);
-    return ["staff@shnoor.com"];
-  }
+  return [];
 };
 
 export const getActiveCustomerEmails = async () => {
@@ -196,15 +185,13 @@ export const getActiveCustomerEmails = async () => {
     const res = await pool.query(
       "SELECT DISTINCT email FROM users WHERE LOWER(role) = 'customer' AND (status IS NULL OR LOWER(status) != 'inactive')"
     );
-    const emails = res.rows.map((r) => r.email).filter(Boolean);
-    const alertEmail = process.env.BREVO_SENDER_EMAIL || "laibataj1306@gmail.com";
-    if (alertEmail && !emails.includes(alertEmail)) {
-      emails.push(alertEmail);
-    }
-    return emails.length > 0 ? emails : ["customer@shnoor.com"];
+    const emails = res.rows
+      .map((r) => r.email)
+      .filter((e) => Boolean(e) && !e.toLowerCase().endsWith("@shnoor.com"));
+    return emails;
   } catch (err) {
     console.error("Failed to get customer emails:", err.message);
-    return ["customer@shnoor.com"];
+    return [];
   }
 };
 

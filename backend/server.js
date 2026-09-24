@@ -17,12 +17,12 @@ import {
   notifyCustomersAndStaff,
   notifyAllActiveUsers,
   getActiveAdminEmails,
-  getActiveStaffEmails,
   getActiveCustomerEmails
 } from "./modules/notifications/notificationService.js";
 import {
   sendEmail,
   sendEmails,
+  sendAccountCreatedEmail,
   sendNewParkingPlanEmail,
   sendPricingPlanUpdatedEmail,
   sendReservationConfirmedEmail,
@@ -35,8 +35,6 @@ import {
   sendParkingSessionCompletedEmail,
   sendDigitalReceiptEmail,
   sendPremiumActivatedEmail,
-  sendStaffNewReservationEmail,
-  sendStaffOperationalUpdateEmail,
   sendNewUserAdminEmail,
   sendAdminReservationUpdateEmail,
   sendAdminPaymentUpdateEmail,
@@ -436,6 +434,12 @@ app.post("/api/signup", async (req, res) => {
       type: "user"
     });
     try {
+      await sendAccountCreatedEmail({
+        customerName: name,
+        customerEmail: email,
+        role: dbRole,
+        phone: userPhone
+      });
       const adminEmails = await getActiveAdminEmails();
       await sendNewUserAdminEmail({ customerName: name, customerEmail: email, adminEmails });
     } catch (e) {
@@ -649,6 +653,9 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
   try {
     const slotsRes = await pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC");
     const usersRes = await pool.query("SELECT COUNT(*) FROM users");
+    const recentRes = await pool.query(
+      "SELECT booking_id, customer_name, vehicle_number, slot_number, zone, total_amount, status, created_at FROM reservations ORDER BY id DESC LIMIT 5"
+    );
 
     const slots = slotsRes.rows;
     const totalSlots = slots.length;
@@ -657,6 +664,27 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
     const reservedSlots = slots.filter(s => s.status === "reserved").length;
 
     const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalSlots) * 100) : 0;
+
+    let activeSessions = [];
+    if (recentRes.rows && recentRes.rows.length > 0) {
+      activeSessions = recentRes.rows.map(r => ({
+        booking_id: r.booking_id,
+        user_name: r.customer_name,
+        vehicle_number: r.vehicle_number,
+        slot_number: r.slot_number,
+        zone: r.zone,
+        amount: `₹${parseFloat(r.total_amount || 0).toFixed(2)}`,
+        status: r.status,
+        created_at: r.created_at
+      }));
+    } else {
+      activeSessions = [
+        { user_name: "Laiba", vehicle_number: "KA01 AB 1234", status: "Active", created_at: new Date(Date.now() - 3600000).toISOString() },
+        { user_name: "Laiba Taj", vehicle_number: "KA02 CD 5678", status: "Active", created_at: new Date(Date.now() - 7200000).toISOString() },
+        { user_name: "Taj", vehicle_number: "KA03 EF 9012", status: "Completed", created_at: new Date(Date.now() - 14400000).toISOString() },
+        { user_name: "Laiba", vehicle_number: "KA04 GH 3456", status: "Active", created_at: new Date(Date.now() - 28800000).toISOString() },
+      ];
+    }
 
     res.json({
       success: true,
@@ -670,12 +698,7 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
         totalUsers: parseInt(usersRes.rows[0]?.count || 0)
       },
       slots,
-      activeSessions: [
-        { user_name: "Laiba", vehicle_number: "KA01 AB 1234", status: "Active" },
-        { user_name: "Laiba Taj", vehicle_number: "KA02 CD 5678", status: "Active" },
-        { user_name: "Taj", vehicle_number: "KA03 EF 9012", status: "Completed" },
-        { user_name: "Laiba", vehicle_number: "KA04 GH 3456", status: "Active" },
-      ]
+      activeSessions
     });
   } catch (err) {
     console.error(err);
@@ -807,16 +830,6 @@ app.post("/api/parking-slots/:slotNumber/status", async (req, res) => {
       message: `Parking slot ${slotNumber} status changed to "${normalizedStatus}".`,
       type: "parking"
     });
-    try {
-      const staffEmails = await getActiveStaffEmails();
-      await sendStaffOperationalUpdateEmail({
-        title: "Bay Status Change",
-        message: `Parking slot ${slotNumber} status updated to "${normalizedStatus}".`,
-        staffEmails
-      });
-    } catch (e) {
-      console.error(e);
-    }
 
     res.json({ success: true, slot: slotResult.rows[0] });
   } catch (err) {
@@ -2372,15 +2385,10 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       type: "reservation"
     });
     try {
-      const staffEmails = await getActiveStaffEmails();
       const adminEmails = await getActiveAdminEmails();
       await sendReservationConfirmedEmail({
         reservation: insertRes.rows[0],
         recipient: custEmail
-      });
-      await sendStaffNewReservationEmail({
-        reservation: insertRes.rows[0],
-        staffEmails
       });
       await sendAdminReservationUpdateEmail({
         title: "New Reservation Created",
@@ -2756,17 +2764,10 @@ app.post("/api/pricing-plans", async (req, res) => {
       });
       try {
         const customerEmails = await getActiveCustomerEmails();
-        const staffEmails = await getActiveStaffEmails();
         const adminEmails = await getActiveAdminEmails();
         await sendNewParkingPlanEmail({
           plan: insertRes.rows[0],
           recipients: customerEmails
-        });
-        await sendStaffOperationalUpdateEmail({
-          title: "New Parking Plan Added",
-          message: `A new parking plan "${plan_name}" has been added.`,
-          details: `Rate: ₹${pRate.toFixed(2)} (${billing_type || "Hourly"})`,
-          staffEmails
         });
         await sendAdminSystemUpdateEmail({
           title: "New Pricing Plan Published",
@@ -2829,16 +2830,10 @@ app.put("/api/pricing-plans/:id", async (req, res) => {
       });
       try {
         const customerEmails = await getActiveCustomerEmails();
-        const staffEmails = await getActiveStaffEmails();
         const adminEmails = await getActiveAdminEmails();
         await sendPricingPlanUpdatedEmail({
           plan: updateRes.rows[0],
           recipients: customerEmails
-        });
-        await sendStaffOperationalUpdateEmail({
-          title: "Pricing Plan Updated",
-          message: `The "${plan_name}" parking plan has been updated.`,
-          staffEmails
         });
         await sendAdminSystemUpdateEmail({
           title: "Pricing Plan Updated",
@@ -2895,16 +2890,10 @@ app.patch("/api/pricing-plans/:id/status", async (req, res) => {
       });
       try {
         const customerEmails = await getActiveCustomerEmails();
-        const staffEmails = await getActiveStaffEmails();
         const adminEmails = await getActiveAdminEmails();
         await sendPricingPlanUpdatedEmail({
           plan,
           recipients: customerEmails
-        });
-        await sendStaffOperationalUpdateEmail({
-          title: "Pricing Plan Status Updated",
-          message: `Pricing plan "${plan.plan_name}" status changed to ${is_active ? "Active" : "Inactive"}.`,
-          staffEmails
         });
         await sendAdminSystemUpdateEmail({
           title: "Pricing Plan Status Updated",
@@ -2953,13 +2942,7 @@ app.delete("/api/pricing-plans/:id", async (req, res) => {
         type: "pricing"
       });
       try {
-        const staffEmails = await getActiveStaffEmails();
         const adminEmails = await getActiveAdminEmails();
-        await sendStaffOperationalUpdateEmail({
-          title: "Pricing Plan Removed",
-          message: `Pricing plan "${plan.plan_name}" has been removed.`,
-          staffEmails
-        });
         await sendAdminSystemUpdateEmail({
           title: "Pricing Plan Deleted",
           message: `Pricing plan "${plan.plan_name}" has been deleted.`,

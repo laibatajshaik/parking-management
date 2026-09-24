@@ -36,6 +36,7 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
       return d.toLocaleString("en-IN", {
         month: "short",
         day: "numeric",
+        year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true
