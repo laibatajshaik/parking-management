@@ -154,7 +154,7 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
                       </div>
                       <div className="pw-contact-cell">
                         <Phone size={11} className="pw-cell-icon" />
-                        <span>{s.owner_phone || "+91 98765 43210"}</span>
+                        <span>{s.owner_phone || "—"}</span>
                       </div>
                     </div>
 
@@ -259,7 +259,7 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Customer Phone</span>
-                  <div className="pw-detail-val">{selectedSessionModal.owner_phone || "+91 98765 43210"}</div>
+                  <div className="pw-detail-val">{selectedSessionModal.owner_phone || "—"}</div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Check-in Time</span>

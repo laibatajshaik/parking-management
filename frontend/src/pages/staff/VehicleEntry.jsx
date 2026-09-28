@@ -22,10 +22,10 @@ export default function VehicleEntry({ setStatusActionMessage }) {
   const [formData, setFormData] = useState({
     vehicle_number: "",
     vehicle_type: "Car",
-    model: "Hyundai Creta",
-    owner_name: "Laiba",
-    owner_phone: "+91 98765 43210",
-    owner_email: "customer@shnoor.com",
+    model: "",
+    owner_name: "",
+    owner_phone: "",
+    owner_email: "",
     entry_time: getCurrentFormattedTime(),
     slot_number: ""
   });
@@ -348,7 +348,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
       </div>
       <div class="item">
         <span class="label">Contact Number</span>
-        <span class="val">${targetPass.owner_phone || "+91 98765 43210"}</span>
+        <span class="val">${targetPass.owner_phone || "—"}</span>
       </div>
       <div class="item">
         <span class="label">Assigned Bay</span>
@@ -745,7 +745,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
                     </div>
                     <div className="pw-contact-cell">
                       <Phone size={11} className="pw-cell-icon" />
-                      <span>{item.owner_phone || "+91 98765 43210"}</span>
+                      <span>{item.owner_phone || "—"}</span>
                     </div>
                   </div>
 
@@ -877,7 +877,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
 
                   <div className="pw-gate-pass-item">
                     <span className="pw-gate-pass-label">Contact Number</span>
-                    <span className="pw-gate-pass-val">{selectedPassModal.owner_phone || "+91 98765 43210"}</span>
+                    <span className="pw-gate-pass-val">{selectedPassModal.owner_phone || "—"}</span>
                   </div>
 
                   <div className="pw-gate-pass-item">

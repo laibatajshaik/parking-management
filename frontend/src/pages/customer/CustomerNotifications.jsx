@@ -9,7 +9,7 @@ export default function CustomerNotifications({ currentUser, loggedInUser }) {
       <NotificationsView
         userEmail={userEmail}
         role="customer"
-        title="Notifications & Alerts"
+        title="Notifications"
         subtitle="Live booking confirmations, parking bay notifications, and electronic payment receipts."
       />
     </div>

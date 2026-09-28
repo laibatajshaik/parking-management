@@ -288,7 +288,7 @@ export default function TodaysRevenue() {
                         {p.customer_name}
                       </div>
                       <span style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)" }}>
-                        {p.customer_email || "customer@shnoor.com"}
+                        {p.customer_email || "—"}
                       </span>
                     </div>
 

@@ -42,7 +42,7 @@ export default function UserManagement({
     name: "",
     email: "",
     password: "",
-    phone: "+91 98765 43210",
+    phone: "",
     role: "customer",
     status: "Active"
   });
@@ -78,7 +78,7 @@ export default function UserManagement({
     setEditFormData({
       name: user.name || "",
       email: user.email || "",
-      phone: user.phone || "+91 98765 43210",
+      phone: user.phone || "",
       role: user.role || "customer",
       status: user.status || "Active"
     });
@@ -157,7 +157,7 @@ export default function UserManagement({
           name: "",
           email: "",
           password: "",
-          phone: "+91 98765 43210",
+          phone: "",
           role: "customer",
           status: "Active"
         });
@@ -323,7 +323,7 @@ export default function UserManagement({
                 name: "",
                 email: "",
                 password: "",
-                phone: "+91 98765 43210",
+                phone: "",
                 role: "customer",
                 status: "Active"
               });
@@ -379,7 +379,7 @@ export default function UserManagement({
                     </div>
                     <div className="pw-contact-cell">
                       <Phone size={13} className="pw-cell-icon" />
-                      <span>{u.phone || "+91 98765 43210"}</span>
+                      <span>{u.phone || "—"}</span>
                     </div>
                   </div>
 
@@ -755,7 +755,7 @@ export default function UserManagement({
 
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Phone Number</span>
-                  <span className="pw-detail-value">{selectedUser.phone || "+91 98765 43210"}</span>
+                  <span className="pw-detail-value">{selectedUser.phone || "—"}</span>
                 </div>
               </div>
 

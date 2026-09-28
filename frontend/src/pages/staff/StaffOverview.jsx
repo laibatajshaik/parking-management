@@ -1,7 +1,11 @@
 import { TrendingUp, ChevronRight, LogIn, Layers, Activity, CreditCard } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
-export default function StaffOverview({ metrics, recentEntries, userEmail }) {
+export default function StaffOverview({ metrics, recentEntries = [], userEmail, setActiveTab }) {
+  const occupiedPct = metrics.occupiedPercent || 0;
+  const dashOccupied = Math.round((occupiedPct / 100) * 240);
+  const dashAvailable = Math.max(0, 240 - dashOccupied);
+
   return (
     <>
       <div className="pw-metrics-four-grid">
@@ -27,7 +31,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
           <span className="pw-metric-value">{metrics.todayRevenue}</span>
           <span className="pw-metric-trend positive">
             <TrendingUp size={12} />
-            <span>+8.4% vs avg</span>
+            <span>Database payments</span>
           </span>
         </div>
 
@@ -57,7 +61,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
                   fill="none"
                   stroke="#0d9488"
                   strokeWidth="12"
-                  strokeDasharray="148 240"
+                  strokeDasharray={`${dashOccupied} 240`}
                   strokeDashoffset="0"
                 />
                 <circle
@@ -67,8 +71,8 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
                   fill="none"
                   stroke="#0284c7"
                   strokeWidth="12"
-                  strokeDasharray="50 240"
-                  strokeDashoffset="-148"
+                  strokeDasharray={`${dashAvailable} 240`}
+                  strokeDashoffset={-dashOccupied}
                 />
               </svg>
               <div className="pw-donut-center-label">
@@ -98,7 +102,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
         <div className="pw-recent-table-card">
           <div className="pw-chart-header">
             <h2 className="pw-table-title">Recent Gate Check-ins</h2>
-            <button type="button" className="pw-view-all-link">
+            <button type="button" className="pw-view-all-link" onClick={() => setActiveTab && setActiveTab("parking-records")}>
               <span>View all</span>
               <ChevronRight size={14} />
             </button>
@@ -116,15 +120,23 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
                 </tr>
               </thead>
               <tbody>
-                {recentEntries.map((e) => (
-                  <tr key={e.id}>
-                    <td><strong>{e.id}</strong></td>
-                    <td>{e.plate}</td>
-                    <td><span className="pw-tag-slot">{e.slot}</span></td>
-                    <td>{e.time}</td>
-                    <td><span className="pw-status-pill active">{e.status}</span></td>
+                {recentEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted, #64748b)" }}>
+                      No recent gate check-ins recorded today.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  recentEntries.map((e) => (
+                    <tr key={e.id}>
+                      <td><strong>{e.id}</strong></td>
+                      <td>{e.plate}</td>
+                      <td><span className="pw-tag-slot">{e.slot}</span></td>
+                      <td>{e.time}</td>
+                      <td><span className="pw-status-pill active">{e.status}</span></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -132,7 +144,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
       </div>
 
       <div style={{ marginTop: "18px" }}>
-        <DashboardNotifications userEmail={userEmail || "staff@shnoor.com"} title="Staff Alerts & Live System Updates" />
+        <DashboardNotifications userEmail={userEmail} title="Staff Alerts & Live System Updates" />
       </div>
 
       <div className="pw-quick-actions-section">
@@ -143,7 +155,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
               <LogIn size={20} className="icon-teal" />
             </div>
             <div className="pw-action-meta">
-              <span className="pw-action-title">Vehicle Entry</span>
+              <span className="pw-action-title">Entry</span>
               <span className="pw-action-sub">Scan plate / RFID ticket</span>
             </div>
           </div>

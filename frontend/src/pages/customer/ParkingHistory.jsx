@@ -12,10 +12,23 @@ export default function ParkingHistory({ loggedInUser }) {
   const fetchHistory = async () => {
     setIsLoading(true);
     try {
-      const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
+      let user = loggedInUser;
+      if (!user) {
+        try {
+          const saved = localStorage.getItem("shnoor_current_user");
+          user = saved ? JSON.parse(saved) : null;
+        } catch {
+          user = null;
+        }
+      }
+      if (!user || (!user.email && !user.name)) {
+        setIsLoading(false);
+        setHistoryList([]);
+        return;
+      }
       const queryParam = user.email
         ? `email=${encodeURIComponent(user.email)}`
-        : `name=${encodeURIComponent(user.name || "Laiba")}`;
+        : `name=${encodeURIComponent(user.name)}`;
       const res = await fetch(`${API_BASE_URL}/api/customer/parking-history?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);

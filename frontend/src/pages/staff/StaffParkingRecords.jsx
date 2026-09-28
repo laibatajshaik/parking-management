@@ -1,94 +1,61 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Printer, X } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function StaffParkingRecords() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [records, setRecords] = useState([]);
 
-  const [records] = useState([
-    {
-      id: "REC-9041",
-      ticketNumber: "TKT-88412",
-      plateNumber: "KA01 AB 1234",
-      vehicleType: "Car",
-      slot: "A-04",
-      zone: "Zone A",
-      entryTime: "Today, 08:30 AM",
-      exitTime: "Today, 10:45 AM",
-      duration: "2 hrs 15 mins",
-      ratePlan: "Standard Car Hourly (₹50/hr)",
-      amount: "₹ 150.00",
-      status: "Completed",
-      paymentMethod: "UPI / Fastag",
-      operator: "Laiba Taj"
-    },
-    {
-      id: "REC-9040",
-      ticketNumber: "TKT-88411",
-      plateNumber: "KA02 CD 5678",
-      vehicleType: "SUV",
-      slot: "B-12",
-      zone: "Zone B",
-      entryTime: "Today, 09:15 AM",
-      exitTime: "Parked Now",
-      duration: "1 hr 30 mins",
-      ratePlan: "SUV Hourly (₹60/hr)",
-      amount: "₹ 120.00",
-      status: "Active",
-      paymentMethod: "Pending Exit",
-      operator: "Laiba Taj"
-    },
-    {
-      id: "REC-9039",
-      ticketNumber: "TKT-88410",
-      plateNumber: "KA03 EF 9012",
-      vehicleType: "Car",
-      slot: "A-08",
-      zone: "Zone A",
-      entryTime: "Today, 07:00 AM",
-      exitTime: "Today, 09:30 AM",
-      duration: "2 hrs 30 mins",
-      ratePlan: "Standard Car Hourly (₹50/hr)",
-      amount: "₹ 150.00",
-      status: "Completed",
-      paymentMethod: "Credit Card",
-      operator: "Ramesh K"
-    },
-    {
-      id: "REC-9038",
-      ticketNumber: "TKT-88409",
-      plateNumber: "KA51 EV 2024",
-      vehicleType: "EV",
-      slot: "C-01",
-      zone: "Zone C",
-      entryTime: "Today, 08:00 AM",
-      exitTime: "Parked Now",
-      duration: "2 hrs 45 mins",
-      ratePlan: "EV Fast Charging Hourly (₹80/hr)",
-      amount: "₹ 240.00",
-      status: "Active",
-      paymentMethod: "Pending Exit",
-      operator: "Laiba Taj"
-    },
-    {
-      id: "REC-9037",
-      ticketNumber: "TKT-88408",
-      plateNumber: "KA04 TR 9876",
-      vehicleType: "Bike",
-      slot: "D-04",
-      zone: "Zone D",
-      entryTime: "Today, 06:30 AM",
-      exitTime: "Today, 08:30 AM",
-      duration: "2 hrs 00 mins",
-      ratePlan: "Two-Wheeler Hourly (₹25/hr)",
-      amount: "₹ 50.00",
-      status: "Completed",
-      paymentMethod: "Cash Counter",
-      operator: "Ramesh K"
-    }
-  ]);
+  const normalizeRecord = (r, idx) => ({
+    id: r.record_id || `REC-${9000 + (r.id || idx)}`,
+    ticketNumber: r.ticket_number || `TKT-${88400 + (r.id || idx)}`,
+    plateNumber: r.vehicle_number || "—",
+    vehicleType: r.vehicle_type || (r.slot_number?.startsWith("D") ? "Bike" : r.slot_number?.startsWith("C") ? "EV" : "Car"),
+    slot: r.slot_number || "A-01",
+    zone: r.zone || (r.slot_number ? `Zone ${r.slot_number.charAt(0)}` : "Zone A"),
+    entryTime: r.entry_time
+      ? new Date(r.entry_time).toLocaleString("en-IN", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })
+      : "Earlier today",
+    exitTime: r.exit_time
+      ? new Date(r.exit_time).toLocaleString("en-IN", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })
+      : "Parked Now",
+    duration: r.duration || "Ongoing",
+    ratePlan: r.rate_plan || `${r.vehicle_type || "Vehicle"} Tariff Plan`,
+    amount: r.fee || "₹ 150.00",
+    status: r.status === "Parked" ? "Active" : (r.status || "Completed"),
+    paymentMethod: r.payment_method || (r.status === "Parked" ? "Pending Exit" : "Fastag / UPI"),
+    operator: r.operator || "Laiba Taj"
+  });
+
+  const fetchRecords = () => {
+    fetch(`${API_BASE_URL}/api/admin/parking-records`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.records) {
+          setRecords(data.records.map(normalizeRecord));
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchRecords();
+  }, []);
 
   const filteredRecords = records.filter((r) => {
     const matchesSearch =
@@ -103,6 +70,8 @@ export default function StaffParkingRecords() {
     setSelectedRecord(rec);
     setIsReceiptModalOpen(true);
   };
+
+  const totalPaidAmount = records.reduce((sum, r) => sum + (parseFloat(String(r.amount).replace(/[^0-9.]/g, "")) || 0), 0);
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -133,7 +102,7 @@ export default function StaffParkingRecords() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Shift Receipts Amount</span>
-          <span className="pw-metric-value">₹ 710.00</span>
+          <span className="pw-metric-value">₹ {totalPaidAmount.toFixed(2)}</span>
           <span className="pw-metric-trend positive">
             <span>Counter Log</span>
           </span>

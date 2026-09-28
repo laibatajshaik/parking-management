@@ -11,8 +11,21 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
   const fetchPayments = async () => {
     setIsLoading(true);
     try {
-      const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
-      const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name || "Laiba")}`;
+      let user = loggedInUser;
+      if (!user) {
+        try {
+          const saved = localStorage.getItem("shnoor_current_user");
+          user = saved ? JSON.parse(saved) : null;
+        } catch {
+          user = null;
+        }
+      }
+      if (!user || (!user.email && !user.name)) {
+        setIsLoading(false);
+        setPayments([]);
+        return;
+      }
+      const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name)}`;
       const res = await fetch(`${API_BASE_URL}/api/customer/payments?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
@@ -118,7 +131,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
           <span className="pw-metric-value">{validPayments.length}</span>
           <span className="pw-metric-trend positive">
             <CheckCircle2 size={12} />
-            <span>Digital Receipts available</span>
+            <span>Receipts available</span>
           </span>
         </div>
 

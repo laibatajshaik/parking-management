@@ -36,16 +36,16 @@ const CustomerSupport = lazy(() => import("./CustomerSupport.jsx"));
 const CUSTOMER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
   { id: "find-parking", label: "Find Parking", icon: MapPin, isWorking: true },
-  { id: "reserve-parking", label: "Reserve Parking", icon: BookmarkCheck, isWorking: true },
+  { id: "reserve-parking", label: "Book Parking", icon: BookmarkCheck, isWorking: true },
   { id: "my-parking", label: "My Parking", icon: Car, isWorking: true },
-  { id: "parking-history", label: "Parking History", icon: FileText, isWorking: true },
+  { id: "parking-history", label: "History", icon: FileText, isWorking: true },
   { id: "payments", label: "Payments", icon: CreditCard, isWorking: true },
-  { id: "digital-receipts", label: "Digital Receipts", icon: Receipt, isWorking: true },
-  { id: "notifications", label: "Notifications & Alerts", icon: Bell, isWorking: true },
-  { id: "parking-plans", label: "Parking Plans", icon: Tag, isWorking: true },
-  { id: "vehicles", label: "My Vehicles", icon: Car, isWorking: true },
+  { id: "digital-receipts", label: "Receipts", icon: Receipt, isWorking: true },
+  { id: "notifications", label: "Notifications", icon: Bell, isWorking: true },
+  { id: "parking-plans", label: "Plans", icon: Tag, isWorking: true },
+  { id: "vehicles", label: "Vehicles", icon: Car, isWorking: true },
   { id: "profile", label: "Profile", icon: User, isWorking: true },
-  { id: "support", label: "Support / Help", icon: HelpCircle, isWorking: true },
+  { id: "support", label: "Support", icon: HelpCircle, isWorking: true },
 ];
 
 export default function CustomerDashboard({ setView }) {
@@ -153,43 +153,105 @@ export default function CustomerDashboard({ setView }) {
   const isPremiumActive = Boolean(premiumPlanInfo && premiumPlanInfo.active);
 
   const handleActivatePremium = (planDetails) => {
+    const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const thirtyDays = new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
     const info = planDetails || {
       active: true,
       plan: "Monthly Plan",
       planName: "Monthly VIP Plan",
       amount: 2500,
-      validFrom: "02 Sep 2025",
-      validUntil: "02 Oct 2025",
+      validFrom: today,
+      validUntil: thirtyDays,
       remainingDays: 30,
       slot: "A-01 (VIP Zone)",
-      vehicle: "KA01 AB 1234"
+      vehicle: "—"
     };
     setPremiumPlanInfo(info);
     try {
-      const email = currentUser?.email || "customer@shnoor.com";
-      localStorage.setItem(`shnoor_premium_${email}`, JSON.stringify(info));
-      fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_email: email,
-          customer_name: currentUser?.name || "Customer",
-          plan_name: info.planName || info.plan || "Monthly VIP Plan",
-          amount: info.amount || 2500,
-          slot: info.slot,
-          vehicle: info.vehicle
-        })
-      }).catch(() => {});
+      const email = currentUser?.email || "";
+      if (email) {
+        localStorage.setItem(`shnoor_premium_${email}`, JSON.stringify(info));
+        fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_email: email,
+            customer_name: currentUser?.name || "Customer",
+            plan_name: info.planName || info.plan || "Monthly VIP Plan",
+            amount: info.amount || 2500,
+            slot: info.slot,
+            vehicle: info.vehicle
+          })
+        }).catch(() => {});
+      }
     } catch {
       void 0;
     }
   };
 
-  const [recentParkings] = useState([
-    { id: 1, location: "Downtown Plaza", slot: "A-04", date: "May 27, 2026", duration: "2 hrs 15 mins", amount: "₹150.00", status: "Completed", plate: "KA01 AB 1234" },
-    { id: 2, location: "City Mall Parking", slot: "B-12", date: "May 22, 2026", duration: "1 hr 30 mins", amount: "₹100.00", status: "Completed", plate: "KA01 AB 1234" },
-    { id: 3, location: "Airport Parking Lot 2", slot: "A-01", date: "May 15, 2026", duration: "4 hrs 00 mins", amount: "₹300.00", status: "Completed", plate: "KA04 GH 3456" },
-  ]);
+  const [recentParkings, setRecentParkings] = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
+  const [primaryLocation, setPrimaryLocation] = useState({ name: "Central Parking Garage", available: "Available Bays" });
+
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    const fetchUserData = async () => {
+      try {
+        const histRes = await fetch(`${API_BASE_URL}/api/customer/parking-history?email=${encodeURIComponent(currentUser.email)}`);
+        const histData = await histRes.json();
+        if (histData.success && Array.isArray(histData.history)) {
+          const mapped = histData.history.slice(0, 5).map((r) => {
+            const dateStr = r.exit_time
+              ? new Date(r.exit_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
+              : r.entry_time
+              ? new Date(r.entry_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
+              : "Recent";
+            return {
+              id: r.id,
+              location: r.zone ? `${r.zone} Garage` : "ParkSafe Facility",
+              slot: r.slot_number || "—",
+              date: dateStr,
+              duration: r.duration || "1 hr",
+              amount: `₹${parseFloat(r.fee || 50).toFixed(2)}`,
+              status: r.status || "Completed",
+              plate: r.vehicle_number || "—"
+            };
+          });
+          setRecentParkings(mapped);
+        }
+      } catch {
+        setRecentParkings([]);
+      }
+
+      try {
+        const sessRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?email=${encodeURIComponent(currentUser.email)}`);
+        const sessData = await sessRes.json();
+        if (sessData.success && sessData.session) {
+          setActiveSession(sessData.session);
+        } else {
+          setActiveSession(null);
+        }
+      } catch {
+        setActiveSession(null);
+      }
+    };
+    fetchUserData();
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/parking-slots`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && Array.isArray(d.slots)) {
+          const avail = d.slots.filter((s) => s.status === "Available").length;
+          setPrimaryLocation({
+            name: "Central Parking Garage",
+            available: `${avail} Available Bays`
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSignOut = () => {
     try {
@@ -222,18 +284,18 @@ export default function CustomerDashboard({ setView }) {
   };
 
   const getPageTitle = () => {
-    if (activeTab === "find-parking") return "Find Parking & Live Bays";
-    if (activeTab === "reserve-parking") return "Find & Reserve Parking";
-    if (activeTab === "parking-plans") return "Parking Plans & Pricing";
-    if (activeTab === "my-parking") return "My Active Parking";
-    if (activeTab === "parking-history") return "My Bookings & History";
-    if (activeTab === "payments") return "Payment History";
-    if (activeTab === "digital-receipts") return "Digital Receipts & Slips";
-    if (activeTab === "notifications") return "Notifications & Alerts";
-    if (activeTab === "vehicles") return "My Registered Vehicles";
-    if (activeTab === "profile") return "Customer Profile & Garage";
-    if (activeTab === "support") return "Customer Support & FAQ";
-    return "Customer Portal";
+    if (activeTab === "find-parking") return "Find Parking";
+    if (activeTab === "reserve-parking") return "Book Parking";
+    if (activeTab === "parking-plans") return "Plans";
+    if (activeTab === "my-parking") return "My Parking";
+    if (activeTab === "parking-history") return "History";
+    if (activeTab === "payments") return "Payments";
+    if (activeTab === "digital-receipts") return "Receipts";
+    if (activeTab === "notifications") return "Notifications";
+    if (activeTab === "vehicles") return "Vehicles";
+    if (activeTab === "profile") return "Profile";
+    if (activeTab === "support") return "Support";
+    return "Dashboard";
   };
 
   const getPageSubtitle = () => {
@@ -313,7 +375,7 @@ export default function CustomerDashboard({ setView }) {
             }}
           >
             <LogOut size={16} />
-            <span>Sign Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -382,8 +444,8 @@ export default function CustomerDashboard({ setView }) {
               <div className="pw-top-location-badge" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <MapPin size={16} style={{ color: isPremiumActive ? "#C99A2E" : "#0d9488" }} />
                 <div>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Downtown Plaza Garage</div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)" }}>24 Available Bays</div>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{primaryLocation.name}</div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)" }}>{primaryLocation.available}</div>
                 </div>
               </div>
             )}
@@ -393,8 +455,12 @@ export default function CustomerDashboard({ setView }) {
             {activeTab === "dashboard" && (
               <CustomerOverview
                 currentUser={currentUser}
+                loggedInUser={currentUser}
                 recentParkings={recentParkings}
+                activeSession={activeSession}
+                onNavigate={handleTabChange}
                 setActiveTab={handleTabChange}
+                onViewReceipt={handleViewReceipt}
                 isPremiumActive={isPremiumActive}
                 premiumPlanInfo={premiumPlanInfo}
               />
@@ -430,6 +496,7 @@ export default function CustomerDashboard({ setView }) {
 
             {activeTab === "parking-history" && (
               <ParkingHistory
+                loggedInUser={currentUser}
                 onNavigate={(t) => handleTabChange(t)}
                 isPremiumActive={isPremiumActive}
               />

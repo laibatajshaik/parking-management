@@ -1,26 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calculator, Car, Clock, RotateCcw, Search, CreditCard, Printer, FileText, Calendar, MoreHorizontal } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function FeeCalculation({ onProceedToPayment, setStatusActionMessage }) {
-  const [vehicleNumber, setVehicleNumber] = useState("KA01AB1234");
+  const [vehicleNumber, setVehicleNumber] = useState("");
   const [vehicleType, setVehicleType] = useState("Car");
   const [selectedPlan, setSelectedPlan] = useState("Hourly Plan (₹50/hour)");
-  const [entryDateTime, setEntryDateTime] = useState("02-09-2025 09:30 AM");
-  const [exitDateTime, setExitDateTime] = useState("02-09-2025 01:30 PM");
+  const [entryDateTime, setEntryDateTime] = useState(() => {
+    const d = new Date(Date.now() - 4 * 3600000);
+    return d.toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+  });
+  const [exitDateTime, setExitDateTime] = useState(() => {
+    return new Date().toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+  });
   const [parkingDuration, setParkingDuration] = useState("4 hours");
   const [calculatedAmount, setCalculatedAmount] = useState(200);
+  const [recentCalculations, setRecentCalculations] = useState([]);
 
-  const [recentCalculations] = useState([
-    { id: 1, vehicleNumber: "KA01AB1234", vehicleType: "Car", plan: "Hourly Plan", duration: "4 hours", amount: 200, status: "Paid", time: "02 Sep 2025, 01:30 PM" },
-    { id: 2, vehicleNumber: "TS09CD5678", vehicleType: "Bike", plan: "Hourly Plan", duration: "2 hours", amount: 40, status: "Paid", time: "02 Sep 2025, 12:15 PM" },
-    { id: 3, vehicleNumber: "AP28EF9012", vehicleType: "SUV", plan: "Daily Plan", duration: "1 day", amount: 300, status: "Pending", time: "02 Sep 2025, 11:40 AM" },
-    { id: 4, vehicleNumber: "KA05GH3456", vehicleType: "Car", plan: "Hourly Plan", duration: "3 hours", amount: 150, status: "Paid", time: "02 Sep 2025, 10:20 AM" },
-  ]);
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/admin/parking-records`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.records) {
+          setRecentCalculations(
+            data.records.slice(0, 5).map((r, idx) => ({
+              id: r.id || idx + 1,
+              vehicleNumber: r.vehicle_number,
+              vehicleType: r.vehicle_type || (r.slot_number?.startsWith("D") ? "Bike" : r.slot_number?.startsWith("C") ? "EV" : "Car"),
+              plan: "Hourly Plan",
+              duration: r.duration || "2 hours",
+              amount: parseFloat(String(r.fee || 100).replace(/[^0-9.]/g, "")) || 100,
+              status: r.status === "Parked" ? "Pending" : "Paid",
+              time: r.exit_time
+                ? new Date(r.exit_time).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+                : "Active Now"
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleCalculate = () => {
     let rate = 50;
-    if (selectedPlan.includes("₹20")) rate = 20;
-    else if (selectedPlan.includes("₹300")) rate = 300;
+    if (selectedPlan.includes("₹20") || selectedPlan.includes("₹25")) rate = 25;
+    else if (selectedPlan.includes("₹300") || selectedPlan.includes("₹350")) rate = 350;
     else if (selectedPlan.includes("₹60")) rate = 60;
     else if (selectedPlan.includes("₹80")) rate = 80;
 
@@ -33,17 +57,18 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
     setCalculatedAmount(total);
 
     if (setStatusActionMessage) {
-      setStatusActionMessage(`Parking fee calculated: ₹${total} for ${vehicleNumber}`);
+      setStatusActionMessage(`Parking fee calculated: ₹${total} for ${vehicleNumber || "Vehicle"}`);
       setTimeout(() => setStatusActionMessage(""), 3500);
     }
   };
 
   const handleReset = () => {
-    setVehicleNumber("KA01AB1234");
+    setVehicleNumber("");
     setVehicleType("Car");
     setSelectedPlan("Hourly Plan (₹50/hour)");
-    setEntryDateTime("02-09-2025 09:30 AM");
-    setExitDateTime("02-09-2025 01:30 PM");
+    const d = new Date(Date.now() - 4 * 3600000);
+    setEntryDateTime(d.toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }));
+    setExitDateTime(new Date().toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }));
     setParkingDuration("4 hours");
     setCalculatedAmount(200);
   };
@@ -58,8 +83,8 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
         vehicle_number: vehicleNumber,
         vehicle_type: vehicleType,
         slot_number: "A-04",
-        owner_name: "Customer",
-        owner_email: "customer@shnoor.com",
+        owner_name: "Walk-in Customer",
+        owner_email: "",
         duration: parkingDuration,
         calculatedAmount: calculatedAmount,
         plan_name: selectedPlan

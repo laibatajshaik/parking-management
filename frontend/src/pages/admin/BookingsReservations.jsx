@@ -290,7 +290,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
       </div>
       <div class="item">
         <span class="label">Contact</span>
-        <span class="val">${target.customer_phone || "+91 98765 43210"}</span>
+        <span class="val">${target.customer_phone || "—"}</span>
       </div>
       <div class="item">
         <span class="label">Reserved Start</span>
@@ -525,7 +525,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                         {b.customer_name}
                       </div>
                       <span style={{ fontSize: "0.74rem", color: "var(--text-secondary, #94a3b8)" }}>
-                        {b.customer_phone || "+91 98765 43210"}
+                        {b.customer_phone || "—"}
                       </span>
                     </div>
 

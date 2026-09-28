@@ -8,120 +8,17 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState("All");
 
-  const defaultPlansFallback = [
-    {
-      id: 1,
-      plan_code: "PLAN-CAR-HR",
-      plan_name: "Standard Car Hourly",
-      vehicle_type: "Car",
-      billing_type: "Hourly",
-      rate: "50.00",
-      description: "Standard hourly parking rate for sedan and hatchback cars in Zone A & B.",
-      features: ["Zone A / B Covered Parking", "CCTV 24/7 Monitoring", "Automated Boom Barrier Access"],
-      is_active: true
-    },
-    {
-      id: 2,
-      plan_code: "PLAN-SUV-HR",
-      plan_name: "SUV / Large Vehicle Hourly",
-      vehicle_type: "SUV",
-      billing_type: "Hourly",
-      rate: "60.00",
-      description: "Spacious high-clearance parking bay designed for large SUVs in Zone B.",
-      features: ["Extra Wide Bay Spacing", "High Clearance Zone B", "Dedicated Security Warden"],
-      is_active: true
-    },
-    {
-      id: 3,
-      plan_code: "PLAN-EV-HR",
-      plan_name: "EV Fast Charging Hourly",
-      vehicle_type: "EV",
-      billing_type: "Hourly",
-      rate: "80.00",
-      description: "Premium EV parking bay with 60kW DC fast charging included in Zone C.",
-      features: ["Zone C VIP Electric Bay", "60kW Fast DC Charging", "Priority Gate Entry / Exit"],
-      is_active: true
-    },
-    {
-      id: 4,
-      plan_code: "PLAN-BIKE-HR",
-      plan_name: "Two-Wheeler Hourly",
-      vehicle_type: "Bike",
-      billing_type: "Hourly",
-      rate: "25.00",
-      description: "Dedicated compact parking bay for motorcycles and scooters in Zone D.",
-      features: ["Zone D Dedicated Bike Bay", "Helmet Storage Facility", "Quick Exit Lane Access"],
-      is_active: true
-    },
-    {
-      id: 5,
-      plan_code: "PLAN-CAR-DAY",
-      plan_name: "Full Day Car Pass",
-      vehicle_type: "Car",
-      billing_type: "Daily",
-      rate: "350.00",
-      description: "Unlimited 24-hour in-and-out parking privileges for cars.",
-      features: ["24-Hour Multi-Entry Access", "Guaranteed Reserved Bay", "Complimentary Car Wash Token"],
-      is_active: true
-    },
-    {
-      id: 6,
-      plan_code: "PLAN-BIKE-DAY",
-      plan_name: "Two-Wheeler Daily Pass",
-      vehicle_type: "Bike",
-      billing_type: "Daily",
-      rate: "150.00",
-      description: "24-hour daily parking pass for two-wheelers in Zone D.",
-      features: ["24-Hour Secure Parking", "Zone D Reserved Bay", "Zero Surcharge on Re-entry"],
-      is_active: true
-    },
-    {
-      id: 7,
-      plan_code: "PLAN-EV-DAY",
-      plan_name: "EV Full Day & Supercharge Pass",
-      vehicle_type: "EV",
-      billing_type: "Daily",
-      rate: "550.00",
-      description: "Full day premium parking with unlimited EV fast charging.",
-      features: ["Full Day Zone C VIP Bay", "Unlimited EV Fast Charging", "Valet Assistance on Request"],
-      is_active: true
-    },
-    {
-      id: 8,
-      plan_code: "PLAN-MONTHLY",
-      plan_name: "Monthly VIP Priority Pass (Best Value)",
-      vehicle_type: "All",
-      billing_type: "Monthly",
-      rate: "2500.00",
-      description: "The ultimate all-inclusive parking experience. Enjoy guaranteed dedicated bays, unlimited 24/7 multi-entry, fastag RFID express lanes, and VIP concierge privileges with up to 75% savings.",
-      features: [
-        "100% Guaranteed Reserved VIP Bay (Zone A Ground Floor)",
-        "Unlimited 24/7 Multi-Entry & In-Out Access",
-        "Fastag RFID Automated Express Boom Barrier",
-        "Complimentary Monthly Car Wash & EV Fast Boost",
-        "24/7 Dedicated Concierge & VIP Bay Warden",
-        "Zero Cancellation & 100% Free Date Rescheduling",
-        "Priority Gate Express Lane (Zero Queue Waiting)",
-        "Exclusive Gold VIP Dashboard Experience"
-      ],
-      is_active: true
-    }
-  ];
-
   const fetchPlans = async (initial = false) => {
     if (initial) setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
       const data = await res.json();
       if (initial) setIsLoading(false);
-      if (data.success && data.plans && data.plans.length > 0) {
+      if (data.success && data.plans) {
         setPlans(data.plans);
-      } else {
-        setPlans(defaultPlansFallback);
       }
     } catch {
       if (initial) setIsLoading(false);
-      setPlans(defaultPlansFallback);
     }
   };
 
@@ -176,7 +73,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
       (p.billing_type || "").toLowerCase() === "monthly" ||
       (p.plan_code || "") === "PLAN-MONTHLY" ||
       (p.plan_name || "").toLowerCase().includes("vip")
-  ) || defaultPlansFallback[7];
+  ) || plans[0] || null;
 
   const comparisonRows = [
     {

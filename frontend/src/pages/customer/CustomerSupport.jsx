@@ -49,9 +49,17 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
 
   const [myTickets, setMyTickets] = useState([]);
 
-  const userEmail = currentUser?.email || "customer@shnoor.com";
+  const userEmail = currentUser?.email || (() => {
+    try {
+      const saved = localStorage.getItem("shnoor_current_user");
+      return saved ? JSON.parse(saved).email : "";
+    } catch {
+      return "";
+    }
+  })();
 
   const fetchMyTickets = async () => {
+    if (!userEmail) return;
     setIsLoadingTickets(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/support-tickets?email=${encodeURIComponent(userEmail)}`);

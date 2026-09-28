@@ -146,7 +146,7 @@ export default function VehicleManagement({
       model: veh.model || "",
       owner_name: veh.owner_name || "",
       owner_email: veh.owner_email || "",
-      owner_phone: veh.owner_phone || "+91 98765 43210",
+      owner_phone: veh.owner_phone || "",
       status: veh.status || "Parked",
       current_slot: veh.current_slot || "A-01"
     });
@@ -366,7 +366,7 @@ export default function VehicleManagement({
                     </div>
                     <div className="pw-contact-cell">
                       <Phone size={11} className="pw-cell-icon" />
-                      <span>{v.owner_phone || "+91 98765 43210"}</span>
+                      <span>{v.owner_phone || "—"}</span>
                     </div>
                   </div>
 

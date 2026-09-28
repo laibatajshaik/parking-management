@@ -1,56 +1,69 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle2, Search, ArrowRight } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function StaffSlotAssignment({ onNavigateToEntry }) {
   const [selectedZone, setSelectedZone] = useState("Zone A");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBay, setSelectedBay] = useState(null);
   const [statusActionMsg, setStatusActionMsg] = useState("");
+  const [bays, setBays] = useState([]);
 
-  const [bays, setBays] = useState([
-    { id: 1, slot: "A-01", zone: "Zone A", type: "Car", status: "occupied", vehicle: "KA01 AB 1234", parkedSince: "10:15 AM", user: "Rahul Sharma" },
-    { id: 2, slot: "A-02", zone: "Zone A", type: "Car", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 3, slot: "A-03", zone: "Zone A", type: "Car", status: "reserved", vehicle: "KA05 MN 4321", parkedSince: "Advance Booking", user: "Vikram Malhotra" },
-    { id: 4, slot: "A-04", zone: "Zone A", type: "Car", status: "occupied", vehicle: "KA02 CD 5678", parkedSince: "09:30 AM", user: "Priya S" },
-    { id: 5, slot: "A-05", zone: "Zone A", type: "Car", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 6, slot: "A-06", zone: "Zone A", type: "Car", status: "available", vehicle: null, parkedSince: null, user: null },
+  const fetchBays = () => {
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/parking-slots`).then((r) => r.json()),
+      fetch(`${API_BASE_URL}/api/admin/vehicles`).then((r) => r.json())
+    ])
+      .then(([slotsData, vehData]) => {
+        if (slotsData.success && slotsData.slots) {
+          const vehMap = {};
+          if (vehData.success && vehData.vehicles) {
+            vehData.vehicles.forEach((v) => {
+              if (v.current_slot && v.status === "Parked") {
+                vehMap[v.current_slot] = v;
+              }
+            });
+          }
+          setBays(
+            slotsData.slots.map((s) => {
+              const matchedVeh = vehMap[s.slot_number];
+              return {
+                id: s.id,
+                slot: s.slot_number,
+                zone: s.zone,
+                type: s.slot_type || (s.slot_number.startsWith("D") ? "Bike" : s.slot_number.startsWith("C") ? "EV" : "Car"),
+                status: s.status,
+                vehicle: matchedVeh ? matchedVeh.vehicle_number : s.status === "available" ? null : "Assigned",
+                parkedSince: matchedVeh ? "Active Session" : s.status === "reserved" ? "Reserved Booking" : s.status === "available" ? null : "Ongoing",
+                user: matchedVeh ? matchedVeh.owner_name : s.status === "available" ? null : "Registered User"
+              };
+            })
+          );
+        }
+      })
+      .catch(() => {});
+  };
 
-    { id: 7, slot: "B-01", zone: "Zone B", type: "SUV", status: "occupied", vehicle: "KA03 EF 9012", parkedSince: "08:45 AM", user: "Ananya D" },
-    { id: 8, slot: "B-02", zone: "Zone B", type: "SUV", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 9, slot: "B-03", zone: "Zone B", type: "SUV", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 10, slot: "B-04", zone: "Zone B", type: "SUV", status: "occupied", vehicle: "KA04 GH 3456", parkedSince: "10:00 AM", user: "Rohan Verma" },
-    { id: 11, slot: "B-05", zone: "Zone B", type: "SUV", status: "reserved", vehicle: "KA01 XY 7788", parkedSince: "Advance Booking", user: "Karan Johar" },
-    { id: 12, slot: "B-06", zone: "Zone B", type: "SUV", status: "available", vehicle: null, parkedSince: null, user: null },
-
-    { id: 13, slot: "C-01", zone: "Zone C", type: "EV", status: "occupied", vehicle: "KA51 EV 2024", parkedSince: "10:10 AM", user: "Nikhil Kamath" },
-    { id: 14, slot: "C-02", zone: "Zone C", type: "EV", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 15, slot: "C-03", zone: "Zone C", type: "EV", status: "occupied", vehicle: "KA02 EV 9900", parkedSince: "09:15 AM", user: "Siddharth R" },
-    { id: 16, slot: "C-04", zone: "Zone C", type: "EV", status: "available", vehicle: null, parkedSince: null, user: null },
-
-    { id: 17, slot: "D-01", zone: "Zone D", type: "Bike", status: "occupied", vehicle: "KA01 BK 4455", parkedSince: "08:30 AM", user: "Ajay Kumar" },
-    { id: 18, slot: "D-02", zone: "Zone D", type: "Bike", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 19, slot: "D-03", zone: "Zone D", type: "Bike", status: "available", vehicle: null, parkedSince: null, user: null },
-    { id: 20, slot: "D-04", zone: "Zone D", type: "Bike", status: "occupied", vehicle: "KA04 TR 9876", parkedSince: "10:20 AM", user: "Deepak S" }
-  ]);
+  useEffect(() => {
+    fetchBays();
+  }, []);
 
   const handleToggleStatus = (slotNumber, newStatus) => {
-    setBays(
-      bays.map((b) =>
-        b.slot === slotNumber
-          ? {
-              ...b,
-              status: newStatus,
-              vehicle: newStatus === "available" ? null : b.vehicle || "WALK-IN ASSIGNED",
-              parkedSince: newStatus === "available" ? null : "Just Now"
-            }
-          : b
-      )
-    );
-    setStatusActionMsg(`Bay ${slotNumber} updated to ${newStatus.toUpperCase()}`);
-    setTimeout(() => setStatusActionMsg(""), 3000);
-    if (selectedBay && selectedBay.slot === slotNumber) {
-      setSelectedBay({ ...selectedBay, status: newStatus });
-    }
+    fetch(`${API_BASE_URL}/api/parking-slots/${encodeURIComponent(slotNumber)}/status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    })
+      .then((res) => res.json())
+      .then(() => {
+        fetchBays();
+        setStatusActionMsg(`Bay ${slotNumber} updated to ${newStatus.toUpperCase()}`);
+        setTimeout(() => setStatusActionMsg(""), 3000);
+        if (selectedBay && selectedBay.slot === slotNumber) {
+          setSelectedBay((prev) => (prev ? { ...prev, status: newStatus } : null));
+        }
+      })
+      .catch(() => {});
   };
 
   const filteredBays = bays.filter((b) => {

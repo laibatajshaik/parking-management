@@ -37,51 +37,21 @@ const SystemSettings = lazy(() => import("./SystemSettings.jsx"));
 const SupportAuditLogs = lazy(() => import("./SupportAuditLogs.jsx"));
 
 const ADMIN_SIDEBAR_ITEMS = [
-  { id: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard, isWorking: true },
-  { id: "bookings-reservations", label: "Bookings & Reservations", icon: CalendarCheck, isWorking: true },
-  { id: "pricing-plans", label: "Pricing & Plans", icon: CreditCard, isWorking: true },
-  { id: "parking-records", label: "Parking Records", icon: CalendarCheck, isWorking: true },
-  { id: "active-parking-sessions", label: "Active Parking Sessions", icon: Car, isWorking: true },
-  { id: "payments-revenue", label: "Today's Revenue", icon: CreditCard, isWorking: true },
-  { id: "parking-occupancy", label: "Parking Occupancy", icon: Car, isWorking: true },
-  { id: "slot-management", label: "Slot Management", icon: Car, isWorking: true },
-  { id: "vehicle-management", label: "Vehicle Management", icon: Car, isWorking: true },
-  { id: "user-management", label: "User Management", icon: Users, isWorking: true },
-  { id: "parking-locations", label: "Parking Locations", icon: MapPin, isWorking: true },
-  { id: "reports-analytics", label: "Reports & Analytics", icon: BarChart3, isWorking: true },
-  { id: "notifications", label: "Notifications & Alerts", icon: Bell, isWorking: true },
-  { id: "system-settings", label: "System Settings", icon: Settings, isWorking: true },
-  { id: "support-logs", label: "Support & Audit Logs", icon: HelpCircle, isWorking: true },
-];
-
-const INITIAL_24_SLOTS = [
-  { id: 1, slot_number: "A-01", zone: "Zone A", slot_type: "Standard", status: "available", is_available: true, hourly_rate: "50" },
-  { id: 2, slot_number: "A-02", zone: "Zone A", slot_type: "Standard", status: "occupied", is_available: false, hourly_rate: "50" },
-  { id: 3, slot_number: "A-03", zone: "Zone A", slot_type: "Standard", status: "reserved", is_available: false, hourly_rate: "50" },
-  { id: 4, slot_number: "A-04", zone: "Zone A", slot_type: "Standard", status: "occupied", is_available: false, hourly_rate: "50" },
-  { id: 5, slot_number: "A-05", zone: "Zone A", slot_type: "Standard", status: "available", is_available: true, hourly_rate: "50" },
-  { id: 6, slot_number: "A-06", zone: "Zone A", slot_type: "Standard", status: "reserved", is_available: false, hourly_rate: "50" },
-
-  { id: 7, slot_number: "B-01", zone: "Zone B", slot_type: "Standard", status: "occupied", is_available: false, hourly_rate: "50" },
-  { id: 8, slot_number: "B-02", zone: "Zone B", slot_type: "Standard", status: "available", is_available: true, hourly_rate: "50" },
-  { id: 9, slot_number: "B-03", zone: "Zone B", slot_type: "Standard", status: "available", is_available: true, hourly_rate: "50" },
-  { id: 10, slot_number: "B-04", zone: "Zone B", slot_type: "Standard", status: "occupied", is_available: false, hourly_rate: "50" },
-  { id: 11, slot_number: "B-05", zone: "Zone B", slot_type: "Standard", status: "reserved", is_available: false, hourly_rate: "50" },
-  { id: 12, slot_number: "B-06", zone: "Zone B", slot_type: "Standard", status: "available", is_available: true, hourly_rate: "50" },
-
-  { id: 13, slot_number: "C-01", zone: "Zone C", slot_type: "VIP / EV", status: "available", is_available: true, hourly_rate: "80" },
-  { id: 14, slot_number: "C-02", zone: "Zone C", slot_type: "VIP / EV", status: "reserved", is_available: false, hourly_rate: "80" },
-  { id: 15, slot_number: "C-03", zone: "Zone C", slot_type: "VIP / EV", status: "occupied", is_available: false, hourly_rate: "80" },
-  { id: 16, slot_number: "C-04", zone: "Zone C", slot_type: "VIP / EV", status: "available", is_available: true, hourly_rate: "80" },
-  { id: 17, slot_number: "C-05", zone: "Zone C", slot_type: "VIP / EV", status: "occupied", is_available: false, hourly_rate: "80" },
-  { id: 18, slot_number: "C-06", zone: "Zone C", slot_type: "VIP / EV", status: "available", is_available: true, hourly_rate: "80" },
-
-  { id: 19, slot_number: "D-01", zone: "Zone D", slot_type: "Bike", status: "occupied", is_available: false, hourly_rate: "25" },
-  { id: 20, slot_number: "D-02", zone: "Zone D", slot_type: "Bike", status: "available", is_available: true, hourly_rate: "25" },
-  { id: 21, slot_number: "D-03", zone: "Zone D", slot_type: "Bike", status: "reserved", is_available: false, hourly_rate: "25" },
-  { id: 22, slot_number: "D-04", zone: "Zone D", slot_type: "Bike", status: "occupied", is_available: false, hourly_rate: "25" },
-  { id: 23, slot_number: "D-05", zone: "Zone D", slot_type: "Bike", status: "available", is_available: true, hourly_rate: "25" },
-  { id: 24, slot_number: "D-06", zone: "Zone D", slot_type: "Bike", status: "available", is_available: true, hourly_rate: "25" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
+  { id: "bookings-reservations", label: "Bookings", icon: CalendarCheck, isWorking: true },
+  { id: "pricing-plans", label: "Pricing", icon: CreditCard, isWorking: true },
+  { id: "parking-records", label: "Records", icon: CalendarCheck, isWorking: true },
+  { id: "active-parking-sessions", label: "Active Parking", icon: Car, isWorking: true },
+  { id: "payments-revenue", label: "Revenue", icon: CreditCard, isWorking: true },
+  { id: "parking-occupancy", label: "Occupancy", icon: Car, isWorking: true },
+  { id: "slot-management", label: "Slots", icon: Car, isWorking: true },
+  { id: "vehicle-management", label: "Vehicles", icon: Car, isWorking: true },
+  { id: "user-management", label: "Users", icon: Users, isWorking: true },
+  { id: "parking-locations", label: "Locations", icon: MapPin, isWorking: true },
+  { id: "reports-analytics", label: "Reports", icon: BarChart3, isWorking: true },
+  { id: "notifications", label: "Notifications", icon: Bell, isWorking: true },
+  { id: "system-settings", label: "Settings", icon: Settings, isWorking: true },
+  { id: "support-logs", label: "Support & Logs", icon: HelpCircle, isWorking: true },
 ];
 
 function formatExactDateTime(dateStr) {
@@ -101,13 +71,6 @@ function formatExactDateTime(dateStr) {
     return dateStr;
   }
 }
-
-const INITIAL_RECENT_BOOKINGS = [
-  { id: "#BK12345", user: "Laiba", location: "Downtown Plaza", vehicle: "KA01 AB 1234", date: "23 Sep 2026, 09:00 am", status: "Confirmed", amount: "₹150.00" },
-  { id: "#BK12344", user: "Laiba Taj", location: "City Mall Parking", vehicle: "KA02 CD 5678", date: "23 Sep 2026, 08:00 am", status: "Pending", amount: "₹100.00" },
-  { id: "#BK12343", user: "Taj", location: "Airport Parking", vehicle: "KA03 EF 9012", date: "23 Sep 2026, 06:00 am", status: "Completed", amount: "₹300.00" },
-  { id: "#BK12342", user: "Laiba", location: "Grand Center", vehicle: "KA04 GH 3456", date: "23 Sep 2026, 02:00 am", status: "Confirmed", amount: "₹225.00" },
-];
 
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
@@ -157,7 +120,7 @@ export default function AdminDashboard({ setView }) {
 
   useEffect(() => {
     const current = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === activeTab);
-    const label = current ? current.label : "Dashboard Overview";
+    const label = current ? current.label : "Dashboard";
     document.title = `Admin Dashboard - ${label} | ParkSafe`;
   }, [activeTab]);
 
@@ -174,16 +137,16 @@ export default function AdminDashboard({ setView }) {
 
   const [usersList, setUsersList] = useState([]);
   const [vehiclesList, setVehiclesList] = useState([]);
-  const [slots, setSlots] = useState(INITIAL_24_SLOTS);
+  const [slots, setSlots] = useState([]);
 
   const [metrics, setMetrics] = useState({
-    totalBookings: "1,248",
-    totalRevenue: "₹1,34,500",
-    activeParkings: "8",
-    totalUsers: "12",
+    totalBookings: "0",
+    totalRevenue: "₹0",
+    activeParkings: "0",
+    totalUsers: "0",
   });
 
-  const [recentBookings, setRecentBookings] = useState(INITIAL_RECENT_BOOKINGS);
+  const [recentBookings, setRecentBookings] = useState([]);
 
   const fetchUsers = () => {
     fetch(`${API_BASE_URL}/api/admin/users`)
@@ -193,7 +156,7 @@ export default function AdminDashboard({ setView }) {
           const normalized = data.users.map((u) => ({
             ...u,
             status: u.status || "Active",
-            phone: u.phone || "+91 98765 43210"
+            phone: u.phone || "—"
           }));
           setUsersList(normalized);
           setMetrics((prev) => ({
@@ -221,29 +184,30 @@ export default function AdminDashboard({ setView }) {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          if (data.slots && data.slots.length > 0) {
+          if (data.slots) {
             setSlots(data.slots);
           }
           if (data.stats) {
             setMetrics((prev) => ({
               ...prev,
-              totalBookings: data.stats.totalSlots ? (data.stats.totalSlots * 52).toLocaleString("en-IN") : "1,248",
-              totalRevenue: `₹${(data.stats.todayRevenue ? data.stats.todayRevenue * 100 : 134500).toLocaleString("en-IN")}`,
-              activeParkings: String(data.stats.occupiedSlots || 8),
+              totalBookings: (data.stats.totalBookings || 0).toLocaleString("en-IN"),
+              totalRevenue: `₹${(data.stats.totalRevenue || 0).toLocaleString("en-IN")}`,
+              activeParkings: String(data.stats.occupiedSlots || 0),
+              totalUsers: String(data.stats.totalUsers || prev.totalUsers || 0)
             }));
-            if (data.activeSessions && data.activeSessions.length > 0) {
-              setRecentBookings(
-                data.activeSessions.slice(0, 4).map((s, idx) => ({
-                  id: s.booking_id || `#BK${12340 + idx}`,
-                  user: s.user_name || (idx === 0 ? "Laiba" : idx === 1 ? "Laiba Taj" : "Taj"),
-                  location: "Downtown Plaza",
-                  vehicle: s.vehicle_number || "KA01 AB 1234",
-                  date: formatExactDateTime(s.created_at || s.entry_time || new Date()),
-                  status: s.status === "Active" ? "Confirmed" : (s.status || "Confirmed"),
-                  amount: s.amount || (idx === 0 ? "₹150.00" : idx === 1 ? "₹100.00" : idx === 2 ? "₹300.00" : "₹225.00")
-                }))
-              );
-            }
+          }
+          if (data.activeSessions) {
+            setRecentBookings(
+              data.activeSessions.slice(0, 5).map((s, idx) => ({
+                id: s.booking_id || `#BK${1000 + idx}`,
+                user: s.user_name || "Customer",
+                location: s.zone || "Zone A",
+                vehicle: s.vehicle_number || "—",
+                date: formatExactDateTime(s.created_at || new Date()),
+                status: s.status || "Active",
+                amount: s.amount || "₹0.00"
+              }))
+            );
           }
         }
       })
@@ -348,21 +312,21 @@ export default function AdminDashboard({ setView }) {
   };
 
   const getPageTitle = () => {
-    if (activeTab === "bookings-reservations") return "Bookings & Reservations";
-    if (activeTab === "pricing-plans") return "Tariff Configuration & Pricing Plans";
-    if (activeTab === "parking-records") return "System Parking Records & Audit Ledger";
-    if (activeTab === "active-parking-sessions") return "Active Parking Sessions";
-    if (activeTab === "payments-revenue") return "Financial Analytics & Daily Revenue";
-    if (activeTab === "parking-occupancy") return "Live Parking Occupancy Matrix";
-    if (activeTab === "slot-management") return "Spatial Bay & Zone Management";
-    if (activeTab === "vehicle-management") return "Registered Vehicle Database";
-    if (activeTab === "user-management") return "User & Personnel Management";
-    if (activeTab === "parking-locations") return "Multi-Location Parking Garages";
-    if (activeTab === "reports-analytics") return "Enterprise Reports & Business Analytics";
-    if (activeTab === "notifications") return "Notifications & Alerts";
-    if (activeTab === "system-settings") return "Global Platform Configuration";
-    if (activeTab === "support-logs") return "System Health & Security Audit Logs";
-    return "Management Dashboard";
+    if (activeTab === "bookings-reservations") return "Bookings";
+    if (activeTab === "pricing-plans") return "Pricing";
+    if (activeTab === "parking-records") return "Records";
+    if (activeTab === "active-parking-sessions") return "Active Parking";
+    if (activeTab === "payments-revenue") return "Revenue";
+    if (activeTab === "parking-occupancy") return "Occupancy";
+    if (activeTab === "slot-management") return "Slots";
+    if (activeTab === "vehicle-management") return "Vehicles";
+    if (activeTab === "user-management") return "Users";
+    if (activeTab === "parking-locations") return "Locations";
+    if (activeTab === "reports-analytics") return "Reports";
+    if (activeTab === "notifications") return "Notifications";
+    if (activeTab === "system-settings") return "Settings";
+    if (activeTab === "support-logs") return "Support & Logs";
+    return "Dashboard";
   };
 
   const getPageSubtitle = () => {
@@ -433,7 +397,7 @@ export default function AdminDashboard({ setView }) {
             }}
           >
             <LogOut size={16} />
-            <span>Sign Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>

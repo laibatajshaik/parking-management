@@ -39,57 +39,40 @@ export default function SupportAuditLogs() {
     }
   };
 
+  const [auditLogs, setAuditLogs] = useState([]);
+
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs`);
+      const data = await res.json();
+      if (data.success && data.logs) {
+        setAuditLogs(
+          data.logs.map((l) => ({
+            id: l.log_code || `AUD-${l.id}`,
+            timestamp: l.created_at
+              ? new Date(l.created_at).toLocaleString("en-IN", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true
+                })
+              : "Recently",
+            actor: `${l.actor || "Staff"} (${l.role || "Operator"})`,
+            action: l.action || "System Event",
+            target: l.target || "Resource",
+            severity: (l.severity || "info").charAt(0).toUpperCase() + (l.severity || "info").slice(1),
+            ip: l.ip || "127.0.0.1"
+          }))
+        );
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     fetchTickets();
+    fetchAuditLogs();
   }, []);
-
-  const [auditLogs] = useState([
-    {
-      id: "AUD-9941",
-      timestamp: "Today, 11:02 AM",
-      actor: "Staff Warden (Ramesh K)",
-      action: "Emergency Manual Gate Lift",
-      target: "Gate Barrier #02 (Exit)",
-      severity: "Warning",
-      ip: "192.168.1.104"
-    },
-    {
-      id: "AUD-9940",
-      timestamp: "Today, 10:30 AM",
-      actor: "Admin (admin@shnoor.com)",
-      action: "Updated Pricing Plan",
-      target: "PLAN-MONTHLY Tariff",
-      severity: "Info",
-      ip: "192.168.1.50"
-    },
-    {
-      id: "AUD-9939",
-      timestamp: "Today, 09:15 AM",
-      actor: "System Scheduler",
-      action: "Auto-Released Expired Hold",
-      target: "Bay B-08 (Hold Expired)",
-      severity: "Info",
-      ip: "System Internal"
-    },
-    {
-      id: "AUD-9938",
-      timestamp: "Today, 08:00 AM",
-      actor: "Staff Warden (Suresh V)",
-      action: "Shift Start & Drawer Login",
-      target: "Terminal Desk #01",
-      severity: "Info",
-      ip: "192.168.1.101"
-    },
-    {
-      id: "AUD-9937",
-      timestamp: "Yesterday, 11:45 PM",
-      actor: "System Automated Cron",
-      action: "Daily Revenue Reconciliation",
-      target: "PostgreSQL Database",
-      severity: "Info",
-      ip: "System Internal"
-    }
-  ]);
 
   const handleUpdatePriority = async (ticketId, newPriority) => {
     try {

@@ -9,21 +9,28 @@ export default function MyParking({ loggedInUser, onNavigate }) {
   const fetchMyParking = async () => {
     setIsLoading(true);
     try {
-      const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
-      const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name || "Laiba")}`;
+      let user = loggedInUser;
+      if (!user) {
+        try {
+          const saved = localStorage.getItem("shnoor_current_user");
+          user = saved ? JSON.parse(saved) : null;
+        } catch {
+          user = null;
+        }
+      }
+      if (!user || (!user.email && !user.name)) {
+        setIsLoading(false);
+        setActiveSession(null);
+        return;
+      }
+      const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name)}`;
       const res = await fetch(`${API_BASE_URL}/api/customer/my-parking?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.session) {
         setActiveSession(data.session);
       } else {
-        const fallbackRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?name=Laiba`);
-        const fallbackData = await fallbackRes.json();
-        if (fallbackData.success && fallbackData.session) {
-          setActiveSession(fallbackData.session);
-        } else {
-          setActiveSession(null);
-        }
+        setActiveSession(null);
       }
     } catch {
       setIsLoading(false);
@@ -153,7 +160,7 @@ export default function MyParking({ loggedInUser, onNavigate }) {
               <div className="pw-guide-step">
                 <div className="pw-step-num">3</div>
                 <div className="pw-step-content">
-                  <h5>Digital Receipts</h5>
+                  <h5>Receipts</h5>
                   <p>A digital receipt and tax invoice will automatically appear in your <strong>Payments</strong> tab upon completion.</p>
                 </div>
               </div>

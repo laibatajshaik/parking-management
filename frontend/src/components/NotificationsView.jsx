@@ -85,7 +85,7 @@ function getNotificationIcon(type) {
 export default function NotificationsView({
   userEmail = "",
   role = "customer",
-  title = "Notifications & Alerts",
+  title = "Notifications",
   subtitle = "Real-time updates, activity alerts, and official system announcements."
 }) {
   const [notifications, setNotifications] = useState([]);

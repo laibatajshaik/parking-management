@@ -198,7 +198,7 @@ export default function ParkingRecords() {
       </div>
       <div class="item">
         <span class="label">Contact</span>
-        <span class="val">${target.customer_phone || "+91 98765 43210"}</span>
+        <span class="val">${target.customer_phone || "—"}</span>
       </div>
       <div class="item">
         <span class="label">Entry Time</span>
@@ -372,7 +372,7 @@ export default function ParkingRecords() {
                     <div className="pw-user-card-contact-col">
                       <div className="pw-user-name-bold">{r.customer_name}</div>
                       <div className="pw-contact-cell" style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>
-                        <span>{r.customer_phone || "+91 98765 43210"}</span>
+                        <span>{r.customer_phone || "—"}</span>
                       </div>
                     </div>
 
@@ -495,11 +495,11 @@ export default function ParkingRecords() {
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Customer Contact</span>
-                  <div className="pw-detail-val">{selectedRecordModal.customer_phone || "+91 98765 43210"}</div>
+                  <div className="pw-detail-val">{selectedRecordModal.customer_phone || "—"}</div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Customer Email</span>
-                  <div className="pw-detail-val">{selectedRecordModal.customer_email || "customer@shnoor.com"}</div>
+                  <div className="pw-detail-val">{selectedRecordModal.customer_email || "—"}</div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Assigned Bay</span>

@@ -36,17 +36,17 @@ const StaffSupport = lazy(() => import("./StaffSupport.jsx"));
 
 const STAFF_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
-  { id: "vehicle-entry", label: "Vehicle Entry", icon: Car, isWorking: true },
-  { id: "slot-assignment", label: "Slot Assignment", icon: MapPin, isWorking: true },
+  { id: "vehicle-entry", label: "Entry", icon: Car, isWorking: true },
+  { id: "slot-assignment", label: "Slots", icon: MapPin, isWorking: true },
   { id: "active-parking", label: "Active Parking", icon: Car, isWorking: true },
-  { id: "vehicle-exit", label: "Vehicle Exit", icon: LogOutIcon, isWorking: true },
-  { id: "fee-calculation", label: "Fee Calculation", icon: Calculator, isWorking: true },
-  { id: "payment", label: "Payment", icon: CreditCard, isWorking: true },
-  { id: "reservation-validation", label: "Reservation Validation", icon: Calendar, isWorking: true },
-  { id: "parking-records", label: "Parking Records", icon: FileText, isWorking: true },
+  { id: "vehicle-exit", label: "Exit", icon: LogOutIcon, isWorking: true },
+  { id: "fee-calculation", label: "Fees", icon: Calculator, isWorking: true },
+  { id: "payment", label: "Payments", icon: CreditCard, isWorking: true },
+  { id: "reservation-validation", label: "Reservations", icon: Calendar, isWorking: true },
+  { id: "parking-records", label: "Records", icon: FileText, isWorking: true },
   { id: "reports", label: "Reports", icon: BarChart3, isWorking: true },
-  { id: "notifications", label: "Operational Notifications", icon: Bell, isWorking: true },
-  { id: "support", label: "Support / Help", icon: HelpCircle, isWorking: true },
+  { id: "notifications", label: "Notifications", icon: Bell, isWorking: true },
+  { id: "support", label: "Support", icon: HelpCircle, isWorking: true },
 ];
 
 export default function StaffDashboard({ setView }) {
@@ -105,18 +105,51 @@ export default function StaffDashboard({ setView }) {
   };
 
   const [metrics, setMetrics] = useState({
-    todayBookings: "42",
-    availableSlots: "58",
-    todayRevenue: "₹84,000",
-    activeVehicles: "36",
-    occupiedPercent: 62,
+    todayBookings: "0",
+    availableSlots: "0",
+    todayRevenue: "₹0",
+    activeVehicles: "0",
+    occupiedPercent: 0,
   });
 
-  const [recentEntries] = useState([
-    { id: "#ENT-1042", plate: "KA01 AB 1234", slot: "A-04", type: "Car", time: "10:45 AM", status: "Active" },
-    { id: "#ENT-1041", plate: "KA02 CD 5678", slot: "B-12", type: "Car", time: "10:30 AM", status: "Active" },
-    { id: "#ENT-1040", plate: "KA03 EF 9012", slot: "A-08", type: "SUV", time: "10:15 AM", status: "Active" },
-  ]);
+  const [recentEntries, setRecentEntries] = useState([]);
+
+  const fetchStaffDashboard = () => {
+    fetch(`${API_BASE_URL}/api/staff/dashboard-overview`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          if (data.metrics) {
+            setMetrics({
+              todayBookings: data.metrics.todayBookings || "0",
+              availableSlots: data.metrics.availableSlots || "0",
+              todayRevenue: data.metrics.todayRevenue || "₹0",
+              activeVehicles: data.metrics.activeVehicles || "0",
+              occupiedPercent: data.metrics.occupancyRate || 0,
+            });
+          }
+          if (data.recentEntries) {
+            setRecentEntries(
+              data.recentEntries.map((e, idx) => ({
+                id: `#ENT-${1000 + (e.id || idx)}`,
+                plate: e.vehicle_number,
+                slot: e.slot_number,
+                type: e.vehicle_type || (e.slot_number?.startsWith("D") ? "Bike" : e.slot_number?.startsWith("C") ? "EV" : "Car"),
+                time: e.entry_time
+                  ? new Date(e.entry_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
+                  : "Recently",
+                status: e.status || "Active"
+              }))
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchStaffDashboard();
+  }, []);
 
   useEffect(() => {
     try {
@@ -152,11 +185,11 @@ export default function StaffDashboard({ setView }) {
       .then((data) => {
         if (data.success && data.stats) {
           setMetrics({
-            todayBookings: String(data.stats.totalSlots ? data.stats.totalSlots * 2 : 42),
-            availableSlots: String(data.stats.availableSlots || 58),
-            todayRevenue: `₹${((data.stats.todayRevenue || 840) * 100).toLocaleString("en-IN")}`,
-            activeVehicles: String(data.stats.occupiedSlots || 36),
-            occupiedPercent: data.stats.occupancyRate || 62,
+            todayBookings: String(data.stats.totalBookings || 0),
+            availableSlots: String(data.stats.availableSlots ?? 0),
+            todayRevenue: `₹${(parseFloat(data.stats.todayRevenue) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+            activeVehicles: String(data.stats.occupiedSlots || 0),
+            occupiedPercent: data.stats.occupancyRate || 0,
           });
         }
       })
@@ -187,18 +220,18 @@ export default function StaffDashboard({ setView }) {
   };
 
   const getPageTitle = () => {
-    if (activeTab === "vehicle-entry") return "Vehicle Entry & Gate Check-in";
-    if (activeTab === "slot-assignment") return "Live Parking Slots & Bay Assignment";
-    if (activeTab === "active-parking") return "Active Parking Operations";
-    if (activeTab === "vehicle-exit") return "Vehicle Departure & Exit";
-    if (activeTab === "fee-calculation") return "Calculate Parking Fee";
-    if (activeTab === "payment") return "Process Parking Payment";
-    if (activeTab === "reservation-validation") return "Reservation Validation";
-    if (activeTab === "parking-records") return "Staff Parking Records & Check-in Ledger";
-    if (activeTab === "reports") return "Duty Shift Reports & Cash Reconciliation";
-    if (activeTab === "notifications") return "Operational Notifications";
-    if (activeTab === "support") return "Emergency Controls & Gate Support";
-    return "Operator Console";
+    if (activeTab === "vehicle-entry") return "Entry";
+    if (activeTab === "slot-assignment") return "Slots";
+    if (activeTab === "active-parking") return "Active Parking";
+    if (activeTab === "vehicle-exit") return "Exit";
+    if (activeTab === "fee-calculation") return "Fees";
+    if (activeTab === "payment") return "Payments";
+    if (activeTab === "reservation-validation") return "Reservations";
+    if (activeTab === "parking-records") return "Records";
+    if (activeTab === "reports") return "Reports";
+    if (activeTab === "notifications") return "Notifications";
+    if (activeTab === "support") return "Support";
+    return "Dashboard";
   };
 
   const getPageSubtitle = () => {
@@ -266,7 +299,7 @@ export default function StaffDashboard({ setView }) {
             }}
           >
             <LogOutIcon size={16} />
-            <span>Sign Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -294,7 +327,7 @@ export default function StaffDashboard({ setView }) {
 
           <div className="pw-topbar-right">
             <ThemeToggle />
-            <NotificationBell userEmail={currentUser?.email || "staff@shnoor.com"} />
+            <NotificationBell userEmail={currentUser?.email} />
 
             <div className="pw-user-profile-pill">
               <div className="pw-avatar-initials" style={{ background: "#0d9488", color: "#ffffff" }}>
@@ -350,7 +383,7 @@ export default function StaffDashboard({ setView }) {
                 metrics={metrics}
                 recentEntries={recentEntries}
                 setActiveTab={handleTabChange}
-                userEmail={currentUser?.email || "staff@shnoor.com"}
+                userEmail={currentUser?.email}
               />
             )}
 

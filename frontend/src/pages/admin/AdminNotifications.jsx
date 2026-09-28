@@ -8,7 +8,7 @@ export default function AdminNotifications({ currentUser }) {
       <NotificationsView
         userEmail={userEmail}
         role="admin"
-        title="Notifications & Alerts"
+        title="Notifications"
         subtitle="System-wide audit notifications, revenue milestones, capacity alerts, and user registrations."
       />
     </div>

@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Car, Bike, Zap, Crown, Plus, Trash2, CheckCircle2, X, Sparkles, ArrowRight } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function CustomerProfile({ currentUser, isPremiumActive, premiumPlanInfo, onNavigateToPlans }) {
   const [profile, setProfile] = useState({
-    name: currentUser?.name || "Laiba Customer",
-    email: currentUser?.email || "customer@shnoor.com",
-    phone: "+91 98765 43210",
-    fastagId: "NETC-FTG-8821940",
+    name: currentUser?.name || "Customer",
+    email: currentUser?.email || "",
+    phone: currentUser?.phone || "",
+    fastagId: currentUser?.fastag_id || currentUser?.fastagId || "",
     notifications: {
       smsEntryExit: true,
       emailInvoices: true,
@@ -14,11 +15,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
     }
   });
 
-  const [savedVehicles, setSavedVehicles] = useState([
-    { id: 1, plate: "KA01 AB 1234", model: "Hyundai Creta", type: "Car", fastagLinked: true, isDefault: true },
-    { id: 2, plate: "KA05 EV 8899", model: "Tata Nexon EV", type: "EV", fastagLinked: true, isDefault: false }
-  ]);
-
+  const [savedVehicles, setSavedVehicles] = useState([]);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
   const [newVehicle, setNewVehicle] = useState({
     plate: "",
@@ -28,34 +25,105 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
   });
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
 
-  const handleAddVehicle = (e) => {
+  const fetchVehicles = async () => {
+    const email = currentUser?.email || profile.email;
+    if (!email) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.vehicles)) {
+        setSavedVehicles(data.vehicles);
+      }
+    } catch {
+      setSavedVehicles([]);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfile((prev) => ({
+        ...prev,
+        name: currentUser.name || prev.name,
+        email: currentUser.email || prev.email,
+        phone: currentUser.phone || prev.phone,
+        fastagId: currentUser.fastag_id || currentUser.fastagId || prev.fastagId
+      }));
+    }
+    fetchVehicles();
+  }, [currentUser]);
+
+  const handleAddVehicle = async (e) => {
     e.preventDefault();
     if (!newVehicle.plate) return;
-    const vehicleObj = {
-      id: Date.now(),
-      plate: newVehicle.plate.toUpperCase(),
-      model: newVehicle.model || "Standard Model",
-      type: newVehicle.type,
-      fastagLinked: newVehicle.fastagLinked,
-      isDefault: savedVehicles.length === 0
-    };
-    setSavedVehicles([...savedVehicles, vehicleObj]);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/customer/vehicles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner_email: profile.email,
+          owner_name: profile.name,
+          owner_phone: profile.phone,
+          vehicle_number: newVehicle.plate.toUpperCase(),
+          model: newVehicle.model || "Standard Model",
+          vehicle_type: newVehicle.type,
+          fastag_id: profile.fastagId
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.vehicle) {
+        setSavedVehicles((prev) => [...prev, data.vehicle]);
+      } else {
+        fetchVehicles();
+      }
+    } catch {
+      fetchVehicles();
+    }
     setIsAddVehicleOpen(false);
     setNewVehicle({ plate: "", model: "", type: "Car", fastagLinked: true });
     setSaveSuccessMsg("Vehicle successfully added to your garage.");
     setTimeout(() => setSaveSuccessMsg(""), 3500);
   };
 
-  const handleDeleteVehicle = (id) => {
-    setSavedVehicles(savedVehicles.filter((v) => v.id !== id));
+  const handleDeleteVehicle = async (id) => {
+    try {
+      await fetch(`${API_BASE_URL}/api/customer/vehicles/${id}`, {
+        method: "DELETE"
+      });
+    } catch {
+      void 0;
+    }
+    setSavedVehicles((prev) => prev.filter((v) => v.id !== id));
   };
 
   const handleSetDefaultVehicle = (id) => {
-    setSavedVehicles(savedVehicles.map((v) => ({ ...v, isDefault: v.id === id })));
+    setSavedVehicles((prev) => prev.map((v) => ({ ...v, isDefault: v.id === id })));
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
+    try {
+      await fetch(`${API_BASE_URL}/api/customer/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: profile.email,
+          name: profile.name,
+          phone: profile.phone,
+          fastagId: profile.fastagId,
+          notifications: profile.notifications
+        })
+      });
+      const savedUserStr = localStorage.getItem("shnoor_current_user");
+      if (savedUserStr) {
+        const savedUser = JSON.parse(savedUserStr);
+        savedUser.name = profile.name;
+        savedUser.phone = profile.phone;
+        savedUser.fastag_id = profile.fastagId;
+        localStorage.setItem("shnoor_current_user", JSON.stringify(savedUser));
+      }
+    } catch {
+      void 0;
+    }
     setSaveSuccessMsg("Profile information updated successfully.");
     setTimeout(() => setSaveSuccessMsg(""), 3500);
   };
@@ -66,6 +134,8 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
     if (t === "ev") return <Zap size={18} style={{ color: "#0284c7" }} />;
     return <Car size={18} style={{ color: "#0d9488" }} />;
   };
+
+  const [thirtyDaysStr] = useState(() => new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }));
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
@@ -83,7 +153,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
                 </span>
               </div>
               <p style={{ fontSize: "0.82rem", color: "var(--text-gold, #fde047)", margin: "2px 0 0 0", fontWeight: 600 }}>
-                {premiumPlanInfo?.planName || "Monthly VIP Priority Pass"} • Valid until {premiumPlanInfo?.validUntil || "02 Oct 2025"} (30 Days Unlimited Access)
+                {premiumPlanInfo?.planName || "Monthly VIP Priority Pass"} • Valid until {premiumPlanInfo?.validUntil || thirtyDaysStr} (30 Days Unlimited Access)
               </p>
             </div>
           </div>
@@ -228,59 +298,65 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {savedVehicles.map((veh) => (
-                <div
-                  key={veh.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "14px 16px",
-                    background: veh.isDefault ? (isPremiumActive ? "#FFFDF5" : "#f0fdfa") : "#f8fafc",
-                    border: veh.isDefault ? (isPremiumActive ? "1.5px solid #EAB308" : "1.5px solid #ccfbf1") : "1px solid #e2e8f0",
-                    borderRadius: "10px"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: isPremiumActive ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {getVehicleIcon(veh.type)}
-                    </div>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "var(--text-primary, #0f172a)" }}>{veh.plate}</span>
-                        {veh.isDefault && (
-                          <span style={{ fontSize: "0.68rem", fontWeight: 800, background: isPremiumActive ? "#713F12" : "#0d9488", color: "#ffffff", padding: "2px 6px", borderRadius: "4px" }}>
-                            DEFAULT
-                          </span>
-                        )}
+              {savedVehicles.length > 0 ? (
+                savedVehicles.map((veh) => (
+                  <div
+                    key={veh.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "14px 16px",
+                      background: veh.isDefault ? (isPremiumActive ? "#FFFDF5" : "#f0fdfa") : "#f8fafc",
+                      border: veh.isDefault ? (isPremiumActive ? "1.5px solid #EAB308" : "1.5px solid #ccfbf1") : "1px solid #e2e8f0",
+                      borderRadius: "10px"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: isPremiumActive ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {getVehicleIcon(veh.type || veh.vehicle_type)}
                       </div>
-                      <div style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
-                        {veh.model} • {veh.type} {veh.fastagLinked && "• Fastag RFID Active"}
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "var(--text-primary, #0f172a)" }}>{veh.plate || veh.vehicle_number}</span>
+                          {veh.isDefault && (
+                            <span style={{ fontSize: "0.68rem", fontWeight: 800, background: isPremiumActive ? "#713F12" : "#0d9488", color: "#ffffff", padding: "2px 6px", borderRadius: "4px" }}>
+                              DEFAULT
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
+                          {veh.model} • {veh.type || veh.vehicle_type || "Car"} {(veh.fastagLinked || veh.fastag_id) && "• Fastag RFID Active"}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    {!veh.isDefault && (
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      {!veh.isDefault && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefaultVehicle(veh.id)}
+                          style={{ background: "transparent", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "4px 8px", fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", cursor: "pointer", fontWeight: 600 }}
+                        >
+                          Set Default
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handleSetDefaultVehicle(veh.id)}
-                        style={{ background: "transparent", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "4px 8px", fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", cursor: "pointer", fontWeight: 600 }}
+                        onClick={() => handleDeleteVehicle(veh.id)}
+                        style={{ background: "var(--bg-sub, #fef2f2)", border: "1px solid var(--border-color, #fecaca)", borderRadius: "6px", padding: "6px", color: "#ef4444", cursor: "pointer" }}
+                        title="Remove vehicle"
                       >
-                        Set Default
+                        <Trash2 size={13} />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteVehicle(veh.id)}
-                      style={{ background: "var(--bg-sub, #fef2f2)", border: "1px solid var(--border-color, #fecaca)", borderRadius: "6px", padding: "6px", color: "#ef4444", cursor: "pointer" }}
-                      title="Remove vehicle"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-secondary, #94a3b8)", fontSize: "0.85rem" }}>
+                  No vehicles saved yet. Click &quot;Add Vehicle&quot; to register your vehicle.
                 </div>
-              ))}
+              )}
             </div>
           </div>
 

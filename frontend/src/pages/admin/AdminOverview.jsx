@@ -1,7 +1,24 @@
 import { TrendingUp, ChevronRight } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
-export default function AdminOverview({ metrics, recentBookings, setActiveTab, userEmail }) {
+export default function AdminOverview({ metrics, recentBookings = [], setActiveTab, userEmail, slots = [] }) {
+  const totalSlots = slots.length || 24;
+  const occupiedSlots = slots.filter((s) => s.status === "occupied" || (!s.is_available && s.status !== "reserved")).length;
+  const occupiedPercent = totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100) : 0;
+
+  const standardSlots = slots.filter((s) => s.slot_type === "Standard").length;
+  const vipSlots = slots.filter((s) => s.slot_type === "VIP / EV" || s.slot_type === "EV" || s.slot_type === "VIP").length;
+  const bikeSlots = slots.filter((s) => s.slot_type === "Bike").length;
+
+  const stdPercent = totalSlots > 0 ? Math.round((standardSlots / totalSlots) * 100) : 50;
+  const vipPercent = totalSlots > 0 ? Math.round((vipSlots / totalSlots) * 100) : 25;
+  const bikePercent = totalSlots > 0 ? Math.round((bikeSlots / totalSlots) * 100) : 25;
+
+  const circumference = 240;
+  const dash1 = Math.round((stdPercent / 100) * circumference);
+  const dash2 = Math.round((vipPercent / 100) * circumference);
+  const offset2 = -dash1;
+
   return (
     <>
       <div className="pw-metrics-four-grid">
@@ -10,7 +27,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
           <span className="pw-metric-value">{metrics.totalBookings}</span>
           <span className="pw-metric-trend positive">
             <TrendingUp size={12} />
-            <span>+12.8% vs last week</span>
+            <span>Real-time from Database</span>
           </span>
         </div>
 
@@ -19,7 +36,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
           <span className="pw-metric-value">{metrics.totalRevenue}</span>
           <span className="pw-metric-trend positive">
             <TrendingUp size={12} />
-            <span>+15.2% vs last week</span>
+            <span>Payments Verified</span>
           </span>
         </div>
 
@@ -115,7 +132,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
                   fill="none"
                   stroke="#0d9488"
                   strokeWidth="12"
-                  strokeDasharray="130 240"
+                  strokeDasharray={`${dash1} ${circumference}`}
                   strokeDashoffset="0"
                 />
                 <circle
@@ -125,8 +142,8 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
                   fill="none"
                   stroke="#0284c7"
                   strokeWidth="12"
-                  strokeDasharray="60 240"
-                  strokeDashoffset="-130"
+                  strokeDasharray={`${dash2} ${circumference}`}
+                  strokeDashoffset={offset2}
                 />
                 <circle
                   cx="50"
@@ -135,12 +152,12 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
                   fill="none"
                   stroke="#f59e0b"
                   strokeWidth="12"
-                  strokeDasharray="30 240"
-                  strokeDashoffset="-190"
+                  strokeDasharray={`${circumference - dash1 - dash2} ${circumference}`}
+                  strokeDashoffset={-(dash1 + dash2)}
                 />
               </svg>
               <div className="pw-donut-center-label">
-                <span className="pw-donut-big">86%</span>
+                <span className="pw-donut-big">{occupiedPercent}%</span>
                 <span className="pw-donut-sub">Occupied</span>
               </div>
             </div>
@@ -149,17 +166,17 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
               <div className="pw-legend-row">
                 <span className="pw-bullet-chip dot-teal"></span>
                 <span className="pw-legend-name">Standard</span>
-                <span className="pw-legend-val">58%</span>
+                <span className="pw-legend-val">{stdPercent}%</span>
               </div>
               <div className="pw-legend-row">
                 <span className="pw-bullet-chip dot-amber"></span>
                 <span className="pw-legend-name">VIP / EV</span>
-                <span className="pw-legend-val">26%</span>
+                <span className="pw-legend-val">{vipPercent}%</span>
               </div>
               <div className="pw-legend-row">
                 <span className="pw-bullet-chip dot-red"></span>
                 <span className="pw-legend-name">Bikes</span>
-                <span className="pw-legend-val">16%</span>
+                <span className="pw-legend-val">{bikePercent}%</span>
               </div>
             </div>
           </div>
@@ -169,7 +186,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
       <div className="pw-recent-table-card">
         <div className="pw-chart-header">
           <h2 className="pw-table-title">Recent Bookings</h2>
-          <button type="button" className="pw-view-all-link">
+          <button type="button" className="pw-view-all-link" onClick={() => setActiveTab("bookings-reservations")}>
             <span>View all</span>
             <ChevronRight size={14} />
           </button>
@@ -189,21 +206,29 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
               </tr>
             </thead>
             <tbody>
-              {recentBookings.map((b) => (
-                <tr key={b.id}>
-                  <td><strong>{b.id}</strong></td>
-                  <td>{b.user}</td>
-                  <td>{b.location}</td>
-                  <td>{b.vehicle}</td>
-                  <td>{b.date}</td>
-                  <td>
-                    <span className={`pw-status-pill ${b.status.toLowerCase()}`}>
-                      {b.status}
-                    </span>
+              {recentBookings.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted, #64748b)" }}>
+                    No recent bookings recorded in the system yet.
                   </td>
-                  <td><strong>{b.amount}</strong></td>
                 </tr>
-              ))}
+              ) : (
+                recentBookings.map((b) => (
+                  <tr key={b.id}>
+                    <td><strong>{b.id}</strong></td>
+                    <td>{b.user}</td>
+                    <td>{b.location}</td>
+                    <td>{b.vehicle}</td>
+                    <td>{b.date}</td>
+                    <td>
+                      <span className={`pw-status-pill ${b.status.toLowerCase()}`}>
+                        {b.status}
+                      </span>
+                    </td>
+                    <td><strong>{b.amount}</strong></td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

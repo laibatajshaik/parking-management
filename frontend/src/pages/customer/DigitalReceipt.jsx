@@ -21,7 +21,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     } catch {
       return "";
     }
-    return "customer@shnoor.com";
+    return "";
   }, [currentUser, loggedInUser]);
 
   useEffect(() => {
@@ -35,6 +35,11 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
   const fetchPayments = useCallback(async () => {
     setIsLoading(true);
     const email = resolveEmail();
+    if (!email) {
+      setIsLoading(false);
+      setPaymentsList([]);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}`);
       const data = await res.json();
@@ -544,7 +549,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                 onClick={handlePrint}
               >
                 <Printer size={15} />
-                <span>Print Digital Receipt</span>
+                <span>Print Receipt</span>
               </button>
             </div>
           </div>
@@ -553,7 +558,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
             <div className="pw-empty-state">
               <Receipt size={42} className="pw-empty-icon" style={{ margin: "0 auto 12px", color: "#0d9488" }} />
               <h4 style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary, #0f172a)" }}>
-                No Digital Receipts Yet
+                No Receipts Yet
               </h4>
               <p style={{ fontSize: "0.85rem", color: "var(--text-secondary, #64748b)", margin: "0 0 16px 0", maxWidth: "340px", marginLeft: "auto", marginRight: "auto" }}>
                 You don't have any parking receipts yet. Once you complete a parking session or make a reservation, your official tax invoices will appear here.

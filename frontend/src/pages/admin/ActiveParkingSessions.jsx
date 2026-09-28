@@ -222,11 +222,11 @@ export default function ActiveParkingSessions() {
                       </div>
                       <div className="pw-contact-cell">
                         <Mail size={11} className="pw-cell-icon" />
-                        <span>{s.owner_email || "customer@shnoor.com"}</span>
+                        <span>{s.owner_email || "—"}</span>
                       </div>
                       <div className="pw-contact-cell">
                         <Phone size={11} className="pw-cell-icon" />
-                        <span>{s.owner_phone || "+91 98765 43210"}</span>
+                        <span>{s.owner_phone || "—"}</span>
                       </div>
                     </div>
 

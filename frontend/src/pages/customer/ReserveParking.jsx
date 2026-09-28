@@ -6,135 +6,30 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const [currentStep, setCurrentStep] = useState(1);
   const [vehicleFilter, setVehicleFilter] = useState("All Vehicle Types");
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
-  const [entryDateTime, setEntryDateTime] = useState("02-09-2025 10:00 AM");
-  const [exitDateTime, setExitDateTime] = useState("02-09-2025 02:00 PM");
+  const formatDateTime = (date) => {
+    const d = String(date.getDate()).padStart(2, "0");
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const y = date.getFullYear();
+    let hours = date.getHours();
+    const mins = String(date.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12;
+    return `${d}-${m}-${y} ${String(hours).padStart(2, "0")}:${mins} ${ampm}`;
+  };
+
+  const [entryDateTime, setEntryDateTime] = useState(() => formatDateTime(new Date()));
+  const [exitDateTime, setExitDateTime] = useState(() => formatDateTime(new Date(Date.now() + 4 * 3600000)));
   const [duration] = useState("4 hours");
   const [selectedZone, setSelectedZone] = useState("Zone A");
-  const [selectedSlot, setSelectedSlot] = useState("A-04");
-  const [vehiclePlate, setVehiclePlate] = useState("KA01 AB 1234");
-  const [vehicleModel, setVehicleModel] = useState("Hyundai Creta");
+  const [selectedSlot, setSelectedSlot] = useState("A-01");
+  const [vehiclePlate, setVehiclePlate] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("UPI / Fastag");
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
-
-  const defaultPlans = [
-    {
-      id: 11,
-      plan_code: "PLAN-CAR-HR",
-      plan_name: "Standard Car Hourly",
-      vehicle_type: "Car",
-      billing_type: "Hourly",
-      rate: "50.00",
-      duration_hours: 1.0,
-      description: "Standard hourly parking rate for sedan and hatchback cars in Zone A & B.",
-      features: ["Zone A / B Covered Parking", "CCTV 24/7 Monitoring", "Automated Boom Barrier Access"],
-      is_active: true,
-      isPopular: true
-    },
-    {
-      id: 2,
-      plan_code: "PLAN-SUV-HR",
-      plan_name: "SUV / Large Vehicle Hourly",
-      vehicle_type: "SUV",
-      billing_type: "Hourly",
-      rate: "60.00",
-      duration_hours: 1.0,
-      description: "Spacious high-clearance parking bay designed for large SUVs in Zone B.",
-      features: ["Extra Wide Bay Spacing", "High Clearance Zone B", "Dedicated Security Warden"],
-      is_active: true,
-      isPopular: false
-    },
-    {
-      id: 3,
-      plan_code: "PLAN-EV-HR",
-      plan_name: "EV Fast Charging Hourly",
-      vehicle_type: "EV",
-      billing_type: "Hourly",
-      rate: "80.00",
-      duration_hours: 1.0,
-      description: "Premium EV parking bay with 60kW DC fast charging included in Zone C.",
-      features: ["Zone C VIP Electric Bay", "60kW Fast DC Charging", "Priority Gate Entry / Exit"],
-      is_active: true,
-      isPopular: false
-    },
-    {
-      id: 4,
-      plan_code: "PLAN-BIKE-HR",
-      plan_name: "Two-Wheeler Hourly",
-      vehicle_type: "Bike",
-      billing_type: "Hourly",
-      rate: "25.00",
-      duration_hours: 1.0,
-      description: "Dedicated compact parking bay for motorcycles and scooters in Zone D.",
-      features: ["Zone D Dedicated Bike Bay", "Helmet Storage Facility", "Quick Exit Lane Access"],
-      is_active: true,
-      isPopular: false
-    },
-    {
-      id: 5,
-      plan_code: "PLAN-CAR-DAY",
-      plan_name: "Full Day Car Pass",
-      vehicle_type: "Car",
-      billing_type: "Daily",
-      rate: "350.00",
-      duration_hours: 24.0,
-      description: "Unlimited 24-hour in-and-out parking privileges for cars.",
-      features: ["24-Hour Multi-Entry Access", "Guaranteed Reserved Bay", "Complimentary Car Wash Token"],
-      is_active: true,
-      isPopular: false
-    },
-    {
-      id: 6,
-      plan_code: "PLAN-BIKE-DAY",
-      plan_name: "Two-Wheeler Daily Pass",
-      vehicle_type: "Bike",
-      billing_type: "Daily",
-      rate: "150.00",
-      duration_hours: 24.0,
-      description: "24-hour daily parking pass for two-wheelers in Zone D.",
-      features: ["24-Hour Secure Parking", "Zone D Reserved Bay", "Zero Surcharge on Re-entry"],
-      is_active: true,
-      isPopular: false
-    },
-    {
-      id: 7,
-      plan_code: "PLAN-EV-DAY",
-      plan_name: "EV Full Day & Supercharge Pass",
-      vehicle_type: "EV",
-      billing_type: "Daily",
-      rate: "550.00",
-      duration_hours: 24.0,
-      description: "Full day premium parking with unlimited EV fast charging.",
-      features: ["Full Day Zone C VIP Bay", "Unlimited EV Fast Charging", "Valet Assistance on Request"],
-      is_active: true,
-      isPopular: false
-    },
-    {
-      id: 18,
-      plan_code: "PLAN-MONTHLY",
-      plan_name: "Monthly VIP Priority Pass (Best Value)",
-      vehicle_type: "All",
-      billing_type: "Monthly",
-      rate: "2500.00",
-      duration_hours: 720.0,
-      description: "The ultimate all-inclusive parking experience. Enjoy guaranteed dedicated bays, unlimited 24/7 multi-entry, fastag RFID express lanes, and VIP concierge privileges with up to 75% savings.",
-      features: [
-        "100% Guaranteed Reserved VIP Bay (Zone A Ground Floor)",
-        "Unlimited 24/7 Multi-Entry & In-Out Access",
-        "Fastag RFID Automated Express Boom Barrier",
-        "Complimentary Monthly Car Wash & EV Fast Boost",
-        "24/7 Dedicated Concierge & VIP Bay Warden",
-        "Zero Cancellation & 100% Free Date Rescheduling",
-        "Priority Gate Express Lane (Zero Queue Waiting)",
-        "Exclusive Gold VIP Dashboard Experience"
-      ],
-      is_active: true,
-      isPopular: false
-    }
-  ];
-
-  const [plansList, setPlansList] = useState(defaultPlans);
-  const [selectedPlanObject, setSelectedPlanObject] = useState(preselectedPlan || defaultPlans[0]);
+  const [slotsList, setSlotsList] = useState([]);
+  const [plansList, setPlansList] = useState([]);
+  const [selectedPlanObject, setSelectedPlanObject] = useState(preselectedPlan || null);
 
   const fetchActivePlans = async () => {
     setIsLoadingPlans(true);
@@ -142,7 +37,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
       const res = await fetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
       const data = await res.json();
       setIsLoadingPlans(false);
-      if (data.success && data.plans && data.plans.length > 0) {
+      if (data.success && Array.isArray(data.plans) && data.plans.length > 0) {
         setPlansList(data.plans);
         if (!selectedPlanObject) {
           setSelectedPlanObject(data.plans[0]);
@@ -155,6 +50,35 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
   useEffect(() => {
     fetchActivePlans();
+  }, []);
+
+  useEffect(() => {
+    const custEmail = loggedInUser?.email;
+    if (custEmail) {
+      fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(custEmail)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && Array.isArray(d.vehicles) && d.vehicles.length > 0) {
+            const defVeh = d.vehicles.find((v) => v.isDefault) || d.vehicles[0];
+            setVehiclePlate(defVeh.plate || "");
+            setVehicleModel(defVeh.model || "");
+          }
+        })
+        .catch(() => {});
+    }
+  }, [loggedInUser]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/parking-slots`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && Array.isArray(d.slots)) {
+          setSlotsList(d.slots);
+          const firstInZone = d.slots.find((s) => s.zone === "Zone A" && s.status === "Available");
+          if (firstInZone) setSelectedSlot(firstInZone.slot_number);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -208,7 +132,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
   const handleCompletePayment = async () => {
     const isMonthly = isCurrentPlanMonthly();
-    const custEmail = loggedInUser?.email || "customer@shnoor.com";
+    const custEmail = loggedInUser?.email || "";
     const custName = loggedInUser?.name || "Customer";
 
     try {
@@ -218,10 +142,10 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
         body: JSON.stringify({
           customer_name: custName,
           customer_email: custEmail,
-          customer_phone: loggedInUser?.phone || "+91 98765 43210",
-          vehicle_number: vehiclePlate,
+          customer_phone: loggedInUser?.phone || "",
+          vehicle_number: vehiclePlate || "DL01 AB 1234",
           vehicle_type: selectedPlanObject?.vehicle_type || "Car",
-          model: vehicleModel,
+          model: vehicleModel || "Standard",
           slot_number: selectedSlot,
           zone: selectedZone,
           duration_hours: selectedPlanObject?.duration_hours || 2,
@@ -235,14 +159,16 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     }
 
     if (isMonthly) {
+      const validFromStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const validUntilStr = new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       if (onActivatePremium) {
         onActivatePremium({
           active: true,
           plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
           planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
           amount: getPlanCost(),
-          validFrom: "02 Sep 2025",
-          validUntil: "02 Oct 2025",
+          validFrom: validFromStr,
+          validUntil: validUntilStr,
           remainingDays: 30,
           slot: `${selectedSlot} (${selectedZone})`,
           vehicle: vehiclePlate
@@ -295,6 +221,17 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     return vType === filter || vType === "all";
   });
 
+  const currentZoneCode = selectedZone.slice(0, 6);
+  const zoneSlots = slotsList.filter((s) => s.zone && s.zone.includes(currentZoneCode));
+  const displayedSlots = zoneSlots.length > 0 ? zoneSlots : [
+    { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-01`, status: "Available" },
+    { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-02`, status: "Available" },
+    { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-03`, status: "Available" },
+    { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-04`, status: "Available" },
+    { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-05`, status: "Available" },
+    { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-06`, status: "Available" }
+  ];
+
   return (
     <div className="pw-reserve-screen-wrapper" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
       {isPremiumActive && (
@@ -337,7 +274,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
         <>
           <div className="pw-plans-header-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Available Parking Plans</h2>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Available Plans</h2>
               <p style={{ fontSize: "0.82rem", color: "var(--text-secondary, #94a3b8)", margin: "3px 0 0 0" }}>Choose a plan configured for your vehicle type and parking duration.</p>
             </div>
 
@@ -588,7 +525,8 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
           <label className="pw-calc-label" style={{ marginBottom: "8px", display: "block" }}>Available Bays in {selectedZone}</label>
           <div className="pw-bay-selection-grid">
-            {["A-01", "A-02", "A-03", "A-04", "A-05", "A-06"].map((slot) => {
+            {displayedSlots.map((slotObj) => {
+              const slot = slotObj.slot_number;
               const isSel = selectedSlot === slot;
               return (
                 <button
@@ -608,7 +546,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                   }}
                 >
                   <div>Bay {slot}</div>
-                  <div style={{ fontSize: "0.68rem", opacity: 0.8, marginTop: "2px" }}>{isSel ? "Selected" : "Available"}</div>
+                  <div style={{ fontSize: "0.68rem", opacity: 0.8, marginTop: "2px" }}>{isSel ? "Selected" : (slotObj.status || "Available")}</div>
                 </button>
               );
             })}

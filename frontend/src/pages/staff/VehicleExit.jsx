@@ -68,9 +68,9 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
       duration: selectedVehicle.duration || "1h 00m",
       fee: selectedVehicle.calculated_fee || "₹50.00",
       payment_method: paymentMethod,
-      customer_name: selectedVehicle.owner_name,
-      customer_email: selectedVehicle.owner_email || "customer@shnoor.com",
-      customer_phone: selectedVehicle.owner_phone || "+91 98765 43210"
+      customer_name: selectedVehicle.owner_name || "Customer",
+      customer_email: selectedVehicle.owner_email || "",
+      customer_phone: selectedVehicle.owner_phone || ""
     };
 
     try {
@@ -414,7 +414,7 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
                     </div>
                     <div className="pw-detail-field-card">
                       <span className="pw-detail-label">Customer Phone</span>
-                      <div className="pw-detail-val">{selectedVehicle.owner_phone || "+91 98765 43210"}</div>
+                      <div className="pw-detail-val">{selectedVehicle.owner_phone || "—"}</div>
                     </div>
                     <div className="pw-detail-field-card">
                       <span className="pw-detail-label">Entry Timestamp</span>

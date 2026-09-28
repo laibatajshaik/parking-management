@@ -306,7 +306,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
       </div>
       <div class="item">
         <span class="label">Contact</span>
-        <span class="val">${target.customer_phone || "+91 98765 43210"}</span>
+        <span class="val">${target.customer_phone || "—"}</span>
       </div>
       <div class="item">
         <span class="label">Check-in Time</span>
@@ -535,7 +535,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
 
                   <div className="pw-detail-field-card">
                     <span className="pw-detail-label">Contact Phone</span>
-                    <div className="pw-detail-val">{selectedBooking.customer_phone || "+91 98765 43210"}</div>
+                    <div className="pw-detail-val">{selectedBooking.customer_phone || "—"}</div>
                   </div>
 
                   <div className="pw-detail-field-card">

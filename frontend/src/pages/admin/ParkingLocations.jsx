@@ -1,62 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MapPin, Search, Plus, Edit2, Trash2, X, Building } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function ParkingLocations() {
-  const [locations, setLocations] = useState([
-    {
-      id: 1,
-      code: "LOC-DTP",
-      name: "Downtown Plaza Multi-Level",
-      address: "MG Road, Central Business District, Bengaluru",
-      totalSlots: 150,
-      occupiedSlots: 88,
-      zones: ["Zone A (Ground)", "Zone B (Basement 1)", "Zone C (EV VIP)", "Zone D (Bikes)"],
-      activeStaff: 4,
-      openingHours: "24/7 All Days",
-      rateMultiplier: "1.0x (Standard)",
-      status: "Operational"
-    },
-    {
-      id: 2,
-      code: "LOC-CMP",
-      name: "City Mall Grand Parking",
-      address: "Indiranagar 100ft Road, Bengaluru",
-      totalSlots: 220,
-      occupiedSlots: 165,
-      zones: ["Zone A (Covered)", "Zone B (Open Air)", "Zone C (EV Fast)"],
-      activeStaff: 6,
-      openingHours: "08:00 AM - 11:30 PM",
-      rateMultiplier: "1.2x (Mall Premium)",
-      status: "Operational"
-    },
-    {
-      id: 3,
-      code: "LOC-APT",
-      name: "Airport Terminal 2 Express Lot",
-      address: "Kempegowda International Airport Rd, Devanahalli",
-      totalSlots: 350,
-      occupiedSlots: 290,
-      zones: ["Zone A (VIP Express)", "Zone B (Long Stay)", "Zone C (EV Fast)", "Zone D (Two-Wheeler)"],
-      activeStaff: 10,
-      openingHours: "24/7 All Days",
-      rateMultiplier: "1.5x (Airport Express)",
-      status: "Operational"
-    },
-    {
-      id: 4,
-      code: "LOC-ITP",
-      name: "Tech Park Campus Garage",
-      address: "Outer Ring Road, Bellandur, Bengaluru",
-      totalSlots: 180,
-      occupiedSlots: 142,
-      zones: ["Zone A (Corporate)", "Zone B (Visitors)", "Zone C (EV Green)"],
-      activeStaff: 5,
-      openingHours: "06:00 AM - 11:00 PM",
-      rateMultiplier: "1.0x (Standard)",
-      status: "Operational"
-    }
-  ]);
-
+  const [locations, setLocations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,6 +19,35 @@ export default function ParkingLocations() {
     rateMultiplier: "1.0x (Standard)",
     status: "Operational"
   });
+
+  const normalizeLocation = (loc) => ({
+    id: loc.id,
+    code: loc.code,
+    name: loc.name,
+    address: loc.address,
+    totalSlots: loc.total_slots ?? loc.totalSlots ?? 50,
+    occupiedSlots: loc.occupied_slots ?? loc.occupiedSlots ?? 0,
+    zones: Array.isArray(loc.zones) ? loc.zones : ["Zone A", "Zone B"],
+    activeStaff: loc.active_staff ?? loc.activeStaff ?? 2,
+    openingHours: loc.opening_hours ?? loc.openingHours ?? "24/7 All Days",
+    rateMultiplier: loc.rate_multiplier ?? loc.rateMultiplier ?? "1.0x (Standard)",
+    status: loc.status === "Active" ? "Operational" : (loc.status || "Operational")
+  });
+
+  const fetchLocations = () => {
+    fetch(`${API_BASE_URL}/api/parking-locations`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.locations) {
+          setLocations(data.locations.map(normalizeLocation));
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
 
   const filteredLocations = locations.filter((loc) => {
     const matchesSearch =
@@ -113,44 +89,51 @@ export default function ParkingLocations() {
   };
 
   const handleDelete = (id) => {
-    setLocations(locations.filter((l) => l.id !== id));
+    fetch(`${API_BASE_URL}/api/parking-locations/${id}`, { method: "DELETE" })
+      .then(() => fetchLocations())
+      .catch(() => {});
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (modalMode === "create") {
-      const newLoc = {
-        id: Date.now(),
-        code: formData.code,
-        name: formData.name,
-        address: formData.address,
-        totalSlots: parseInt(formData.totalSlots, 10) || 100,
-        occupiedSlots: 0,
-        zones: ["Zone A", "Zone B"],
-        activeStaff: 2,
-        openingHours: formData.openingHours,
-        rateMultiplier: formData.rateMultiplier,
-        status: formData.status
-      };
-      setLocations([...locations, newLoc]);
-    } else {
-      setLocations(
-        locations.map((l) =>
-          l.id === editingLocation.id
-            ? {
-                ...l,
-                name: formData.name,
-                address: formData.address,
-                totalSlots: parseInt(formData.totalSlots, 10) || l.totalSlots,
-                openingHours: formData.openingHours,
-                rateMultiplier: formData.rateMultiplier,
-                status: formData.status
-              }
-            : l
-        )
-      );
+      fetch(`${API_BASE_URL}/api/parking-locations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: formData.code,
+          name: formData.name,
+          address: formData.address,
+          total_slots: parseInt(formData.totalSlots, 10) || 50,
+          opening_hours: formData.openingHours,
+          rate_multiplier: formData.rateMultiplier,
+          status: formData.status === "Operational" ? "Active" : formData.status
+        })
+      })
+        .then(() => {
+          fetchLocations();
+          setIsModalOpen(false);
+        })
+        .catch(() => {});
+    } else if (editingLocation) {
+      fetch(`${API_BASE_URL}/api/parking-locations/${editingLocation.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          address: formData.address,
+          total_slots: parseInt(formData.totalSlots, 10) || 50,
+          opening_hours: formData.openingHours,
+          rate_multiplier: formData.rateMultiplier,
+          status: formData.status === "Operational" ? "Active" : formData.status
+        })
+      })
+        .then(() => {
+          fetchLocations();
+          setIsModalOpen(false);
+        })
+        .catch(() => {});
     }
-    setIsModalOpen(false);
   };
 
   const totalCapacity = locations.reduce((sum, l) => sum + l.totalSlots, 0);

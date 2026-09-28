@@ -59,9 +59,9 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
     const payload = {
       vehicle_number: currentSession.vehicle_number,
       slot_number: currentSession.current_slot,
-      customer_name: currentSession.owner_name,
-      customer_email: currentSession.owner_email || "customer@shnoor.com",
-      customer_phone: currentSession.owner_phone || "+91 98765 43210",
+      customer_name: currentSession.owner_name || "Customer",
+      customer_email: currentSession.owner_email || "",
+      customer_phone: currentSession.owner_phone || "",
       entry_time: currentSession.entry_time,
       exit_time: new Date().toISOString(),
       duration: currentSession.duration || "1h 00m",
@@ -327,7 +327,7 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
       </div>
       <div class="item">
         <span class="label">Contact</span>
-        <span class="val">${target.customer_phone || "+91 98765 43210"}</span>
+        <span class="val">${target.customer_phone || "—"}</span>
       </div>
       <div class="item">
         <span class="label">Check-in</span>
@@ -407,7 +407,7 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Customer Contact</span>
-                  <span className="pw-receipt-value">{completedReceipt.customer_phone || "+91 98765 43210"}</span>
+                  <span className="pw-receipt-value">{completedReceipt.customer_phone || "—"}</span>
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Check-in Time</span>
@@ -514,7 +514,7 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
                     </div>
                     <div className="pw-detail-field-card">
                       <span className="pw-detail-label">Customer Contact</span>
-                      <div className="pw-detail-val">{currentSession.owner_phone || "+91 98765 43210"}</div>
+                      <div className="pw-detail-val">{currentSession.owner_phone || "—"}</div>
                     </div>
                     <div className="pw-detail-field-card">
                       <span className="pw-detail-label">Entry Time</span>

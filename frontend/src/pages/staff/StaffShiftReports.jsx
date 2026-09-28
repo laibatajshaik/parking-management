@@ -1,34 +1,82 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Printer, CheckCircle2, CreditCard, Smartphone, Layers } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function StaffShiftReports() {
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [closureSuccess, setClosureSuccess] = useState(false);
-
-  const shiftData = {
+  const [shiftInfo, setShiftInfo] = useState({
     operator: "Laiba Taj",
     staffId: "STF-204",
-    terminal: "Terminal #01 (North Gate Entrance/Exit)",
-    shiftDate: "Tuesday, 2 Sep 2025",
-    shiftTime: "08:00 AM - 04:00 PM (Morning Duty)",
-    totalEntries: 42,
-    totalExits: 28,
-    totalRevenue: "₹ 84,000.00",
-    cashCollected: "₹ 14,250.00",
-    upiFastag: "₹ 48,600.00",
-    cardSwipes: "₹ 21,150.00",
+    terminal: "Terminal #01 (Gate 1 & 2)",
+    shiftDate: new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" }),
+    shiftTime: "07:00 AM - Current Duty",
+    totalEntries: 0,
+    totalExits: 0,
+    totalRevenue: "₹ 0.00",
+    cashCollected: "₹ 0.00",
+    upiFastag: "₹ 0.00",
+    cardSwipes: "₹ 0.00",
     openingDrawerBalance: "₹ 2,000.00",
-    closingDrawerCash: "₹ 16,250.00"
+    closingDrawerCash: "₹ 2,000.00",
+    rawTotal: 0
+  });
+
+  const fetchShiftReport = () => {
+    fetch(`${API_BASE_URL}/api/staff/shift-report`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.shiftData) {
+          const s = data.shiftData;
+          const cashVal = s.cashCollected || 0;
+          setShiftInfo({
+            operator: s.staffName || "Laiba Taj",
+            staffId: "STF-204",
+            terminal: s.assignedGates || "Terminal #01 (Gate 1 & 2)",
+            shiftDate: new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" }),
+            shiftTime: `${s.startTime || "07:00 AM"} - Current Duty`,
+            totalEntries: s.vehiclesEntered || 0,
+            totalExits: s.vehiclesExited || 0,
+            totalRevenue: `₹ ${(s.totalCollected || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            cashCollected: `₹ ${cashVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            upiFastag: `₹ ${(s.upiCollected || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            cardSwipes: `₹ ${(s.cardCollected || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            openingDrawerBalance: "₹ 2,000.00",
+            closingDrawerCash: `₹ ${(cashVal + 2000).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            rawTotal: s.totalCollected || 0
+          });
+        }
+      })
+      .catch(() => {});
   };
+
+  useEffect(() => {
+    fetchShiftReport();
+  }, []);
 
   const handleCloseShift = () => {
     setIsClosingShift(true);
-    setTimeout(() => {
-      setIsClosingShift(false);
-      setClosureSuccess(true);
-      setTimeout(() => setClosureSuccess(false), 5000);
-    }, 1200);
+    fetch(`${API_BASE_URL}/api/staff/close-shift`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        shiftId: `SFT-${Date.now().toString().slice(-4)}`,
+        staffName: shiftInfo.operator,
+        totalCollected: shiftInfo.rawTotal,
+        notes: "Shift handover completed and reconciliation recorded"
+      })
+    })
+      .then(() => {
+        setIsClosingShift(false);
+        setClosureSuccess(true);
+        setTimeout(() => setClosureSuccess(false), 5000);
+      })
+      .catch(() => {
+        setIsClosingShift(false);
+      });
   };
+
+  const shiftData = shiftInfo;
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

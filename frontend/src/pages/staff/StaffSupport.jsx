@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ShieldAlert, PhoneCall, CheckCircle2, Lock, Unlock, Plus, X } from "lucide-react";
+import { API_BASE_URL } from "../../config/api.js";
 
 export default function StaffSupport() {
   const [barrierState, setBarrierState] = useState({
@@ -9,27 +10,40 @@ export default function StaffSupport() {
   });
   const [actionAlert, setActionAlert] = useState("");
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const [incidents, setIncidents] = useState([]);
 
-  const [incidents, setIncidents] = useState([
-    {
-      id: "INC-302",
-      type: "Scanner Misread",
-      location: "Gate #01 (North Entry)",
-      plate: "KA05 XY 9911",
-      reportedAt: "Today, 09:40 AM",
-      status: "Resolved",
-      severity: "Low"
-    },
-    {
-      id: "INC-301",
-      type: "Unauthorized Overstay",
-      location: "Bay B-04",
-      plate: "KA04 GH 3456",
-      reportedAt: "Today, 08:15 AM",
-      status: "Warden Dispatched",
-      severity: "Medium"
-    }
-  ]);
+  const normalizeIncident = (inc) => ({
+    id: inc.incident_code || `INC-${inc.id}`,
+    type: inc.incident_type,
+    location: inc.location,
+    plate: inc.plate || "N/A",
+    reportedAt: inc.created_at
+      ? new Date(inc.created_at).toLocaleString("en-IN", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })
+      : "Recently",
+    status: inc.status || "Open",
+    severity: inc.severity || "Normal"
+  });
+
+  const fetchIncidents = () => {
+    fetch(`${API_BASE_URL}/api/staff/incidents`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.incidents) {
+          setIncidents(data.incidents.map(normalizeIncident));
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchIncidents();
+  }, []);
 
   const [incidentForm, setIncidentForm] = useState({
     type: "Scanner Misread",
@@ -49,19 +63,25 @@ export default function StaffSupport() {
 
   const handleReportIncident = (e) => {
     e.preventDefault();
-    const newInc = {
-      id: `INC-${Math.floor(303 + Math.random() * 50)}`,
-      type: incidentForm.type,
-      location: incidentForm.location,
-      plate: incidentForm.plate || "N/A",
-      reportedAt: "Just Now",
-      status: "Logged & Transmitted",
-      severity: incidentForm.severity
-    };
-    setIncidents([newInc, ...incidents]);
-    setIsIncidentModalOpen(false);
-    setActionAlert("Incident ticket submitted to Central Control Room.");
-    setTimeout(() => setActionAlert(""), 4000);
+    fetch(`${API_BASE_URL}/api/staff/incidents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        incident_type: incidentForm.type,
+        location: incidentForm.location,
+        plate: incidentForm.plate || "N/A",
+        notes: incidentForm.notes || "Reported by on-duty staff",
+        severity: incidentForm.severity,
+        reporter: "Laiba Taj"
+      })
+    })
+      .then(() => {
+        fetchIncidents();
+        setIsIncidentModalOpen(false);
+        setActionAlert(`Incident ticket submitted to Central Control Room.`);
+        setTimeout(() => setActionAlert(""), 4000);
+      })
+      .catch(() => {});
   };
 
   return (
