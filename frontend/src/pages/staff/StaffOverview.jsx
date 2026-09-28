@@ -43,7 +43,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
       <div className="pw-operator-two-col">
         <div className="pw-chart-card">
           <div className="pw-chart-header">
-            <h3 className="pw-chart-title">Current Facility Occupancy</h3>
+            <h2 className="pw-chart-title">Current Facility Occupancy</h2>
           </div>
 
           <div className="pw-occupancy-donut-wrap">
@@ -97,7 +97,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
 
         <div className="pw-recent-table-card">
           <div className="pw-chart-header">
-            <h3 className="pw-table-title">Recent Gate Check-ins</h3>
+            <h2 className="pw-table-title">Recent Gate Check-ins</h2>
             <button type="button" className="pw-view-all-link">
               <span>View all</span>
               <ChevronRight size={14} />
@@ -136,7 +136,7 @@ export default function StaffOverview({ metrics, recentEntries, userEmail }) {
       </div>
 
       <div className="pw-quick-actions-section">
-        <h3 className="pw-section-title">Quick Operations</h3>
+        <h2 className="pw-section-title">Quick Operations</h2>
         <div className="pw-quick-actions-grid">
           <div className="pw-action-card">
             <div className="pw-action-icon-circle bg-teal-soft">

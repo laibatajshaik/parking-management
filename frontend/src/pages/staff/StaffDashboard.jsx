@@ -1,40 +1,68 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { LayoutDashboard, Calculator, Car, Calendar, MapPin, CreditCard, FileText, BarChart3, HelpCircle, LogOut as LogOutIcon, Search, Menu, CheckCircle, ChevronDown } from "lucide-react";
+import {
+  LayoutDashboard,
+  Calculator,
+  Car,
+  Calendar,
+  MapPin,
+  CreditCard,
+  FileText,
+  BarChart3,
+  Bell,
+  HelpCircle,
+  LogOut as LogOutIcon,
+  Search,
+  Menu,
+  CheckCircle,
+  ChevronDown
+} from "lucide-react";
 import StaffOverview from "./StaffOverview.jsx";
-import VehicleEntry from "./VehicleEntry.jsx";
-import ActiveParking from "./ActiveParking.jsx";
-import Payment from "./Payment.jsx";
-import VehicleExit from "./VehicleExit.jsx";
-import FeeCalculation from "./FeeCalculation.jsx";
-import ReservationValidation from "./ReservationValidation.jsx";
-import StaffSlotAssignment from "./StaffSlotAssignment.jsx";
-import StaffParkingRecords from "./StaffParkingRecords.jsx";
-import StaffShiftReports from "./StaffShiftReports.jsx";
-import StaffSupport from "./StaffSupport.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
 
+const VehicleEntry = lazy(() => import("./VehicleEntry.jsx"));
+const ActiveParking = lazy(() => import("./ActiveParking.jsx"));
+const Payment = lazy(() => import("./Payment.jsx"));
+const VehicleExit = lazy(() => import("./VehicleExit.jsx"));
+const FeeCalculation = lazy(() => import("./FeeCalculation.jsx"));
+const ReservationValidation = lazy(() => import("./ReservationValidation.jsx"));
+const StaffSlotAssignment = lazy(() => import("./StaffSlotAssignment.jsx"));
+const StaffParkingRecords = lazy(() => import("./StaffParkingRecords.jsx"));
+const StaffShiftReports = lazy(() => import("./StaffShiftReports.jsx"));
+const StaffNotifications = lazy(() => import("./StaffNotifications.jsx"));
+const StaffSupport = lazy(() => import("./StaffSupport.jsx"));
+
 const STAFF_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
+  { id: "vehicle-entry", label: "Vehicle Entry", icon: Car, isWorking: true },
+  { id: "slot-assignment", label: "Slot Assignment", icon: MapPin, isWorking: true },
+  { id: "active-parking", label: "Active Parking", icon: Car, isWorking: true },
+  { id: "vehicle-exit", label: "Vehicle Exit", icon: LogOutIcon, isWorking: true },
   { id: "fee-calculation", label: "Fee Calculation", icon: Calculator, isWorking: true },
-  { id: "vehicle-entry", label: "Vehicle Entry/Exit", icon: Car, isWorking: true },
-  { id: "reservation-validation", label: "Reservation Validation", icon: Calendar, isWorking: true },
-  { id: "slot-assignment", label: "Parking Slots", icon: MapPin, isWorking: true },
   { id: "payment", label: "Payment", icon: CreditCard, isWorking: true },
+  { id: "reservation-validation", label: "Reservation Validation", icon: Calendar, isWorking: true },
   { id: "parking-records", label: "Parking Records", icon: FileText, isWorking: true },
   { id: "reports", label: "Reports", icon: BarChart3, isWorking: true },
+  { id: "notifications", label: "Operational Notifications", icon: Bell, isWorking: true },
   { id: "support", label: "Support / Help", icon: HelpCircle, isWorking: true },
 ];
 
 export default function StaffDashboard({ setView }) {
   const navigate = useNavigate();
   const { tab } = useParams();
-  const [activeTab, setActiveTab] = useState(() => {
-    if (!tab || tab === "dashboard" || tab === "overview") return "dashboard";
-    return tab;
-  });
+
+  const normalizeTab = (rawTab) => {
+    if (!rawTab || rawTab === "dashboard" || rawTab === "overview") return "dashboard";
+    if (rawTab === "entry") return "vehicle-entry";
+    if (rawTab === "exit") return "vehicle-exit";
+    if (rawTab === "slots") return "slot-assignment";
+    if (rawTab === "records") return "parking-records";
+    return rawTab;
+  };
+
+  const [activeTab, setActiveTab] = useState(() => normalizeTab(tab));
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
   const [selectedVehicleForPayment, setSelectedVehicleForPayment] = useState(null);
@@ -49,15 +77,10 @@ export default function StaffDashboard({ setView }) {
 
   useEffect(() => {
     if (tab) {
-      if (tab === "dashboard" || tab === "overview") {
-        if (activeTab !== "dashboard") {
-          setActiveTab("dashboard");
-        }
-      } else {
-        const match = STAFF_SIDEBAR_ITEMS.find((item) => item.id === tab);
-        if (match && activeTab !== tab) {
-          setActiveTab(tab);
-        }
+      const normalized = normalizeTab(tab);
+      const match = STAFF_SIDEBAR_ITEMS.find((item) => item.id === normalized);
+      if (match && activeTab !== normalized) {
+        setActiveTab(normalized);
       }
     } else {
       navigate("/staff/dashboard/overview", { replace: true });
@@ -71,12 +94,13 @@ export default function StaffDashboard({ setView }) {
   }, [activeTab]);
 
   const handleTabChange = (itemId) => {
-    setActiveTab(itemId);
+    const target = normalizeTab(itemId);
+    setActiveTab(target);
     setIsMobileNavOpen(false);
-    if (itemId === "dashboard" || itemId === "overview") {
+    if (target === "dashboard") {
       navigate("/staff/dashboard/overview");
     } else {
-      navigate(`/staff/dashboard/${itemId}`);
+      navigate(`/staff/dashboard/${target}`);
     }
   };
 
@@ -163,31 +187,33 @@ export default function StaffDashboard({ setView }) {
   };
 
   const getPageTitle = () => {
-    if (activeTab === "fee-calculation") return "Calculate Parking Fee";
-    if (activeTab === "reservation-validation") return "Reservation Validation";
-    if (activeTab === "vehicle-entry") return "Vehicle Entry/Exit";
-    if (activeTab === "active-parking") return "Active Parking Operations";
-    if (activeTab === "payment") return "Process Parking Payment";
-    if (activeTab === "vehicle-exit") return "Vehicle Departure & Exit";
+    if (activeTab === "vehicle-entry") return "Vehicle Entry & Gate Check-in";
     if (activeTab === "slot-assignment") return "Live Parking Slots & Bay Assignment";
+    if (activeTab === "active-parking") return "Active Parking Operations";
+    if (activeTab === "vehicle-exit") return "Vehicle Departure & Exit";
+    if (activeTab === "fee-calculation") return "Calculate Parking Fee";
+    if (activeTab === "payment") return "Process Parking Payment";
+    if (activeTab === "reservation-validation") return "Reservation Validation";
     if (activeTab === "parking-records") return "Staff Parking Records & Check-in Ledger";
     if (activeTab === "reports") return "Duty Shift Reports & Cash Reconciliation";
+    if (activeTab === "notifications") return "Operational Notifications";
     if (activeTab === "support") return "Emergency Controls & Gate Support";
     return "Operator Console";
   };
 
   const getPageSubtitle = () => {
-    if (activeTab === "fee-calculation") return "Select vehicle details and plan to calculate the parking fee.";
-    if (activeTab === "reservation-validation") return "";
-    if (activeTab === "vehicle-entry") return "";
-    if (activeTab === "active-parking") return "Real-time management of parked vehicles and checkout initiation";
-    if (activeTab === "payment") return "Calculate tariffs, collect payments, and generate digital receipts";
-    if (activeTab === "vehicle-exit") return "Process vehicle departures, free up parking bays, and issue exit receipts";
-    if (activeTab === "slot-assignment") return "Live spatial bay oversight across all floors, status overrides, and walk-in allocation";
-    if (activeTab === "parking-records") return "Comprehensive audit ledger of all inbound and outbound vehicles during shift";
-    if (activeTab === "reports") return "Current shift cash drawer balance, digital payments settlement, and handover closure";
-    if (activeTab === "support") return "Manual barrier emergency override, security radio channels, and incident reporting";
-    return "Operator: Laiba Taj | Shift: Morning Duty | Gate: North Entry";
+    if (activeTab === "vehicle-entry") return "Register walk-in vehicles, scan barcodes, and allocate empty parking bays.";
+    if (activeTab === "slot-assignment") return "Live spatial bay oversight across all floors, status overrides, and walk-in allocation.";
+    if (activeTab === "active-parking") return "Real-time management of parked vehicles and checkout initiation.";
+    if (activeTab === "vehicle-exit") return "Process vehicle departures, free up parking bays, and issue exit passes.";
+    if (activeTab === "fee-calculation") return "Select vehicle details and plan to calculate the accurate parking fee.";
+    if (activeTab === "payment") return "Calculate tariffs, collect payments, and generate digital receipts.";
+    if (activeTab === "reservation-validation") return "Scan booking QR codes and validate customer reservation passes.";
+    if (activeTab === "parking-records") return "Comprehensive audit ledger of all inbound and outbound vehicles during shift.";
+    if (activeTab === "reports") return "Current shift cash drawer balance, digital payments settlement, and handover closure.";
+    if (activeTab === "notifications") return "Operational dispatch notices, gate entry alerts, and occupancy alerts.";
+    if (activeTab === "support") return "Manual barrier emergency override, security radio channels, and incident reporting.";
+    return `Operator: ${currentUser?.name || "Staff Operator"} | Gate: North Entry`;
   };
 
   return (
@@ -197,7 +223,7 @@ export default function StaffDashboard({ setView }) {
         onClick={() => setIsMobileNavOpen(false)}
       />
       <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
-        <div className="pw-sidebar-brand" onClick={() => setView("landing")}>
+        <div className="pw-sidebar-brand" onClick={() => (setView ? setView("landing") : navigate("/"))}>
           <div className="pw-brand-logo-box">
             <span className="pw-p-logo">P</span>
           </div>
@@ -271,9 +297,11 @@ export default function StaffDashboard({ setView }) {
             <NotificationBell userEmail={currentUser?.email || "staff@shnoor.com"} />
 
             <div className="pw-user-profile-pill">
-              <div className="pw-avatar-initials" style={{ background: "#0d9488", color: "#ffffff" }}>LT</div>
+              <div className="pw-avatar-initials" style={{ background: "#0d9488", color: "#ffffff" }}>
+                {currentUser?.name ? currentUser.name.slice(0, 2).toUpperCase() : "ST"}
+              </div>
               <div className="pw-user-profile-meta">
-                <span className="pw-user-profile-name">Laiba Taj</span>
+                <span className="pw-user-profile-name">{currentUser?.name || "Staff Operator"}</span>
                 <span className="pw-user-profile-role">Staff Operator</span>
               </div>
               <ChevronDown size={14} style={{ color: "#94a3b8", marginLeft: "2px" }} />
@@ -284,16 +312,26 @@ export default function StaffDashboard({ setView }) {
         <div className="pw-dashboard-body">
           <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{getPageTitle()}</h1>
-              {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
+              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>
+                {getPageTitle()}
+              </h1>
+              {getPageSubtitle() && (
+                <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>
+                  {getPageSubtitle()}
+                </p>
+              )}
             </div>
 
             {activeTab === "fee-calculation" && (
               <div className="pw-date-time-box" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <Calendar size={16} style={{ color: "#0d9488" }} />
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Tuesday, 2 Sep 2025</div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)" }}>10:24 AM</div>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>
+                    {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #94a3b8)" }}>
+                    {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
                 </div>
               </div>
             )}
@@ -306,86 +344,92 @@ export default function StaffDashboard({ setView }) {
             </div>
           )}
 
-          {activeTab === "dashboard" && (
-            <StaffOverview
-              metrics={metrics}
-              recentEntries={recentEntries}
-              setActiveTab={handleTabChange}
-              userEmail={currentUser?.email || "staff@shnoor.com"}
-            />
-          )}
+          <Suspense fallback={<div style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>Loading module...</div>}>
+            {activeTab === "dashboard" && (
+              <StaffOverview
+                metrics={metrics}
+                recentEntries={recentEntries}
+                setActiveTab={handleTabChange}
+                userEmail={currentUser?.email || "staff@shnoor.com"}
+              />
+            )}
 
-          {activeTab === "fee-calculation" && (
-            <FeeCalculation
-              onProceedToPayment={(calcData) => {
-                setSelectedVehicleForPayment(calcData);
-                handleTabChange("payment");
-              }}
-            />
-          )}
+            {activeTab === "vehicle-entry" && (
+              <VehicleEntry
+                onEntrySuccess={(entryData) => {
+                  setStatusActionMessage(`Vehicle ${entryData.plate} successfully checked into Bay ${entryData.slot}`);
+                  setTimeout(() => setStatusActionMessage(""), 4000);
+                }}
+              />
+            )}
 
-          {activeTab === "reservation-validation" && (
-            <ReservationValidation
-              onProceedToEntry={() => {
-                handleTabChange("vehicle-entry");
-              }}
-            />
-          )}
+            {activeTab === "slot-assignment" && (
+              <StaffSlotAssignment
+                onNavigateToEntry={handleNavigateToEntryWithSlot}
+              />
+            )}
 
-          {activeTab === "vehicle-entry" && (
-            <VehicleEntry
-              onEntrySuccess={(entryData) => {
-                setStatusActionMessage(`Vehicle ${entryData.plate} successfully checked into Bay ${entryData.slot}`);
-                setTimeout(() => setStatusActionMessage(""), 4000);
-              }}
-            />
-          )}
+            {activeTab === "active-parking" && (
+              <ActiveParking
+                onCheckout={(vehicle) => {
+                  handleSelectVehicleForPayment(vehicle);
+                }}
+              />
+            )}
 
-          {activeTab === "active-parking" && (
-            <ActiveParking
-              onCheckout={(vehicle) => {
-                handleSelectVehicleForPayment(vehicle);
-              }}
-            />
-          )}
+            {activeTab === "vehicle-exit" && (
+              <VehicleExit
+                onExitSuccess={(exitData) => {
+                  setStatusActionMessage(`Vehicle ${exitData.plate} cleared from Bay ${exitData.slot}`);
+                  setTimeout(() => setStatusActionMessage(""), 4000);
+                }}
+              />
+            )}
 
-          {activeTab === "payment" && (
-            <Payment
-              selectedVehicle={selectedVehicleForPayment}
-              onPaymentSuccess={() => {
-                setSelectedVehicleForPayment(null);
-                setStatusActionMessage("Payment successfully collected and digital pass issued.");
-                setTimeout(() => setStatusActionMessage(""), 4000);
-              }}
-            />
-          )}
+            {activeTab === "fee-calculation" && (
+              <FeeCalculation
+                onProceedToPayment={(calcData) => {
+                  setSelectedVehicleForPayment(calcData);
+                  handleTabChange("payment");
+                }}
+              />
+            )}
 
-          {activeTab === "vehicle-exit" && (
-            <VehicleExit
-              onExitSuccess={(exitData) => {
-                setStatusActionMessage(`Vehicle ${exitData.plate} cleared from Bay ${exitData.slot}`);
-                setTimeout(() => setStatusActionMessage(""), 4000);
-              }}
-            />
-          )}
+            {activeTab === "payment" && (
+              <Payment
+                selectedVehicle={selectedVehicleForPayment}
+                onPaymentSuccess={() => {
+                  setSelectedVehicleForPayment(null);
+                  setStatusActionMessage("Payment successfully collected and digital pass issued.");
+                  setTimeout(() => setStatusActionMessage(""), 4000);
+                }}
+              />
+            )}
 
-          {activeTab === "slot-assignment" && (
-            <StaffSlotAssignment
-              onNavigateToEntry={handleNavigateToEntryWithSlot}
-            />
-          )}
+            {activeTab === "reservation-validation" && (
+              <ReservationValidation
+                onProceedToEntry={() => {
+                  handleTabChange("vehicle-entry");
+                }}
+              />
+            )}
 
-          {activeTab === "parking-records" && (
-            <StaffParkingRecords />
-          )}
+            {activeTab === "parking-records" && (
+              <StaffParkingRecords />
+            )}
 
-          {activeTab === "reports" && (
-            <StaffShiftReports />
-          )}
+            {activeTab === "reports" && (
+              <StaffShiftReports />
+            )}
 
-          {activeTab === "support" && (
-            <StaffSupport />
-          )}
+            {activeTab === "notifications" && (
+              <StaffNotifications currentUser={currentUser} />
+            )}
+
+            {activeTab === "support" && (
+              <StaffSupport />
+            )}
+          </Suspense>
         </div>
       </div>
     </div>

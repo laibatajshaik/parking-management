@@ -164,6 +164,7 @@ export default function ShnoorParkingLanding({ setView }) {
             <button
               type="button"
               className="pw-mobile-toggle"
+              aria-label="Toggle navigation menu"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -208,7 +209,7 @@ export default function ShnoorParkingLanding({ setView }) {
                   <Search size={18} />
                 </div>
                 <div className="pw-pill-text-block">
-                  <h4 className="pw-pill-title">Find Parking</h4>
+                  <h2 className="pw-pill-title">Find Parking</h2>
                   <p className="pw-pill-desc">Search and discover nearby parking spots</p>
                 </div>
               </div>
@@ -218,7 +219,7 @@ export default function ShnoorParkingLanding({ setView }) {
                   <Calendar size={18} />
                 </div>
                 <div className="pw-pill-text-block">
-                  <h4 className="pw-pill-title">Book Instantly</h4>
+                  <h2 className="pw-pill-title">Book Instantly</h2>
                   <p className="pw-pill-desc">Reserve your spot in advance</p>
                 </div>
               </div>
@@ -228,7 +229,7 @@ export default function ShnoorParkingLanding({ setView }) {
                   <ShieldCheck size={18} />
                 </div>
                 <div className="pw-pill-text-block">
-                  <h4 className="pw-pill-title">Secure & Safe</h4>
+                  <h2 className="pw-pill-title">Secure & Safe</h2>
                   <p className="pw-pill-desc">Your vehicle is safe with us</p>
                 </div>
               </div>
@@ -399,8 +400,9 @@ export default function ShnoorParkingLanding({ setView }) {
                 <h3 className="pw-form-box-title">Send Us a Message</h3>
 
                 <div className="pw-form-field">
-                  <label className="pw-form-label">Your Name</label>
+                  <label htmlFor="contact-name" className="pw-form-label">Your Name</label>
                   <input
+                    id="contact-name"
                     type="text"
                     className="pw-form-input"
                     placeholder="Jane Doe"
@@ -411,8 +413,9 @@ export default function ShnoorParkingLanding({ setView }) {
                 </div>
 
                 <div className="pw-form-field">
-                  <label className="pw-form-label">Email Address</label>
+                  <label htmlFor="contact-email" className="pw-form-label">Email Address</label>
                   <input
+                    id="contact-email"
                     type="email"
                     className="pw-form-input"
                     placeholder="you@example.com"
@@ -423,8 +426,9 @@ export default function ShnoorParkingLanding({ setView }) {
                 </div>
 
                 <div className="pw-form-field">
-                  <label className="pw-form-label">Message</label>
+                  <label htmlFor="contact-message" className="pw-form-label">Message</label>
                   <textarea
+                    id="contact-message"
                     rows={4}
                     className="pw-form-input pw-textarea"
                     placeholder="How can we assist you?"
@@ -465,7 +469,7 @@ export default function ShnoorParkingLanding({ setView }) {
           </div>
 
           <div className="pw-footer-links-col">
-            <h4 className="pw-footer-heading">Navigation</h4>
+            <h3 className="pw-footer-heading">Navigation</h3>
             {NAV_LINKS.map((link) => (
               <button
                 key={link.label}
@@ -479,7 +483,7 @@ export default function ShnoorParkingLanding({ setView }) {
           </div>
 
           <div className="pw-footer-links-col">
-            <h4 className="pw-footer-heading">Access Portals</h4>
+            <h3 className="pw-footer-heading">Access Portals</h3>
             <button type="button" className="pw-footer-link" onClick={() => setView("login")}>
               Sign In to Portal
             </button>

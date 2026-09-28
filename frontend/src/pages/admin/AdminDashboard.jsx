@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   CreditCard,
   BarChart3,
+  Bell,
   Settings,
   HelpCircle,
   Search,
@@ -17,21 +18,23 @@ import {
   CheckCircle
 } from "lucide-react";
 import AdminOverview from "./AdminOverview.jsx";
-import ParkingOccupancy from "./ParkingOccupancy.jsx";
-import ParkingSlotManagement from "./ParkingSlotManagement.jsx";
-import VehicleManagement from "./VehicleManagement.jsx";
-import UserManagement from "./UserManagement.jsx";
-import ActiveParkingSessions from "./ActiveParkingSessions.jsx";
-import TodaysRevenue from "./TodaysRevenue.jsx";
-import ParkingRecords from "./ParkingRecords.jsx";
-import BookingsReservations from "./BookingsReservations.jsx";
-import PricingPlans from "./PricingPlans.jsx";
-import ParkingLocations from "./ParkingLocations.jsx";
-import ReportsAnalytics from "./ReportsAnalytics.jsx";
-import SystemSettings from "./SystemSettings.jsx";
-import SupportAuditLogs from "./SupportAuditLogs.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
+
+const ParkingOccupancy = lazy(() => import("./ParkingOccupancy.jsx"));
+const ParkingSlotManagement = lazy(() => import("./ParkingSlotManagement.jsx"));
+const VehicleManagement = lazy(() => import("./VehicleManagement.jsx"));
+const UserManagement = lazy(() => import("./UserManagement.jsx"));
+const ActiveParkingSessions = lazy(() => import("./ActiveParkingSessions.jsx"));
+const TodaysRevenue = lazy(() => import("./TodaysRevenue.jsx"));
+const ParkingRecords = lazy(() => import("./ParkingRecords.jsx"));
+const BookingsReservations = lazy(() => import("./BookingsReservations.jsx"));
+const PricingPlans = lazy(() => import("./PricingPlans.jsx"));
+const ParkingLocations = lazy(() => import("./ParkingLocations.jsx"));
+const ReportsAnalytics = lazy(() => import("./ReportsAnalytics.jsx"));
+const AdminNotifications = lazy(() => import("./AdminNotifications.jsx"));
+const SystemSettings = lazy(() => import("./SystemSettings.jsx"));
+const SupportAuditLogs = lazy(() => import("./SupportAuditLogs.jsx"));
 
 const ADMIN_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard, isWorking: true },
@@ -46,6 +49,7 @@ const ADMIN_SIDEBAR_ITEMS = [
   { id: "user-management", label: "User Management", icon: Users, isWorking: true },
   { id: "parking-locations", label: "Parking Locations", icon: MapPin, isWorking: true },
   { id: "reports-analytics", label: "Reports & Analytics", icon: BarChart3, isWorking: true },
+  { id: "notifications", label: "Notifications & Alerts", icon: Bell, isWorking: true },
   { id: "system-settings", label: "System Settings", icon: Settings, isWorking: true },
   { id: "support-logs", label: "Support & Audit Logs", icon: HelpCircle, isWorking: true },
 ];
@@ -108,10 +112,26 @@ const INITIAL_RECENT_BOOKINGS = [
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
   const { tab } = useParams();
-  const [activeTab, setActiveTab] = useState(() => {
-    if (!tab || tab === "dashboard" || tab === "overview") return "dashboard";
-    return tab;
-  });
+
+  const normalizeTab = (rawTab) => {
+    if (!rawTab || rawTab === "dashboard" || rawTab === "overview") return "dashboard";
+    if (rawTab === "bookings") return "bookings-reservations";
+    if (rawTab === "plans") return "pricing-plans";
+    if (rawTab === "records") return "parking-records";
+    if (rawTab === "active-parking") return "active-parking-sessions";
+    if (rawTab === "revenue") return "payments-revenue";
+    if (rawTab === "occupancy") return "parking-occupancy";
+    if (rawTab === "slots") return "slot-management";
+    if (rawTab === "vehicles") return "vehicle-management";
+    if (rawTab === "users") return "user-management";
+    if (rawTab === "locations") return "parking-locations";
+    if (rawTab === "reports") return "reports-analytics";
+    if (rawTab === "settings") return "system-settings";
+    if (rawTab === "logs") return "support-logs";
+    return rawTab;
+  };
+
+  const [activeTab, setActiveTab] = useState(() => normalizeTab(tab));
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [statusActionMessage, setStatusActionMessage] = useState("");
   const [currentUser, setCurrentUser] = useState(() => {
@@ -125,15 +145,10 @@ export default function AdminDashboard({ setView }) {
 
   useEffect(() => {
     if (tab) {
-      if (tab === "dashboard" || tab === "overview") {
-        if (activeTab !== "dashboard") {
-          setActiveTab("dashboard");
-        }
-      } else {
-        const match = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === tab);
-        if (match && activeTab !== tab) {
-          setActiveTab(tab);
-        }
+      const normalized = normalizeTab(tab);
+      const match = ADMIN_SIDEBAR_ITEMS.find((item) => item.id === normalized);
+      if (match && activeTab !== normalized) {
+        setActiveTab(normalized);
       }
     } else {
       navigate("/admin/dashboard/overview", { replace: true });
@@ -147,12 +162,13 @@ export default function AdminDashboard({ setView }) {
   }, [activeTab]);
 
   const handleTabChange = (itemId) => {
-    setActiveTab(itemId);
+    const target = normalizeTab(itemId);
+    setActiveTab(target);
     setIsMobileNavOpen(false);
-    if (itemId === "dashboard" || itemId === "overview") {
+    if (target === "dashboard") {
       navigate("/admin/dashboard/overview");
     } else {
-      navigate(`/admin/dashboard/${itemId}`);
+      navigate(`/admin/dashboard/${target}`);
     }
   };
 
@@ -263,9 +279,10 @@ export default function AdminDashboard({ setView }) {
       }
       return;
     }
-    fetchDashboardData();
+
     fetchUsers();
     fetchVehicles();
+    fetchDashboardData();
   }, [navigate, setView]);
 
   const handleSignOut = () => {
@@ -282,73 +299,89 @@ export default function AdminDashboard({ setView }) {
     }
   };
 
-  const handleSlotStatusChange = async (slotNumber, newStatus) => {
-    try {
-      await fetch(`${API_BASE_URL}/api/parking-slots/${slotNumber}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
-      });
-      setSlots((prev) =>
-        prev.map((s) => (s.slot_number === slotNumber ? { ...s, status: newStatus, is_available: newStatus === "available" } : s))
-      );
-      setStatusActionMessage(`Slot ${slotNumber} status set to ${newStatus.toUpperCase()}`);
-      setTimeout(() => setStatusActionMessage(""), 3500);
-    } catch {
-      setSlots((prev) =>
-        prev.map((s) => (s.slot_number === slotNumber ? { ...s, status: newStatus, is_available: newStatus === "available" } : s))
-      );
-      setStatusActionMessage(`Slot ${slotNumber} status set to ${newStatus.toUpperCase()}`);
-      setTimeout(() => setStatusActionMessage(""), 3500);
+  const getSlotState = (slot) => {
+    if (!slot.is_available) {
+      if (slot.status === "reserved") return "reserved";
+      return "occupied";
     }
-  };
-
-  const getSlotState = (bay) => {
-    const raw = (bay.status || "").toLowerCase();
-    if (raw === "reserved") return "reserved";
-    if (raw === "occupied" || bay.is_available === false) return "occupied";
     return "available";
   };
 
-  const formatDate = formatExactDateTime;
-
-  const getPageTitle = () => {
-    if (activeTab === "pricing-plans") return "Pricing & Plans Management";
-    if (activeTab === "bookings-reservations") return "Bookings & Reservations";
-    if (activeTab === "parking-records") return "Parking Records & History";
-    if (activeTab === "active-parking-sessions") return "Active Parking Sessions";
-    if (activeTab === "payments-revenue") return "Today's Revenue & Payments";
-    if (activeTab === "parking-occupancy") return "Parking Occupancy";
-    if (activeTab === "slot-management") return "Slot Management";
-    if (activeTab === "vehicle-management") return "Vehicle Management";
-    if (activeTab === "user-management") return "User Management";
-    if (activeTab === "parking-locations") return "Parking Locations & Branches";
-    if (activeTab === "reports-analytics") return "Reports & Business Intelligence";
-    if (activeTab === "system-settings") return "System Settings & Configuration";
-    if (activeTab === "support-logs") return "Support Tickets & Security Audit Logs";
-    return "Dashboard Overview";
-  };
-
-  const getPageSubtitle = () => {
-    if (activeTab === "pricing-plans") return "";
-    if (activeTab === "bookings-reservations") return "Comprehensive schedule of all reserved parking slots, advance customer bookings, and gate check-ins";
-    if (activeTab === "parking-records") return "Comprehensive audit trail of all active and historical parking sessions";
-    if (activeTab === "active-parking-sessions") return "Real-time oversight of all currently parked vehicles in the facility";
-    if (activeTab === "payments-revenue") return "Live revenue breakdown and parking payment transactions collected today";
-    if (activeTab === "parking-occupancy") return "Live spatial slot management: Available (Green), Occupied (Red), Reserved (Blue)";
-    if (activeTab === "slot-management") return "";
-    if (activeTab === "vehicle-management") return "";
-    if (activeTab === "user-management") return "";
-    if (activeTab === "parking-locations") return "Configure physical parking facilities, branches, total bays, and site staff allocation";
-    if (activeTab === "reports-analytics") return "Financial metrics, peak-hour turnover heatmaps, and payment channel reconciliation";
-    if (activeTab === "system-settings") return "Operational parameters, GST compliance, IoT RFID gate barriers, and database management";
-    if (activeTab === "support-logs") return "Resolve customer assistance inquiries and monitor administrative audit trails";
-    return "Welcome back, Taj. Here is what's happening today.";
+  const handleSlotStatusChange = (slotId, newStatus) => {
+    const isAvail = newStatus === "available";
+    fetch(`${API_BASE_URL}/api/admin/slots/${slotId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: newStatus,
+        is_available: isAvail
+      })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setSlots((prev) =>
+            prev.map((s) =>
+              s.id === slotId ? { ...s, status: newStatus, is_available: isAvail } : s
+            )
+          );
+          setStatusActionMessage(`Slot ${data.slot?.slot_number || slotId} status updated to ${newStatus}.`);
+          setTimeout(() => setStatusActionMessage(""), 4000);
+        }
+      })
+      .catch(() => {});
   };
 
   const availableCount = slots.filter((s) => getSlotState(s) === "available").length;
   const occupiedCount = slots.filter((s) => getSlotState(s) === "occupied").length;
   const reservedCount = slots.filter((s) => getSlotState(s) === "reserved").length;
+
+  const formatDate = (isoStr) => {
+    if (!isoStr) return "Just now";
+    try {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return isoStr;
+      return d.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return isoStr;
+    }
+  };
+
+  const getPageTitle = () => {
+    if (activeTab === "bookings-reservations") return "Bookings & Reservations";
+    if (activeTab === "pricing-plans") return "Tariff Configuration & Pricing Plans";
+    if (activeTab === "parking-records") return "System Parking Records & Audit Ledger";
+    if (activeTab === "active-parking-sessions") return "Active Parking Sessions";
+    if (activeTab === "payments-revenue") return "Financial Analytics & Daily Revenue";
+    if (activeTab === "parking-occupancy") return "Live Parking Occupancy Matrix";
+    if (activeTab === "slot-management") return "Spatial Bay & Zone Management";
+    if (activeTab === "vehicle-management") return "Registered Vehicle Database";
+    if (activeTab === "user-management") return "User & Personnel Management";
+    if (activeTab === "parking-locations") return "Multi-Location Parking Garages";
+    if (activeTab === "reports-analytics") return "Enterprise Reports & Business Analytics";
+    if (activeTab === "notifications") return "Notifications & Alerts";
+    if (activeTab === "system-settings") return "Global Platform Configuration";
+    if (activeTab === "support-logs") return "System Health & Security Audit Logs";
+    return "Management Dashboard";
+  };
+
+  const getPageSubtitle = () => {
+    if (activeTab === "bookings-reservations") return "Live reservation pipeline, pre-paid passes, and arrival schedules.";
+    if (activeTab === "pricing-plans") return "Configure hourly rates, special event tiers, and subscription packages.";
+    if (activeTab === "parking-records") return "Historical log of all completed, active, and cancelled vehicle visits.";
+    if (activeTab === "active-parking-sessions") return "Live real-time inventory of all currently occupied parking bays.";
+    if (activeTab === "payments-revenue") return "Real-time fee collection, UPI/Card settlements, and revenue projections.";
+    if (activeTab === "parking-occupancy") return "Bay-by-bay status monitor across all floors, zones, and facilities.";
+    if (activeTab === "slot-management") return "Create new parking slots, assign RFID sensors, and update maintenance states.";
+    if (activeTab === "vehicle-management") return "Track registered license plates, vehicle classifications, and fast pass tags.";
+    if (activeTab === "user-management") return "Manage administrator credentials, operator shift access, and customer accounts.";
+    if (activeTab === "parking-locations") return "Oversee multi-site parking facilities, geo-coordinates, and operational hours.";
+    if (activeTab === "reports-analytics") return "Data visualisations, peak hour analysis, and exportable financial reports.";
+    if (activeTab === "notifications") return "System-wide alert history, revenue milestones, and administrative notifications.";
+    if (activeTab === "system-settings") return "Database connectivity, IoT hardware gates, and platform security flags.";
+    if (activeTab === "support-logs") return "Immutable operational logs, system diagnostics, and emergency dispatch trails.";
+    return "Live operations overview, facility occupancy, and real-time revenue stats.";
+  };
 
   return (
     <div className="pw-dashboard-app">
@@ -357,13 +390,14 @@ export default function AdminDashboard({ setView }) {
         onClick={() => setIsMobileNavOpen(false)}
       />
       <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
-        <div className="pw-sidebar-brand" onClick={() => setView("landing")}>
+        <div className="pw-sidebar-brand" onClick={() => (setView ? setView("landing") : navigate("/"))}>
           <div className="pw-brand-logo-box">
             <span className="pw-p-logo">P</span>
           </div>
-          <span className="pw-brand-word text-white">
-            Park<span>Safe</span>
-          </span>
+          <div>
+            <span className="pw-brand-word text-white" style={{ fontSize: "1.1rem" }}>ParkSafe</span>
+            <div style={{ fontSize: "0.64rem", color: "#94a3b8", marginTop: "-2px" }}>Smart Parking. Smarter You.</div>
+          </div>
         </div>
 
         <div className="pw-sidebar-menu">
@@ -389,7 +423,7 @@ export default function AdminDashboard({ setView }) {
           })}
         </div>
 
-        <div className="pw-sidebar-footer">
+        <div className="pw-sidebar-footer" style={{ marginTop: "auto" }}>
           <button
             type="button"
             className="pw-sidebar-logout-btn"
@@ -419,7 +453,7 @@ export default function AdminDashboard({ setView }) {
               <Search size={14} className="pw-search-icon" />
               <input
                 type="text"
-                placeholder="Search anything..."
+                placeholder="Search slot, plate number, user..."
                 className="pw-search-input"
               />
             </div>
@@ -430,9 +464,9 @@ export default function AdminDashboard({ setView }) {
             <NotificationBell userEmail={currentUser?.email || "admin@shnoor.com"} />
 
             <div className="pw-user-profile-pill">
-              <div className="pw-avatar-initials">T</div>
+              <div className="pw-avatar-initials">AD</div>
               <div className="pw-user-profile-meta">
-                <span className="pw-user-profile-name">Taj</span>
+                <span className="pw-user-profile-name">{currentUser?.name || "System Admin"}</span>
                 <span className="pw-user-profile-role">Super Admin</span>
               </div>
             </div>
@@ -440,118 +474,134 @@ export default function AdminDashboard({ setView }) {
         </header>
 
         <div className="pw-dashboard-body">
-          <div className="pw-dashboard-title-row">
+          <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h1 className="pw-page-title">{getPageTitle()}</h1>
-              {getPageSubtitle() && <p className="pw-page-subtitle">{getPageSubtitle()}</p>}
+              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>
+                {getPageTitle()}
+              </h1>
+              {getPageSubtitle() && (
+                <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>
+                  {getPageSubtitle()}
+                </p>
+              )}
             </div>
           </div>
 
           {statusActionMessage && (
-            <div className="pw-user-action-alert">
+            <div className="pw-user-action-alert" style={{ background: "var(--bg-teal-sub, #f0fdf4)", border: "1px solid var(--border-color, #bbf7d0)", color: "#16a34a", padding: "10px 16px", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
               <CheckCircle size={16} />
               <span>{statusActionMessage}</span>
             </div>
           )}
 
-          {activeTab === "dashboard" && (
-            <AdminOverview
-              metrics={metrics}
-              recentBookings={recentBookings}
-              setActiveTab={handleTabChange}
-              userEmail={currentUser?.email || "admin@shnoor.com"}
-            />
-          )}
+          <Suspense fallback={<div style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>Loading module...</div>}>
+            {activeTab === "dashboard" && (
+              <AdminOverview
+                metrics={metrics}
+                recentBookings={recentBookings}
+                slots={slots}
+                getSlotState={getSlotState}
+                availableCount={availableCount}
+                occupiedCount={occupiedCount}
+                reservedCount={reservedCount}
+                setActiveTab={handleTabChange}
+              />
+            )}
 
-          {activeTab === "bookings-reservations" && (
-            <BookingsReservations
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "bookings-reservations" && (
+              <BookingsReservations
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "pricing-plans" && (
-            <PricingPlans
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "pricing-plans" && (
+              <PricingPlans
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "parking-records" && (
-            <ParkingRecords
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "parking-records" && (
+              <ParkingRecords
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "active-parking-sessions" && (
-            <ActiveParkingSessions
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "active-parking-sessions" && (
+              <ActiveParkingSessions
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "payments-revenue" && (
-            <TodaysRevenue
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "payments-revenue" && (
+              <TodaysRevenue
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "parking-occupancy" && (
-            <ParkingOccupancy
-              slots={slots}
-              getSlotState={getSlotState}
-              handleSlotStatusChange={handleSlotStatusChange}
-              availableCount={availableCount}
-              occupiedCount={occupiedCount}
-              reservedCount={reservedCount}
-            />
-          )}
+            {activeTab === "parking-occupancy" && (
+              <ParkingOccupancy
+                slots={slots}
+                getSlotState={getSlotState}
+                handleSlotStatusChange={handleSlotStatusChange}
+                availableCount={availableCount}
+                occupiedCount={occupiedCount}
+                reservedCount={reservedCount}
+              />
+            )}
 
-          {activeTab === "slot-management" && (
-            <ParkingSlotManagement
-              slots={slots}
-              getSlotState={getSlotState}
-              fetchDashboardData={fetchDashboardData}
-              setStatusActionMessage={setStatusActionMessage}
-              handleSlotStatusChange={handleSlotStatusChange}
-              availableCount={availableCount}
-              occupiedCount={occupiedCount}
-              reservedCount={reservedCount}
-            />
-          )}
+            {activeTab === "slot-management" && (
+              <ParkingSlotManagement
+                slots={slots}
+                getSlotState={getSlotState}
+                fetchDashboardData={fetchDashboardData}
+                setStatusActionMessage={setStatusActionMessage}
+                handleSlotStatusChange={handleSlotStatusChange}
+                availableCount={availableCount}
+                occupiedCount={occupiedCount}
+                reservedCount={reservedCount}
+              />
+            )}
 
-          {activeTab === "vehicle-management" && (
-            <VehicleManagement
-              vehiclesList={vehiclesList}
-              slots={slots}
-              fetchVehicles={fetchVehicles}
-              formatDate={formatDate}
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "vehicle-management" && (
+              <VehicleManagement
+                vehiclesList={vehiclesList}
+                slots={slots}
+                fetchVehicles={fetchVehicles}
+                formatDate={formatDate}
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "user-management" && (
-            <UserManagement
-              usersList={usersList}
-              setUsersList={setUsersList}
-              fetchUsers={fetchUsers}
-              formatDate={formatDate}
-              setStatusActionMessage={setStatusActionMessage}
-            />
-          )}
+            {activeTab === "user-management" && (
+              <UserManagement
+                usersList={usersList}
+                setUsersList={setUsersList}
+                fetchUsers={fetchUsers}
+                formatDate={formatDate}
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
 
-          {activeTab === "parking-locations" && (
-            <ParkingLocations />
-          )}
+            {activeTab === "parking-locations" && (
+              <ParkingLocations />
+            )}
 
-          {activeTab === "reports-analytics" && (
-            <ReportsAnalytics />
-          )}
+            {activeTab === "reports-analytics" && (
+              <ReportsAnalytics />
+            )}
 
-          {activeTab === "system-settings" && (
-            <SystemSettings />
-          )}
+            {activeTab === "notifications" && (
+              <AdminNotifications currentUser={currentUser} />
+            )}
 
-          {activeTab === "support-logs" && (
-            <SupportAuditLogs />
-          )}
+            {activeTab === "system-settings" && (
+              <SystemSettings />
+            )}
+
+            {activeTab === "support-logs" && (
+              <SupportAuditLogs />
+            )}
+          </Suspense>
         </div>
       </div>
     </div>

@@ -1,26 +1,49 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { LayoutDashboard, BookmarkCheck, FileText, CreditCard, Car, Tag, User, HelpCircle, LogOut, Menu, Search, MapPin, ChevronDown, Crown } from "lucide-react";
+import {
+  LayoutDashboard,
+  MapPin,
+  BookmarkCheck,
+  FileText,
+  CreditCard,
+  Receipt,
+  Bell,
+  Car,
+  Tag,
+  User,
+  HelpCircle,
+  LogOut,
+  Menu,
+  Search,
+  ChevronDown,
+  Crown
+} from "lucide-react";
 import CustomerOverview from "./CustomerOverview.jsx";
-import MyParking from "./MyParking.jsx";
-import Payments from "./Payments.jsx";
-import DigitalReceipt from "./DigitalReceipt.jsx";
-import ParkingHistory from "./ParkingHistory.jsx";
-import ReserveParking from "./ReserveParking.jsx";
-import CustomerParkingPlans from "./CustomerParkingPlans.jsx";
-import CustomerProfile from "./CustomerProfile.jsx";
-import CustomerSupport from "./CustomerSupport.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
 import { API_BASE_URL } from "../../config/api.js";
 
+const MyParking = lazy(() => import("./MyParking.jsx"));
+const Payments = lazy(() => import("./Payments.jsx"));
+const DigitalReceipt = lazy(() => import("./DigitalReceipt.jsx"));
+const CustomerNotifications = lazy(() => import("./CustomerNotifications.jsx"));
+const ParkingHistory = lazy(() => import("./ParkingHistory.jsx"));
+const ReserveParking = lazy(() => import("./ReserveParking.jsx"));
+const CustomerParkingPlans = lazy(() => import("./CustomerParkingPlans.jsx"));
+const CustomerProfile = lazy(() => import("./CustomerProfile.jsx"));
+const CustomerSupport = lazy(() => import("./CustomerSupport.jsx"));
+
 const CUSTOMER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
+  { id: "find-parking", label: "Find Parking", icon: MapPin, isWorking: true },
   { id: "reserve-parking", label: "Reserve Parking", icon: BookmarkCheck, isWorking: true },
+  { id: "my-parking", label: "My Parking", icon: Car, isWorking: true },
+  { id: "parking-history", label: "Parking History", icon: FileText, isWorking: true },
+  { id: "payments", label: "Payments", icon: CreditCard, isWorking: true },
+  { id: "digital-receipts", label: "Digital Receipts", icon: Receipt, isWorking: true },
+  { id: "notifications", label: "Notifications & Alerts", icon: Bell, isWorking: true },
   { id: "parking-plans", label: "Parking Plans", icon: Tag, isWorking: true },
-  { id: "parking-history", label: "My Bookings", icon: FileText, isWorking: true },
-  { id: "payments", label: "Payment History", icon: CreditCard, isWorking: true },
-  { id: "my-parking", label: "My Vehicles", icon: Car, isWorking: true },
+  { id: "vehicles", label: "My Vehicles", icon: Car, isWorking: true },
   { id: "profile", label: "Profile", icon: User, isWorking: true },
   { id: "support", label: "Support / Help", icon: HelpCircle, isWorking: true },
 ];
@@ -28,25 +51,25 @@ const CUSTOMER_SIDEBAR_ITEMS = [
 export default function CustomerDashboard({ setView }) {
   const navigate = useNavigate();
   const { tab } = useParams();
-  const [activeTab, setActiveTab] = useState(() => {
-    if (!tab || tab === "dashboard" || tab === "overview") return "dashboard";
-    return tab;
-  });
+
+  const normalizeTab = (rawTab) => {
+    if (!rawTab || rawTab === "dashboard" || rawTab === "overview") return "dashboard";
+    if (rawTab === "plans") return "parking-plans";
+    if (rawTab === "receipts") return "digital-receipts";
+    return rawTab;
+  };
+
+  const [activeTab, setActiveTab] = useState(() => normalizeTab(tab));
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
   const [selectedPlanForReserve, setSelectedPlanForReserve] = useState(null);
 
   useEffect(() => {
     if (tab) {
-      if (tab === "dashboard" || tab === "overview") {
-        if (activeTab !== "dashboard") {
-          setActiveTab("dashboard");
-        }
-      } else {
-        const match = CUSTOMER_SIDEBAR_ITEMS.find((item) => item.id === tab);
-        if (match && activeTab !== tab) {
-          setActiveTab(tab);
-        }
+      const normalized = normalizeTab(tab);
+      const match = CUSTOMER_SIDEBAR_ITEMS.find((item) => item.id === normalized);
+      if (match && activeTab !== normalized) {
+        setActiveTab(normalized);
       }
     } else {
       navigate("/customer/dashboard/overview", { replace: true });
@@ -60,12 +83,13 @@ export default function CustomerDashboard({ setView }) {
   }, [activeTab]);
 
   const handleTabChange = (itemId) => {
-    setActiveTab(itemId);
+    const target = normalizeTab(itemId);
+    setActiveTab(target);
     setIsMobileNavOpen(false);
-    if (itemId === "dashboard" || itemId === "overview") {
+    if (target === "dashboard") {
       navigate("/customer/dashboard/overview");
     } else {
-      navigate(`/customer/dashboard/${itemId}`);
+      navigate(`/customer/dashboard/${target}`);
     }
   };
 
@@ -156,10 +180,11 @@ export default function CustomerDashboard({ setView }) {
           vehicle: info.vehicle
         })
       }).catch(() => {});
-    } catch (err) { void err; }
+    } catch {
+      void 0;
+    }
   };
 
-  
   const [recentParkings] = useState([
     { id: 1, location: "Downtown Plaza", slot: "A-04", date: "May 27, 2026", duration: "2 hrs 15 mins", amount: "₹150.00", status: "Completed", plate: "KA01 AB 1234" },
     { id: 2, location: "City Mall Parking", slot: "B-12", date: "May 22, 2026", duration: "1 hr 30 mins", amount: "₹100.00", status: "Completed", plate: "KA01 AB 1234" },
@@ -169,7 +194,9 @@ export default function CustomerDashboard({ setView }) {
   const handleSignOut = () => {
     try {
       localStorage.removeItem("shnoor_current_user");
-    } catch (err) { void err; }
+    } catch {
+      void 0;
+    }
     if (setView) {
       setView("landing");
     } else {
@@ -195,27 +222,33 @@ export default function CustomerDashboard({ setView }) {
   };
 
   const getPageTitle = () => {
+    if (activeTab === "find-parking") return "Find Parking & Live Bays";
     if (activeTab === "reserve-parking") return "Find & Reserve Parking";
     if (activeTab === "parking-plans") return "Parking Plans & Pricing";
     if (activeTab === "my-parking") return "My Active Parking";
     if (activeTab === "parking-history") return "My Bookings & History";
     if (activeTab === "payments") return "Payment History";
-    if (activeTab === "digital-receipts") return "Digital Receipts";
+    if (activeTab === "digital-receipts") return "Digital Receipts & Slips";
+    if (activeTab === "notifications") return "Notifications & Alerts";
+    if (activeTab === "vehicles") return "My Registered Vehicles";
     if (activeTab === "profile") return "Customer Profile & Garage";
     if (activeTab === "support") return "Customer Support & FAQ";
     return "Customer Portal";
   };
 
   const getPageSubtitle = () => {
+    if (activeTab === "find-parking") return "Explore available parking bays, real-time occupancy, and rates across our garages.";
     if (activeTab === "reserve-parking") return "Choose any configured parking plan, select date & time, and book your parking slot.";
     if (activeTab === "parking-plans") return "Explore all official vehicle parking tariffs, hourly rates, daily passes, and VIP tiers configured by management.";
-    if (activeTab === "my-parking") return "Live session duration, bay location, and tariff accumulator";
-    if (activeTab === "parking-history") return "Review all your past and active parking visits and download travel receipts";
-    if (activeTab === "payments") return "Complete record of all parking payments and transactions";
-    if (activeTab === "digital-receipts") return "Official verified digital passes and tax invoices";
-    if (activeTab === "profile") return "Manage account credentials, registered vehicles, Fastag RFID tags, and notification settings";
-    if (activeTab === "support") return "24/7 dedicated customer assistance, searchable help guide, and ticket dispatch";
-    return isPremiumActive ? `Welcome, ${currentUser.name || "Customer"}. Enjoy your active Premium VIP privileges.` : `Welcome, ${currentUser.name || "Customer"}. Manage your vehicle passes and parking spots.`;
+    if (activeTab === "my-parking") return "Live session duration, bay location, and tariff accumulator.";
+    if (activeTab === "parking-history") return "Review all your past and active parking visits and download travel receipts.";
+    if (activeTab === "payments") return "Complete record of all parking payments and transactions.";
+    if (activeTab === "digital-receipts") return "Official verified digital passes and tax invoices.";
+    if (activeTab === "notifications") return "Personalized notifications, booking updates, and billing confirmations.";
+    if (activeTab === "vehicles") return "Manage your personal vehicles, license plates, Fastag RFID tags, and vehicle categories.";
+    if (activeTab === "profile") return "Manage account credentials, registered vehicles, Fastag RFID tags, and notification settings.";
+    if (activeTab === "support") return "24/7 dedicated customer assistance, searchable help guide, and ticket dispatch.";
+    return isPremiumActive ? `Welcome, ${currentUser?.name || "Customer"}. Enjoy your active Premium VIP privileges.` : `Welcome, ${currentUser?.name || "Customer"}. Manage your vehicle passes and parking spots.`;
   };
 
   return (
@@ -225,7 +258,7 @@ export default function CustomerDashboard({ setView }) {
         onClick={() => setIsMobileNavOpen(false)}
       />
       <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
-        <div className="pw-sidebar-brand" onClick={() => setView("landing")}>
+        <div className="pw-sidebar-brand" onClick={() => (setView ? setView("landing") : navigate("/"))}>
           <div className="pw-brand-logo-box" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488", borderRadius: "10px" }}>
             <span className="pw-p-logo" style={{ color: "#ffffff", fontWeight: 800 }}>P</span>
           </div>
@@ -312,11 +345,11 @@ export default function CustomerDashboard({ setView }) {
 
             <div className="pw-user-profile-pill">
               <div className="pw-avatar-initials" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488", color: "#ffffff" }}>
-                {isPremiumActive ? <Crown size={15} /> : getUserInitials(currentUser.name)}
+                {isPremiumActive ? <Crown size={15} /> : getUserInitials(currentUser?.name)}
               </div>
               <div className="pw-user-profile-meta">
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span className="pw-user-profile-name">{currentUser.name || "Customer"}</span>
+                  <span className="pw-user-profile-name">{currentUser?.name || "Customer"}</span>
                   {isPremiumActive && (
                     <span className="pw-badge-crown" style={{ background: "#F5E7C3", color: "#9A6B18", border: "1px solid #C99A2E", fontSize: "0.62rem", fontWeight: 800, padding: "1px 5px", borderRadius: "4px" }}>
                       VIP
@@ -335,11 +368,17 @@ export default function CustomerDashboard({ setView }) {
         <div className="pw-dashboard-body">
           <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: isPremiumActive ? "#facc15" : "var(--text-primary, #0f172a)" }}>{getPageTitle()}</h1>
-              {getPageSubtitle() && <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>{getPageSubtitle()}</p>}
+              <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: isPremiumActive ? "#facc15" : "var(--text-primary, #0f172a)" }}>
+                {getPageTitle()}
+              </h1>
+              {getPageSubtitle() && (
+                <p className="pw-page-subtitle" style={{ color: "var(--text-secondary, #94a3b8)", marginTop: "2px", fontSize: "0.85rem" }}>
+                  {getPageSubtitle()}
+                </p>
+              )}
             </div>
 
-            {activeTab === "reserve-parking" && (
+            {(activeTab === "reserve-parking" || activeTab === "find-parking") && (
               <div className="pw-top-location-badge" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <MapPin size={16} style={{ color: isPremiumActive ? "#C99A2E" : "#0d9488" }} />
                 <div>
@@ -350,80 +389,93 @@ export default function CustomerDashboard({ setView }) {
             )}
           </div>
 
-          {activeTab === "dashboard" && (
-            <CustomerOverview
-              currentUser={currentUser}
-              recentParkings={recentParkings}
-              setActiveTab={handleTabChange}
-              isPremiumActive={isPremiumActive}
-              premiumPlanInfo={premiumPlanInfo}
-            />
-          )}
+          <Suspense fallback={<div style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>Loading module...</div>}>
+            {activeTab === "dashboard" && (
+              <CustomerOverview
+                currentUser={currentUser}
+                recentParkings={recentParkings}
+                setActiveTab={handleTabChange}
+                isPremiumActive={isPremiumActive}
+                premiumPlanInfo={premiumPlanInfo}
+              />
+            )}
 
-          {activeTab === "reserve-parking" && (
-            <ReserveParking
-              loggedInUser={currentUser}
-              onNavigate={(tab) => handleTabChange(tab)}
-              isPremiumActive={isPremiumActive}
-              premiumPlanInfo={premiumPlanInfo}
-              onActivatePremium={handleActivatePremium}
-              preselectedPlan={selectedPlanForReserve}
-            />
-          )}
+            {(activeTab === "reserve-parking" || activeTab === "find-parking") && (
+              <ReserveParking
+                loggedInUser={currentUser}
+                onNavigate={(t) => handleTabChange(t)}
+                isPremiumActive={isPremiumActive}
+                premiumPlanInfo={premiumPlanInfo}
+                onActivatePremium={handleActivatePremium}
+                preselectedPlan={selectedPlanForReserve}
+              />
+            )}
 
-          {activeTab === "parking-plans" && (
-            <CustomerParkingPlans
-              loggedInUser={currentUser}
-              isPremiumActive={isPremiumActive}
-              onSelectPlanAndReserve={handleSelectPlanAndReserve}
-            />
-          )}
+            {activeTab === "parking-plans" && (
+              <CustomerParkingPlans
+                loggedInUser={currentUser}
+                isPremiumActive={isPremiumActive}
+                onSelectPlanAndReserve={handleSelectPlanAndReserve}
+              />
+            )}
 
-          {activeTab === "my-parking" && (
-            <MyParking
-              loggedInUser={currentUser}
-              onNavigate={(tab) => handleTabChange(tab)}
-              isPremiumActive={isPremiumActive}
-              premiumPlanInfo={premiumPlanInfo}
-            />
-          )}
+            {(activeTab === "my-parking" || activeTab === "vehicles") && (
+              <MyParking
+                loggedInUser={currentUser}
+                onNavigate={(t) => handleTabChange(t)}
+                isPremiumActive={isPremiumActive}
+                premiumPlanInfo={premiumPlanInfo}
+              />
+            )}
 
-          {activeTab === "parking-history" && (
-            <ParkingHistory
-              onNavigate={(tab) => handleTabChange(tab)}
-              isPremiumActive={isPremiumActive}
-            />
-          )}
+            {activeTab === "parking-history" && (
+              <ParkingHistory
+                onNavigate={(t) => handleTabChange(t)}
+                isPremiumActive={isPremiumActive}
+              />
+            )}
 
-          {activeTab === "payments" && (
-            <Payments
-              onViewReceipt={handleViewReceipt}
-              isPremiumActive={isPremiumActive}
-            />
-          )}
+            {activeTab === "payments" && (
+              <Payments
+                loggedInUser={currentUser}
+                onViewReceipt={handleViewReceipt}
+                isPremiumActive={isPremiumActive}
+              />
+            )}
 
-          {activeTab === "digital-receipts" && (
-            <DigitalReceipt
-              receiptData={selectedReceiptForView}
-              isPremiumActive={isPremiumActive}
-            />
-          )}
+            {activeTab === "digital-receipts" && (
+              <DigitalReceipt
+                receiptData={selectedReceiptForView}
+                currentUser={currentUser}
+                loggedInUser={currentUser}
+                onNavigate={handleTabChange}
+                isPremiumActive={isPremiumActive}
+              />
+            )}
 
-          {activeTab === "profile" && (
-            <CustomerProfile
-              currentUser={currentUser}
-              isPremiumActive={isPremiumActive}
-              premiumPlanInfo={premiumPlanInfo}
-              onNavigateToPlans={() => handleTabChange("parking-plans")}
-            />
-          )}
+            {activeTab === "notifications" && (
+              <CustomerNotifications
+                currentUser={currentUser}
+                loggedInUser={currentUser}
+              />
+            )}
 
-          {activeTab === "support" && (
-            <CustomerSupport
-              currentUser={currentUser}
-              isPremiumActive={isPremiumActive}
-            />
-          )}
+            {activeTab === "profile" && (
+              <CustomerProfile
+                currentUser={currentUser}
+                isPremiumActive={isPremiumActive}
+                premiumPlanInfo={premiumPlanInfo}
+                onNavigateToPlans={() => handleTabChange("parking-plans")}
+              />
+            )}
+
+            {activeTab === "support" && (
+              <CustomerSupport
+                currentUser={currentUser}
+                isPremiumActive={isPremiumActive}
+              />
+            )}
+          </Suspense>
         </div>
       </div>
     </div>

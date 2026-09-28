@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
-
 :root {
   --bg-app: #f8fafc;
   --bg-card: #ffffff;
@@ -73,7 +71,7 @@ html, body {
 }
 
 .pw-teal-text {
-  color: #0d9488;
+  color: #0f766e;
 }
 
 .pw-teal-icon {
@@ -263,7 +261,7 @@ html, body {
 
 .pw-hero-description {
   font-size: 1.02rem;
-  color: #94a3b8;
+  color: #475569;
   line-height: 1.6;
   margin: 0;
   max-width: 520px;
@@ -375,7 +373,7 @@ html, body {
 
 .pw-pill-desc {
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: #475569;
   margin: 0;
   line-height: 1.35;
 }
@@ -429,7 +427,7 @@ html, body {
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.8px;
-  color: #0d9488;
+  color: #0f766e;
   text-transform: uppercase;
 }
 
@@ -444,7 +442,7 @@ html, body {
 
 .pw-section-subtitle {
   font-size: 0.95rem;
-  color: #94a3b8;
+  color: #475569;
   margin: 0;
   line-height: 1.5;
 }
@@ -494,7 +492,7 @@ html, body {
 
 .pw-feature-card-text {
   font-size: 0.88rem;
-  color: #94a3b8;
+  color: #475569;
   margin: 0;
   line-height: 1.55;
 }
@@ -534,7 +532,7 @@ html, body {
 
 .pw-step-desc {
   font-size: 0.88rem;
-  color: #94a3b8;
+  color: #475569;
   margin: 0;
   line-height: 1.55;
 }
@@ -554,7 +552,7 @@ html, body {
 
 .pw-about-paragraph {
   font-size: 0.98rem;
-  color: #94a3b8;
+  color: #475569;
   line-height: 1.65;
   margin: 0;
 }
@@ -621,7 +619,7 @@ html, body {
 
 .pw-contact-desc {
   font-size: 0.95rem;
-  color: #94a3b8;
+  color: #475569;
   line-height: 1.6;
   margin: 0;
 }
@@ -787,7 +785,7 @@ html, body {
 
 .pw-auth-subtitle {
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: #475569;
   margin: 4px 0 0 0;
 }
 
@@ -835,7 +833,7 @@ html, body {
 
 .pw-eye-btn {
   position: absolute;
-  right: 12px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   background: transparent;
@@ -844,7 +842,11 @@ html, body {
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   padding: 0;
+  border-radius: 6px;
 }
 
 .pw-eye-btn:hover {
@@ -1010,14 +1012,14 @@ html, body {
   justify-content: center;
   gap: 6px;
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: #475569;
   margin-top: 14px;
 }
 
 .pw-switch-link {
   background: transparent;
   border: none;
-  color: #0d9488;
+  color: #0f766e;
   font-weight: 700;
   cursor: pointer;
   padding: 0;

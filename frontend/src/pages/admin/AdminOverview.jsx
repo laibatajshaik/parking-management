@@ -45,7 +45,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
       <div className="pw-two-charts-grid">
         <div className="pw-chart-card">
           <div className="pw-chart-header">
-            <h3 className="pw-chart-title">Weekly Bookings Trend</h3>
+            <h2 className="pw-chart-title">Weekly Bookings Trend</h2>
             <div className="pw-chart-legend">
               <span className="legend-item">
                 <span className="legend-line teal"></span> This Week
@@ -101,7 +101,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
 
         <div className="pw-chart-card">
           <div className="pw-chart-header">
-            <h3 className="pw-chart-title">Parking Type Distribution</h3>
+            <h2 className="pw-chart-title">Parking Type Distribution</h2>
           </div>
 
           <div className="pw-donut-chart-row">
@@ -168,7 +168,7 @@ export default function AdminOverview({ metrics, recentBookings, setActiveTab, u
 
       <div className="pw-recent-table-card">
         <div className="pw-chart-header">
-          <h3 className="pw-table-title">Recent Bookings</h3>
+          <h2 className="pw-table-title">Recent Bookings</h2>
           <button type="button" className="pw-view-all-link">
             <span>View all</span>
             <ChevronRight size={14} />

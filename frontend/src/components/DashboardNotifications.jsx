@@ -128,7 +128,7 @@ export default function DashboardNotifications({ userEmail = "", maxItems = 5, t
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
+    const interval = setInterval(fetchNotifications, 30000);
     const handleUpdate = () => fetchNotifications();
     window.addEventListener("shnoor_notification_updated", handleUpdate);
     window.addEventListener("storage", handleUpdate);
@@ -198,7 +198,7 @@ export default function DashboardNotifications({ userEmail = "", maxItems = 5, t
             <Bell size={17} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <h3 className="pw-table-title" style={{ margin: 0 }}>{title}</h3>
+            <h2 className="pw-table-title" style={{ margin: 0 }}>{title}</h2>
             {unreadCount > 0 && (
               <span
                 style={{

@@ -108,7 +108,7 @@ export default function Login({ setView }) {
 
   return (
     <div className="pw-auth-page-wrapper">
-      <div className="pw-auth-landing-backdrop" aria-hidden="true">
+      <div className="pw-auth-landing-backdrop" aria-hidden="true" inert="true">
         <ShnoorParkingLanding setView={() => {}} />
       </div>
       <div className="pw-auth-backdrop-overlay"></div>
@@ -160,6 +160,7 @@ export default function Login({ setView }) {
               <button
                 type="button"
                 className="pw-eye-btn"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}

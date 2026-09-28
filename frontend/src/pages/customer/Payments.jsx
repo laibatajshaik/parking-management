@@ -16,19 +16,14 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
       const res = await fetch(`${API_BASE_URL}/api/customer/payments?${queryParam}`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success && data.payments) {
-        if (data.payments.length > 0) {
-          setPayments(data.payments);
-        } else {
-          const allRes = await fetch(`${API_BASE_URL}/api/payments`);
-          const allData = await allRes.json();
-          if (allData.success && allData.payments) {
-            setPayments(allData.payments);
-          }
-        }
+      if (data.success && Array.isArray(data.payments)) {
+        setPayments(data.payments);
+      } else {
+        setPayments([]);
       }
     } catch {
       setIsLoading(false);
+      setPayments([]);
     }
   };
 

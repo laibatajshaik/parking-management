@@ -124,7 +124,7 @@ export default function NotificationBell({ userEmail = "" }) {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
+    const interval = setInterval(fetchNotifications, 30000);
     const handleUpdate = () => fetchNotifications();
     window.addEventListener("shnoor_notification_updated", handleUpdate);
     window.addEventListener("storage", handleUpdate);
@@ -209,7 +209,7 @@ export default function NotificationBell({ userEmail = "" }) {
       <button
         type="button"
         className="pw-topbar-bell"
-        aria-label="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications ${unreadCount > 99 ? "99+" : unreadCount}` : "Notifications"}
         onClick={handleToggle}
       >
         <Bell size={18} />

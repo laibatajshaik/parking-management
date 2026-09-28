@@ -1,103 +1,67 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
-import { Printer, Download, Receipt, ShieldCheck, Calendar, Search, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Printer, Download, Receipt, ShieldCheck, Calendar, Search, RefreshCw, BookmarkPlus } from "lucide-react";
 
-export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
+export default function DigitalReceipt({ receiptData, selectedPayment, currentUser, loggedInUser, onNavigate }) {
+  const initialData = receiptData || selectedPayment || null;
   const [paymentsList, setPaymentsList] = useState([]);
-  const [activeReceipt, setActiveReceipt] = useState(selectedPayment || null);
+  const [activeReceipt, setActiveReceipt] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
+  const resolveEmail = useCallback(() => {
+    const user = currentUser || loggedInUser;
+    if (user && user.email) return user.email;
+    try {
+      const saved = localStorage.getItem("shnoor_current_user");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.email) return parsed.email;
+      }
+    } catch {
+      return "";
+    }
+    return "customer@shnoor.com";
+  }, [currentUser, loggedInUser]);
+
   useEffect(() => {
-    if (selectedPayment) {
+    if (receiptData) {
+      setActiveReceipt(receiptData);
+    } else if (selectedPayment) {
       setActiveReceipt(selectedPayment);
     }
-  }, [selectedPayment]);
+  }, [receiptData, selectedPayment]);
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     setIsLoading(true);
+    const email = resolveEmail();
     try {
-      const user = loggedInUser || { name: "Laiba", email: "customer@shnoor.com" };
-      const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name || "Laiba")}`;
-      const res = await fetch(`${API_BASE_URL}/api/customer/payments?${queryParam}`);
+      const res = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success && data.payments) {
-        const valids = data.payments.filter(
-          (p) =>
-            p.vehicle_number &&
-            p.vehicle_number.trim() !== "" &&
-            p.vehicle_number !== "—" &&
-            p.slot_number &&
-            p.slot_number.trim() !== "" &&
-            p.slot_number !== "—" &&
-            p.transaction_id &&
-            p.transaction_id.trim() !== "" &&
-            p.transaction_id !== "—"
-        );
-        if (valids.length > 0) {
-          setPaymentsList(valids);
-          if (!activeReceipt) {
-            setActiveReceipt(valids[0]);
-          }
-        } else {
-          const allRes = await fetch(`${API_BASE_URL}/api/payments`);
-          const allData = await allRes.json();
-          if (allData.success && allData.payments) {
-            const allValids = allData.payments.filter(
-              (p) =>
-                p.vehicle_number &&
-                p.vehicle_number.trim() !== "" &&
-                p.vehicle_number !== "—" &&
-                p.slot_number &&
-                p.slot_number.trim() !== "" &&
-                p.slot_number !== "—" &&
-                p.transaction_id &&
-                p.transaction_id.trim() !== "" &&
-                p.transaction_id !== "—"
-            );
-            if (allValids.length > 0) {
-              setPaymentsList(allValids);
-              if (!activeReceipt) {
-                setActiveReceipt(allValids[0]);
-              }
-            }
-          }
+      if (data && data.success && Array.isArray(data.payments)) {
+        setPaymentsList(data.payments);
+        if (data.payments.length > 0 && !activeReceipt) {
+          setActiveReceipt(data.payments[0]);
         }
+      } else {
+        setPaymentsList([]);
       }
     } catch {
       setIsLoading(false);
+      setPaymentsList([]);
     }
-  };
+  }, [resolveEmail, activeReceipt]);
 
   useEffect(() => {
     fetchPayments();
-  }, [loggedInUser]);
+  }, [fetchPayments]);
 
   const formatDate = (isoStr) => {
-    if (!isoStr) {
-      const now = new Date();
-      return now.toLocaleString("en-IN", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true
-      });
-    }
+    if (!isoStr) return "—";
     try {
       const d = new Date(isoStr);
-      if (isNaN(d.getTime())) {
-        return new Date().toLocaleString("en-IN", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true
-        });
-      }
+      if (isNaN(d.getTime())) return isoStr;
       return d.toLocaleString("en-IN", {
         month: "short",
         day: "numeric",
@@ -113,12 +77,13 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
 
   const handleDownloadSlip = () => {
     if (!activeReceipt) return;
-    const formattedAmount = parseFloat(activeReceipt.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+    const formattedAmount = parseFloat(activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+    const formattedFee = parseFloat(activeReceipt.fee || activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
     const receiptHtml = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Official Parking Slip - ${activeReceipt.transaction_id}</title>
+  <title>Official Parking Slip - ${activeReceipt.transaction_id || "Receipt"}</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -130,7 +95,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
       justify-content: center;
     }
     .ticket {
-      width: 420px;
+      width: 440px;
       background: #ffffff;
       border: 2px solid #0f3b43;
       border-radius: 12px;
@@ -262,24 +227,45 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
   <div class="ticket">
     <div class="header">
       <div class="brand">PARKSAFE PARKING SYSTEM</div>
-      <span class="status-badge">PAID • VERIFIED</span>
-      <div class="ticket-id">${activeReceipt.transaction_id}</div>
-      <div style="font-size: 11px; color: #475569; margin-top: 6px; font-weight: 600;">
-        Receipt Date: ${formatDate(activeReceipt.created_at || activeReceipt.exit_time)}
+      <span class="status-badge">${activeReceipt.payment_status || "PAID • VERIFIED"}</span>
+      <div class="ticket-id">TXN: ${activeReceipt.transaction_id || "—"}</div>
+      <div style="font-size: 11px; color: #475569; margin-top: 4px; font-weight: 600;">
+        Booking ID: ${activeReceipt.booking_id || "—"}
+      </div>
+      <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+        Receipt Date: ${formatDate(activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}
       </div>
     </div>
+
     <div class="plate-banner">
-      <span>${activeReceipt.vehicle_number}</span>
-      <span class="slot-pill">Bay ${activeReceipt.slot_number}</span>
+      <span>${activeReceipt.vehicle_number || "—"}</span>
+      <span class="slot-pill">Bay ${activeReceipt.slot_number || "—"}</span>
     </div>
+
     <div class="grid">
       <div class="item">
-        <span class="label">Customer</span>
-        <span class="val">${activeReceipt.customer_name}</span>
+        <span class="label">Customer Name</span>
+        <span class="val">${activeReceipt.customer_name || "—"}</span>
       </div>
       <div class="item">
-        <span class="label">Contact</span>
-        <span class="val">${activeReceipt.customer_phone || "+91 98765 43210"}</span>
+        <span class="label">Customer Email</span>
+        <span class="val">${activeReceipt.customer_email || "—"}</span>
+      </div>
+      <div class="item">
+        <span class="label">Customer Phone</span>
+        <span class="val">${activeReceipt.customer_phone || "—"}</span>
+      </div>
+      <div class="item">
+        <span class="label">Vehicle Type</span>
+        <span class="val">${activeReceipt.vehicle_type || "Car"}</span>
+      </div>
+      <div class="item">
+        <span class="label">Vehicle Model</span>
+        <span class="val">${activeReceipt.model || "—"}</span>
+      </div>
+      <div class="item">
+        <span class="label">Parking Plan</span>
+        <span class="val">${activeReceipt.plan_name || "Hourly Rate"}</span>
       </div>
       <div class="item">
         <span class="label">Entry Time</span>
@@ -290,32 +276,35 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
         <span class="val">${formatDate(activeReceipt.exit_time)}</span>
       </div>
       <div class="item">
-        <span class="label">Duration</span>
-        <span class="val">${activeReceipt.duration}</span>
+        <span class="label">Parking Duration</span>
+        <span class="val">${activeReceipt.duration || "—"}</span>
       </div>
       <div class="item">
-        <span class="label">Payment</span>
-        <span class="val">${activeReceipt.payment_method}</span>
+        <span class="label">Payment Method</span>
+        <span class="val">${activeReceipt.payment_method || "UPI / Card"}</span>
       </div>
       <div class="item">
-        <span class="label">Payment Date</span>
-        <span class="val">${formatDate(activeReceipt.created_at || activeReceipt.exit_time)}</span>
+        <span class="label">Base Fee</span>
+        <span class="val">₹${formattedFee}</span>
       </div>
       <div class="item">
-        <span class="label">Status</span>
-        <span class="val">Completed</span>
+        <span class="label">Payment Status</span>
+        <span class="val">${activeReceipt.payment_status || "Completed"}</span>
       </div>
     </div>
+
     <div class="total-banner">
       <span class="total-label">Total Tariff Paid</span>
       <span class="total-val">₹${formattedAmount}</span>
     </div>
+
     <div class="barcode-box">
       <div class="barcode">||| | | |||| | || | |||</div>
-      <div class="barcode-sub">${activeReceipt.transaction_id} • ${activeReceipt.vehicle_number}</div>
+      <div class="barcode-sub">${activeReceipt.transaction_id || "PARKSAFE"} • ${activeReceipt.vehicle_number || ""}</div>
     </div>
+
     <div class="footer">
-      <p>Official Computer Generated Tax Invoice</p>
+      <p>Official Computer Generated Tax Invoice & Parking Permit</p>
       <p>Thank you for choosing Shnoor ParkSafe Parking Facility.</p>
     </div>
   </div>
@@ -326,7 +315,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Parking-Receipt-${activeReceipt.transaction_id}.html`;
+    a.download = `Parking-Receipt-${activeReceipt.transaction_id || "slip"}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -342,8 +331,10 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
     const q = searchFilter.toLowerCase();
     return (
       (p.transaction_id || "").toLowerCase().includes(q) ||
+      (p.booking_id || "").toLowerCase().includes(q) ||
       (p.vehicle_number || "").toLowerCase().includes(q) ||
-      (p.slot_number || "").toLowerCase().includes(q)
+      (p.slot_number || "").toLowerCase().includes(q) ||
+      (p.plan_name || "").toLowerCase().includes(q)
     );
   });
 
@@ -352,7 +343,9 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
       <div className="pw-receipt-list-col">
         <div className="pw-receipt-list-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", margin: 0 }}>My Invoices & Slips</h3>
+            <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", margin: 0 }}>
+              My Receipts & Invoices
+            </h3>
             <button
               type="button"
               className="pw-btn-action-refresh"
@@ -367,7 +360,7 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
             <Search size={14} className="pw-search-icon" />
             <input
               type="text"
-              placeholder="Search receipt ID or vehicle..."
+              placeholder="Search receipt ID, vehicle, or bay..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               className="pw-pill-input"
@@ -387,30 +380,37 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <Receipt size={13} style={{ color: "#0d9488" }} />
-                        <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "var(--text-primary, #0f172a)" }}>{p.transaction_id}</span>
+                        <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "var(--text-primary, #0f172a)" }}>
+                          {p.transaction_id || "Receipt"}
+                        </span>
                       </div>
                       <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #94a3b8)", marginTop: "2px" }}>
                         {p.vehicle_number} • Bay {p.slot_number}
                       </div>
                       <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "1px" }}>
-                        {formatDate(p.created_at || p.exit_time)}
+                        {formatDate(p.receipt_date || p.created_at || p.exit_time)}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#0f766e" }}>
-                        ₹{parseFloat(p.amount).toFixed(2)}
+                        ₹{parseFloat(p.amount || 0).toFixed(2)}
                       </div>
                       <span className="pw-status-pill completed" style={{ fontSize: "0.68rem", padding: "1px 6px" }}>
-                        Paid
+                        {p.payment_status || "Paid"}
                       </span>
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8" }}>
+              <div style={{ padding: "30px 16px", textAlign: "center", color: "#94a3b8" }}>
                 <Receipt size={32} style={{ margin: "0 auto 8px", opacity: 0.5 }} />
-                <p style={{ margin: 0, fontSize: "0.85rem" }}>No receipts found</p>
+                <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary, #0f172a)" }}>
+                  No receipts found
+                </p>
+                <p style={{ margin: "4px 0 0 0", fontSize: "0.76rem" }}>
+                  Receipts generated upon vehicle checkout will be shown here.
+                </p>
               </div>
             )}
           </div>
@@ -432,37 +432,59 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
               </div>
 
               <div className="pw-receipt-meta-right">
-                <span className="pw-receipt-badge-status">PAID • VERIFIED</span>
-                <span className="pw-receipt-number-tag">{activeReceipt.transaction_id}</span>
+                <span className="pw-receipt-badge-status">{activeReceipt.payment_status || "PAID • VERIFIED"}</span>
+                <span className="pw-receipt-number-tag">{activeReceipt.transaction_id || "TXN-XXXX"}</span>
                 <div className="pw-receipt-issue-date" style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "5px", justifyContent: "flex-end" }}>
                   <Calendar size={12} style={{ color: "#0d9488" }} />
-                  <span>{formatDate(activeReceipt.created_at || activeReceipt.exit_time)}</span>
+                  <span>{formatDate(activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}</span>
                 </div>
               </div>
             </div>
 
             <div className="pw-official-receipt-body">
               <div className="pw-receipt-plate-banner">
-                <span className="pw-receipt-plate">{activeReceipt.vehicle_number}</span>
-                <span className="pw-receipt-slot">Bay {activeReceipt.slot_number}</span>
+                <span className="pw-receipt-plate">{activeReceipt.vehicle_number || "—"}</span>
+                <span className="pw-receipt-slot">Bay {activeReceipt.slot_number || "—"}</span>
               </div>
 
-              <div className="pw-receipt-details-table" style={{ marginTop: "20px" }}>
+              <div className="pw-receipt-details-table" style={{ marginTop: "16px" }}>
                 <div className="pw-receipt-row">
-                  <span className="pw-receipt-label">Customer / Owner</span>
-                  <span className="pw-receipt-value">{activeReceipt.customer_name}</span>
+                  <span className="pw-receipt-label">Transaction ID</span>
+                  <span className="pw-receipt-value" style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                    {activeReceipt.transaction_id || "—"}
+                  </span>
+                </div>
+                <div className="pw-receipt-row">
+                  <span className="pw-receipt-label">Booking ID</span>
+                  <span className="pw-receipt-value" style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                    {activeReceipt.booking_id || "—"}
+                  </span>
+                </div>
+                <div className="pw-receipt-row">
+                  <span className="pw-receipt-label">Customer Name</span>
+                  <span className="pw-receipt-value">{activeReceipt.customer_name || "—"}</span>
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Customer Email</span>
-                  <span className="pw-receipt-value">{activeReceipt.customer_email || "customer@shnoor.com"}</span>
+                  <span className="pw-receipt-value">{activeReceipt.customer_email || "—"}</span>
                 </div>
                 <div className="pw-receipt-row">
-                  <span className="pw-receipt-label">Contact Phone</span>
-                  <span className="pw-receipt-value">{activeReceipt.customer_phone || "+91 98765 43210"}</span>
+                  <span className="pw-receipt-label">Customer Phone</span>
+                  <span className="pw-receipt-value">{activeReceipt.customer_phone || "—"}</span>
+                </div>
+                <div className="pw-receipt-row">
+                  <span className="pw-receipt-label">Vehicle & Model</span>
+                  <span className="pw-receipt-value">
+                    {activeReceipt.vehicle_number || "—"} ({activeReceipt.vehicle_type || "Car"} {activeReceipt.model ? `• ${activeReceipt.model}` : ""})
+                  </span>
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Assigned Parking Bay</span>
-                  <span className="pw-receipt-value">Bay {activeReceipt.slot_number}</span>
+                  <span className="pw-receipt-value">Bay {activeReceipt.slot_number || "—"}</span>
+                </div>
+                <div className="pw-receipt-row">
+                  <span className="pw-receipt-label">Tariff / Plan Name</span>
+                  <span className="pw-receipt-value">{activeReceipt.plan_name || "Standard Tariff"}</span>
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Entry Date & Time</span>
@@ -474,27 +496,35 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Total Parking Duration</span>
-                  <span className="pw-receipt-value">{activeReceipt.duration}</span>
+                  <span className="pw-receipt-value">{activeReceipt.duration || "—"}</span>
                 </div>
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Payment Method</span>
-                  <span className="pw-receipt-value">{activeReceipt.payment_method}</span>
+                  <span className="pw-receipt-value">{activeReceipt.payment_method || "Cash / Digital"}</span>
                 </div>
                 <div className="pw-receipt-row">
-                  <span className="pw-receipt-label">Payment Date & Time</span>
-                  <span className="pw-receipt-value">{formatDate(activeReceipt.created_at || activeReceipt.exit_time)}</span>
+                  <span className="pw-receipt-label">Base Fee</span>
+                  <span className="pw-receipt-value">
+                    ₹{parseFloat(activeReceipt.fee || activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="pw-receipt-row">
+                  <span className="pw-receipt-label">Receipt & Payment Date</span>
+                  <span className="pw-receipt-value">
+                    {formatDate(activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}
+                  </span>
                 </div>
                 <div className="pw-receipt-row pw-receipt-total-row">
-                  <span className="pw-receipt-label">Total Tariff Paid</span>
+                  <span className="pw-receipt-label">Total Amount Paid</span>
                   <span className="pw-receipt-total-value">
-                    ₹{parseFloat(activeReceipt.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{parseFloat(activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
 
               <div className="pw-receipt-footer-stamp">
                 <ShieldCheck size={16} />
-                <span>This is a computer-generated tax invoice & electronic parking pass issued by ParkSafe Systems.</span>
+                <span>Official computer-generated tax invoice & electronic parking pass issued by ParkSafe Systems.</span>
               </div>
             </div>
 
@@ -519,11 +549,37 @@ export default function DigitalReceipt({ selectedPayment, loggedInUser }) {
             </div>
           </div>
         ) : (
-          <div className="pw-empty-users-card">
+          <div className="pw-empty-users-card" style={{ padding: "48px 24px", textAlign: "center" }}>
             <div className="pw-empty-state">
-              <Receipt size={36} className="pw-empty-icon" />
-              <h4>No Receipt Selected</h4>
-              <p>Select an invoice from the left panel to inspect official tax invoice and pass.</p>
+              <Receipt size={42} className="pw-empty-icon" style={{ margin: "0 auto 12px", color: "#0d9488" }} />
+              <h4 style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary, #0f172a)" }}>
+                No Digital Receipts Yet
+              </h4>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary, #64748b)", margin: "0 0 16px 0", maxWidth: "340px", marginLeft: "auto", marginRight: "auto" }}>
+                You don't have any parking receipts yet. Once you complete a parking session or make a reservation, your official tax invoices will appear here.
+              </p>
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate("reserve-parking")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "#0d9488",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "10px 18px",
+                    fontSize: "0.85rem",
+                    fontWeight: 700,
+                    cursor: "pointer"
+                  }}
+                >
+                  <BookmarkPlus size={16} />
+                  <span>Reserve a Parking Bay</span>
+                </button>
+              )}
             </div>
           </div>
         )}

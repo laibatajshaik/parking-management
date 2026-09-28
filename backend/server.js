@@ -1832,40 +1832,108 @@ app.get("/api/payments", async (req, res) => {
 app.get("/api/customer/payments", async (req, res) => {
   const { email, name, search, method } = req.query;
   try {
-    let query = "SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL";
+    let query = `
+      SELECT 
+        p.id,
+        p.transaction_id,
+        COALESCE(r.booking_id, 'BK-' || SUBSTRING(p.transaction_id FROM 5)) AS booking_id,
+        p.customer_name,
+        p.customer_email,
+        p.customer_phone,
+        p.vehicle_number,
+        COALESCE(v.vehicle_type, r.vehicle_type, 'Car') AS vehicle_type,
+        COALESCE(v.model, r.model, 'Standard') AS model,
+        p.slot_number,
+        COALESCE(r.plan_name, 'Standard Parking') AS plan_name,
+        p.entry_time,
+        p.exit_time,
+        p.duration,
+        p.amount,
+        p.amount AS fee,
+        p.payment_method,
+        COALESCE(p.payment_status, 'Completed') AS payment_status,
+        p.created_at AS receipt_date,
+        p.created_at
+      FROM payments p
+      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
+      LEFT JOIN reservations r ON (
+        LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
+        AND (r.slot_number = p.slot_number OR LOWER(r.customer_email) = LOWER(p.customer_email))
+      )
+      WHERE p.vehicle_number IS NOT NULL AND p.vehicle_number != '' AND p.slot_number IS NOT NULL AND p.transaction_id IS NOT NULL
+    `;
     const params = [];
 
     if (email) {
       params.push(`%${email.toLowerCase().trim()}%`);
-      query += ` AND (LOWER(COALESCE(customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(customer_name, '')) LIKE $${params.length})`;
+      query += ` AND (LOWER(COALESCE(p.customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
     } else if (name) {
       params.push(`%${name.toLowerCase().trim()}%`);
-      query += ` AND LOWER(COALESCE(customer_name, '')) LIKE $${params.length}`;
+      query += ` AND LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length}`;
     }
 
     if (search) {
       params.push(`%${search.toLowerCase().trim()}%`);
-      query += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(transaction_id) LIKE $${params.length} OR LOWER(slot_number) LIKE $${params.length})`;
+      query += ` AND (LOWER(p.vehicle_number) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(p.slot_number) LIKE $${params.length})`;
     }
 
     if (method && method !== "ALL") {
       params.push(method);
-      query += ` AND payment_method = $${params.length}`;
+      query += ` AND p.payment_method = $${params.length}`;
     }
 
-    query += " ORDER BY created_at DESC, id DESC";
+    query += " ORDER BY p.created_at DESC, p.id DESC";
 
     const paymentsRes = await pool.query(query, params);
-
-    if (paymentsRes.rowCount === 0 && (email || name)) {
-      const allRes = await pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 25");
-      return res.json({ success: true, payments: allRes.rows });
-    }
-
     res.json({ success: true, payments: paymentsRes.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching customer payments" });
+  }
+});
+
+app.get("/api/customer/receipts/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const receiptRes = await pool.query(
+      `SELECT 
+        p.id,
+        p.transaction_id,
+        COALESCE(r.booking_id, 'BK-' || SUBSTRING(p.transaction_id FROM 5)) AS booking_id,
+        p.customer_name,
+        p.customer_email,
+        p.customer_phone,
+        p.vehicle_number,
+        COALESCE(v.vehicle_type, r.vehicle_type, 'Car') AS vehicle_type,
+        COALESCE(v.model, r.model, 'Standard') AS model,
+        p.slot_number,
+        COALESCE(r.plan_name, 'Standard Parking') AS plan_name,
+        p.entry_time,
+        p.exit_time,
+        p.duration,
+        p.amount,
+        p.amount AS fee,
+        p.payment_method,
+        COALESCE(p.payment_status, 'Completed') AS payment_status,
+        p.created_at AS receipt_date,
+        p.created_at
+      FROM payments p
+      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
+      LEFT JOIN reservations r ON (
+        LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
+        AND (r.slot_number = p.slot_number OR LOWER(r.customer_email) = LOWER(p.customer_email))
+      )
+      WHERE LOWER(p.transaction_id) = LOWER($1) OR p.id::text = $1
+      LIMIT 1`,
+      [id.trim()]
+    );
+    if (receiptRes.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Receipt not found" });
+    }
+    res.json({ success: true, receipt: receiptRes.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching receipt" });
   }
 });
 
