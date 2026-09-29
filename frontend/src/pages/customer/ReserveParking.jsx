@@ -151,7 +151,8 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
           duration_hours: selectedPlanObject?.duration_hours || 2,
           total_amount: getPlanCost(),
           plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
-          plan_name: selectedPlanObject?.plan_name || "Standard Parking"
+          plan_name: selectedPlanObject?.plan_name || "Standard Parking",
+          payment_method: paymentMethod || "UPI"
         })
       });
     } catch (err) {

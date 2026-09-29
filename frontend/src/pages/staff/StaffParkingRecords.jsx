@@ -9,6 +9,34 @@ export default function StaffParkingRecords() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [records, setRecords] = useState([]);
 
+  const formatTime = (isoStr, fallback) => {
+    if (!isoStr || isoStr === "Ongoing") return fallback;
+    try {
+      const str = String(isoStr).trim();
+      const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+      if (match) {
+        const [, , m, d, h, min] = match;
+        const hourNum = parseInt(h, 10);
+        const ampm = hourNum >= 12 ? "pm" : "am";
+        const h12 = hourNum % 12 || 12;
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+        const monthStr = monthNames[parseInt(m, 10) - 1] || m;
+        return `${parseInt(d, 10)} ${monthStr}, ${String(h12).padStart(2, "0")}:${min} ${ampm}`;
+      }
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return fallback;
+      return d.toLocaleString("en-IN", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      });
+    } catch {
+      return fallback;
+    }
+  };
+
   const normalizeRecord = (r, idx) => ({
     id: r.record_id || `REC-${9000 + (r.id || idx)}`,
     ticketNumber: r.ticket_number || `TKT-${88400 + (r.id || idx)}`,
@@ -16,24 +44,8 @@ export default function StaffParkingRecords() {
     vehicleType: r.vehicle_type || (r.slot_number?.startsWith("D") ? "Bike" : r.slot_number?.startsWith("C") ? "EV" : "Car"),
     slot: r.slot_number || "A-01",
     zone: r.zone || (r.slot_number ? `Zone ${r.slot_number.charAt(0)}` : "Zone A"),
-    entryTime: r.entry_time
-      ? new Date(r.entry_time).toLocaleString("en-IN", {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true
-        })
-      : "Earlier today",
-    exitTime: r.exit_time
-      ? new Date(r.exit_time).toLocaleString("en-IN", {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true
-        })
-      : "Parked Now",
+    entryTime: formatTime(r.entry_time, "Earlier today"),
+    exitTime: formatTime(r.exit_time, "Parked Now"),
     duration: r.duration || "Ongoing",
     ratePlan: r.rate_plan || `${r.vehicle_type || "Vehicle"} Tariff Plan`,
     amount: r.fee || "₹ 150.00",

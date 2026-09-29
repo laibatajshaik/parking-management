@@ -6,11 +6,11 @@ export default function StaffShiftReports() {
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [closureSuccess, setClosureSuccess] = useState(false);
   const [shiftInfo, setShiftInfo] = useState({
-    operator: "Laiba Taj",
+    operator: "Staff Supervisor",
     staffId: "STF-204",
     terminal: "Terminal #01 (Gate 1 & 2)",
     shiftDate: new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" }),
-    shiftTime: "07:00 AM - Current Duty",
+    shiftTime: "08:00 AM - Current Duty",
     totalEntries: 0,
     totalExits: 0,
     totalRevenue: "₹ 0.00",
@@ -30,11 +30,11 @@ export default function StaffShiftReports() {
           const s = data.shiftData;
           const cashVal = s.cashCollected || 0;
           setShiftInfo({
-            operator: s.staffName || "Laiba Taj",
+            operator: s.staffName || "Staff Supervisor",
             staffId: "STF-204",
             terminal: s.assignedGates || "Terminal #01 (Gate 1 & 2)",
             shiftDate: new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short", year: "numeric" }),
-            shiftTime: `${s.startTime || "07:00 AM"} - Current Duty`,
+            shiftTime: `${s.startTime || "08:00 AM"} - Current Duty`,
             totalEntries: s.vehiclesEntered || 0,
             totalExits: s.vehiclesExited || 0,
             totalRevenue: `₹ ${(s.totalCollected || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,

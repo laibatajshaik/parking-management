@@ -11,7 +11,7 @@ dotenv.config();
 const { Pool } = pg;
 
 pg.types.setTypeParser(1114, (str) => {
-  return str ? new Date(str + "Z").toISOString() : null;
+  return str || null;
 });
 
 const pool = process.env.DATABASE_URL

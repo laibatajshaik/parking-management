@@ -38,7 +38,7 @@ export default function ParkingLocations() {
     fetch(`${API_BASE_URL}/api/parking-locations`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.locations) {
+        if (data.success && Array.isArray(data.locations)) {
           setLocations(data.locations.map(normalizeLocation));
         }
       })
@@ -225,7 +225,8 @@ export default function ParkingLocations() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
-        {filteredLocations.map((loc) => {
+        {filteredLocations.length > 0 ? (
+          filteredLocations.map((loc) => {
           const occPct = Math.round((loc.occupiedSlots / (loc.totalSlots || 1)) * 100);
           return (
             <div
@@ -321,7 +322,13 @@ export default function ParkingLocations() {
               </div>
             </div>
           );
-        })}
+        })) : (
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", color: "var(--text-secondary, #94a3b8)" }}>
+            <Building size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+            <h4 style={{ margin: "0 0 6px", color: "var(--text-primary, #0f172a)" }}>No parking locations found</h4>
+            <p style={{ margin: 0 }}>No locations match your search criteria or none have been added.</p>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (

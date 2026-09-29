@@ -1009,62 +1009,119 @@ app.post("/api/reset-password", async (req, res) => {
 });
 
 app.get("/api/admin/dashboard-overview", async (req, res) => {
+  let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.query.adminEmail || req.query.email || "";
+  const authHeader = req.headers["authorization"] || "";
+  if (!adminEmail && authHeader) {
+    adminEmail = authHeader.replace(/^Bearer\s+/i, "").trim();
+  }
+
+  if (!adminEmail) {
+    return res.status(401).json({ error: "Unauthorized: Admin authentication required" });
+  }
+
   try {
-    const slotsRes = await pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC");
-    const usersRes = await pool.query("SELECT COUNT(*) FROM users");
-    const bookRes = await pool.query("SELECT COUNT(*) FROM reservations");
-    const todayPayRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE DATE(created_at) = CURRENT_DATE");
-    const totalPayRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments");
-    const recentRes = await pool.query(
-      "SELECT booking_id, customer_name, vehicle_number, slot_number, zone, total_amount, status, created_at FROM reservations ORDER BY id DESC LIMIT 10"
+    const adminCheck = await pool.query(
+      "SELECT id, email, role, status FROM users WHERE LOWER(email) = LOWER($1)",
+      [adminEmail.trim()]
     );
+    if (adminCheck.rowCount === 0 || (adminCheck.rows[0].status && adminCheck.rows[0].status.toLowerCase() === "inactive")) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or inactive account" });
+    }
+    if ((adminCheck.rows[0].role || "").toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "Forbidden: Administrator privileges required" });
+    }
+
+    const [
+      slotsRes,
+      usersRes,
+      bookRes,
+      todayPayRes,
+      totalPayRes,
+      activeVehRes,
+      totalVehRes,
+      resvBookingsRes,
+      entriesRes,
+      exitsRes,
+      recentResvRes,
+      recentPayRes,
+      recentVehRes,
+      auditRes,
+      usersActRes
+    ] = await Promise.all([
+      pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
+      pool.query("SELECT COUNT(*) FROM users"),
+      pool.query("SELECT COUNT(*) FROM reservations"),
+      pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
+      pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL)"),
+      pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'"),
+      pool.query("SELECT COUNT(*) FROM vehicles"),
+      pool.query("SELECT COUNT(DISTINCT slot_number) FROM reservations WHERE LOWER(status) IN ('confirmed', 'pending') AND (end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)"),
+      pool.query("SELECT id, vehicle_number, slot_number, entry_time AS timestamp, 'Vehicle Entry' AS type, CONCAT('Vehicle ', vehicle_number, ' Entered') AS title, CONCAT(vehicle_number, ' entered Slot ', slot_number) AS description FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC LIMIT 10"),
+      pool.query("SELECT id, vehicle_number, slot_number, exit_time AS timestamp, 'Vehicle Exit' AS type, CONCAT('Vehicle ', vehicle_number, ' Exited') AS title, CONCAT(vehicle_number, ' exited Slot ', slot_number, ' • Duration: ', COALESCE(duration, '1h'), ' • Fee: ', COALESCE(fee, '₹50.00')) AS description FROM vehicle_history WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 10"),
+      pool.query("SELECT id, booking_id, customer_name, vehicle_number, slot_number, total_amount, status, created_at AS timestamp, CASE WHEN LOWER(status) = 'cancelled' THEN 'Reservation Cancelled' ELSE 'New Reservation' END AS type, CASE WHEN LOWER(status) = 'cancelled' THEN CONCAT('Reservation #', booking_id, ' Cancelled') ELSE CONCAT('Reservation #', booking_id, ' Confirmed') END AS title, CONCAT('Reservation for ', vehicle_number, ' at Slot ', slot_number, ' (₹', total_amount, ')') AS description FROM reservations ORDER BY id DESC LIMIT 10"),
+      pool.query("SELECT id, transaction_id, vehicle_number, amount, payment_method, payment_status, created_at AS timestamp, 'Payment Received' AS type, CONCAT('Payment Received: ₹', amount) AS title, CONCAT('₹', amount, ' payment received for ', vehicle_number, ' via ', payment_method) AS description FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) ORDER BY id DESC LIMIT 10"),
+      pool.query("SELECT id, vehicle_number, model, vehicle_type, owner_name, created_at AS timestamp, 'New Vehicle Added' AS type, CONCAT('New Vehicle Added: ', vehicle_number) AS title, CONCAT(vehicle_number, ' (', model, ' ', vehicle_type, ') added by ', owner_name) AS description FROM vehicles ORDER BY id DESC LIMIT 10"),
+      pool.query("SELECT id, log_code, actor, action, target, created_at AS timestamp, CASE WHEN action ILIKE '%slot%' THEN 'Parking Slot Updated' WHEN action ILIKE '%plan%' OR action ILIKE '%tariff%' THEN 'Pricing Plan Updated' ELSE action END AS type, action AS title, CONCAT(target, ' by ', actor) AS description FROM audit_logs ORDER BY id DESC LIMIT 10"),
+      pool.query("SELECT id, name, email, role, created_at AS timestamp, 'User Registered' AS type, CONCAT('New User: ', name) AS title, CONCAT(name, ' registered as ', role, ' (', email, ')') AS description FROM users ORDER BY id DESC LIMIT 10")
+    ]);
 
     const slots = slotsRes.rows;
-    const totalSlots = slots.length;
-    const availableSlots = slots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved")).length;
+    const totalParkingSlots = slots.length;
+    const availableSlots = slots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved" && s.status !== "occupied")).length;
     const occupiedSlots = slots.filter(s => s.status === "occupied" || (!s.is_available && s.status !== "reserved")).length;
-    const reservedSlots = slots.filter(s => s.status === "reserved").length;
-
-    const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalSlots) * 100) : 0;
-    const todayRevenue = parseFloat(todayPayRes.rows[0]?.sum || 0) || parseFloat(totalPayRes.rows[0]?.sum || 0);
+    const reservedSlots = parseInt(resvBookingsRes.rows[0]?.count || 0, 10);
+    const activeParkingSessions = parseInt(activeVehRes.rows[0]?.count || 0, 10);
+    const totalVehicles = parseInt(totalVehRes.rows[0]?.count || 0, 10);
+    const todaysRevenue = parseFloat(todayPayRes.rows[0]?.sum || 0);
     const totalRevenue = parseFloat(totalPayRes.rows[0]?.sum || 0);
-    const totalBookings = parseInt(bookRes.rows[0]?.count || 0);
+    const totalBookings = parseInt(bookRes.rows[0]?.count || 0, 10);
+    const totalUsers = parseInt(usersRes.rows[0]?.count || 0, 10);
+    const occupancyRate = totalParkingSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalParkingSlots) * 100) : 0;
+
+    const combinedActivities = [
+      ...entriesRes.rows.map(r => ({ id: `entry-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
+      ...exitsRes.rows.map(r => ({ id: `exit-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
+      ...recentResvRes.rows.map(r => ({ id: `res-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
+      ...recentPayRes.rows.map(r => ({ id: `pay-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
+      ...recentVehRes.rows.map(r => ({ id: `veh-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
+      ...auditRes.rows.map(r => ({ id: `audit-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
+      ...usersActRes.rows.map(r => ({ id: `usr-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp }))
+    ];
+
+    combinedActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const recentActivity = combinedActivities.slice(0, 15);
 
     const parkedVehicles = await pool.query(
       "SELECT vehicle_number, current_slot AS slot_number, owner_name AS user_name, status, created_at FROM vehicles WHERE status = 'Parked' ORDER BY id DESC"
     );
 
-    let activeSessions = [];
-    if (parkedVehicles.rows && parkedVehicles.rows.length > 0) {
-      activeSessions = parkedVehicles.rows;
-    } else if (recentRes.rows && recentRes.rows.length > 0) {
-      activeSessions = recentRes.rows.map(r => ({
-        booking_id: r.booking_id,
-        user_name: r.customer_name,
-        vehicle_number: r.vehicle_number,
-        slot_number: r.slot_number,
-        zone: r.zone,
-        amount: `₹${parseFloat(r.total_amount || 0).toFixed(2)}`,
-        status: r.status,
-        created_at: r.created_at
-      }));
-    }
-
     res.json({
       success: true,
+      totalParkingSlots,
+      availableSlots,
+      reservedSlots,
+      activeParkingSessions,
+      totalVehicles,
+      todaysRevenue,
+      recentActivity,
       stats: {
-        totalSlots,
+        totalParkingSlots,
+        totalSlots: totalParkingSlots,
         availableSlots,
         occupiedSlots,
         reservedSlots,
-        occupancyRate,
-        todayRevenue,
+        activeParkingSessions,
+        activeParkings: activeParkingSessions,
+        totalVehicles,
+        todaysRevenue,
+        todayRevenue: todaysRevenue,
         totalRevenue,
         totalBookings,
-        totalUsers: parseInt(usersRes.rows[0]?.count || 0)
+        totalUsers,
+        occupancyRate
       },
       slots,
-      activeSessions
+      activeSessions: parkedVehicles.rows
     });
   } catch (err) {
     console.error(err);
@@ -1890,8 +1947,13 @@ app.get("/api/staff/active-vehicles", handleActiveSessions);
 
 app.get("/api/payments/today", async (req, res) => {
   try {
-    const paymentsRes = await pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC");
-    const allPayments = paymentsRes.rows;
+    const todayRes = await pool.query("SELECT * FROM payments WHERE DATE(created_at) = CURRENT_DATE AND vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC");
+    const allRes = await pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC LIMIT 100");
+    const isTodayMode = req.query.range === "today" || (!req.query.range && todayRes.rows.length > 0);
+    const paymentsToUse = isTodayMode ? todayRes.rows : allRes.rows;
+
+    let todayRevenue = 0;
+    todayRes.rows.forEach(p => { todayRevenue += (parseFloat(p.amount) || 0); });
 
     let totalRevenue = 0;
     const methodsBreakdown = {
@@ -1902,7 +1964,7 @@ app.get("/api/payments/today", async (req, res) => {
       "Net Banking": 0
     };
 
-    allPayments.forEach((p) => {
+    paymentsToUse.forEach((p) => {
       const amt = parseFloat(p.amount) || 0;
       totalRevenue += amt;
       const method = p.payment_method || "UPI";
@@ -1913,11 +1975,15 @@ app.get("/api/payments/today", async (req, res) => {
       }
     });
 
-    const completedCount = allPayments.length;
+    const completedCount = paymentsToUse.length;
     const avgTicket = completedCount > 0 ? (totalRevenue / completedCount).toFixed(2) : "0.00";
 
     res.json({
       success: true,
+      isTodayMode,
+      todayRevenue: `₹${todayRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+      todayRevenueNumeric: todayRevenue,
+      todayCount: todayRes.rows.length,
       summary: {
         totalRevenue: `₹${totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
         totalRevenueNumeric: totalRevenue,
@@ -1925,7 +1991,8 @@ app.get("/api/payments/today", async (req, res) => {
         avgTicket: `₹${parseFloat(avgTicket).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
         methodsBreakdown
       },
-      payments: allPayments
+      payments: paymentsToUse,
+      allPayments: allRes.rows
     });
   } catch (err) {
     console.error(err);
@@ -2187,6 +2254,84 @@ app.post("/api/staff/process-payment", async (req, res) => {
       success: true,
       message: `Payment of ₹${numAmount.toFixed(2)} processed successfully for ${vehicle_number.toUpperCase()}`,
       receipt: paymentInsert.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error processing payment" });
+  }
+});
+
+app.post(["/api/payments", "/api/customer/process-payment"], async (req, res) => {
+  const {
+    vehicle_number,
+    slot_number,
+    amount,
+    payment_method,
+    customer_name,
+    customer_email,
+    customer_phone,
+    duration
+  } = req.body;
+
+  const numAmount = parseFloat(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({ error: "Valid payment amount is required" });
+  }
+
+  const vPlate = (vehicle_number || "DL01 AB 1234").trim().toUpperCase();
+  const slot = slot_number || "A-01";
+  const cName = customer_name || "Customer";
+  const cEmail = customer_email || "";
+  const cPhone = customer_phone || "";
+  const payMethod = payment_method || "UPI";
+  const dur = duration || "1h 00m";
+  const txnId = req.body.transaction_id || `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
+  const now = new Date();
+
+  try {
+    const insertRes = await pool.query(
+      `INSERT INTO payments (
+        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
+      [
+        txnId,
+        vPlate,
+        cName,
+        cEmail,
+        cPhone,
+        slot,
+        new Date(now.getTime() - 3600000),
+        now,
+        dur,
+        numAmount,
+        payMethod,
+        payMethod
+      ]
+    );
+
+    await pool.query(
+      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Customer', 'Payment Processed', $3, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
+      [`LOG-${Date.now().toString().slice(-4)}`, cName, `₹${numAmount.toFixed(2)} via ${payMethod}`]
+    );
+
+    if (cEmail) {
+      await notifyUser(cEmail, {
+        title: "Payment Received",
+        message: `Your payment of ₹${numAmount.toFixed(2)} has been processed.`,
+        type: "payment"
+      });
+    }
+    await notifyAdmins({
+      title: "Payment Received",
+      message: `Payment of ₹${numAmount.toFixed(2)} received for ${vPlate} via ${payMethod}.`,
+      type: "payment"
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Payment of ₹${numAmount.toFixed(2)} processed successfully`,
+      payment: insertRes.rows[0]
     });
   } catch (err) {
     console.error(err);
@@ -2801,6 +2946,29 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       );
     }
 
+    const payTxnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
+    const payMethod = req.body.payment_method || "UPI";
+    await pool.query(
+      `INSERT INTO payments (
+        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP)`,
+      [
+        payTxnId,
+        vPlate,
+        customer_name,
+        customer_email || "",
+        customer_phone || "",
+        slot_number,
+        sTime,
+        eTime,
+        `${durHours}h 00m`,
+        amountNum,
+        payMethod,
+        payMethod
+      ]
+    );
+
     const custEmail = customer_email || "";
     if (custEmail) {
       await notifyUser(custEmail, {
@@ -3065,6 +3233,21 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
         "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
         [updatedBooking.slot_number]
       );
+      await pool.query(
+        "UPDATE vehicles SET status = 'Parked', current_slot = $1 WHERE vehicle_number = $2",
+        [updatedBooking.slot_number, updatedBooking.vehicle_number]
+      );
+      const existingSession = await pool.query(
+        "SELECT id FROM vehicle_history WHERE vehicle_number = $1 AND slot_number = $2 AND status = 'Parked' AND exit_time IS NULL LIMIT 1",
+        [updatedBooking.vehicle_number, updatedBooking.slot_number]
+      );
+      if (existingSession.rows.length === 0) {
+        const nowIso = new Date().toISOString().replace("T", " ").substring(0, 23);
+        await pool.query(
+          "INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, exit_time, duration, fee, status) VALUES ($1, $2, $3, NULL, 'Ongoing', $4, 'Parked')",
+          [updatedBooking.vehicle_number, updatedBooking.slot_number, nowIso, `₹${parseFloat(updatedBooking.total_amount || 0).toFixed(2)}`]
+        );
+      }
       if (updatedBooking.customer_email) {
         await notifyUser(updatedBooking.customer_email, {
           title: "Checked In Successfully",
@@ -3668,6 +3851,26 @@ app.post("/api/customer/activate-premium", async (req, res) => {
       type: "premium"
     });
 
+    const premTxnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
+    const premMethod = req.body.payment_method || "Credit Card";
+    await pool.query(
+      `INSERT INTO payments (
+        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '30 days', '30 Days', $7, $8, $9, 'Completed', CURRENT_TIMESTAMP)`,
+      [
+        premTxnId,
+        vehicle || "DL01 AB 1234",
+        customer_name || "Customer",
+        email,
+        "",
+        slot || "Zone A",
+        planAmount,
+        premMethod,
+        premMethod
+      ]
+    );
+
     try {
       const adminEmails = await getActiveAdminEmails();
       await sendPremiumActivatedEmail({
@@ -3893,12 +4096,12 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
     const reservedSlots = slots.filter(s => s.status === "reserved").length;
     const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalSlots) * 100) : 0;
 
-    const todayBookings = parseInt(todayResCount.rows[0]?.count || 0, 10) || parseInt(totalResCount.rows[0]?.count || 0, 10);
-    const todayRevenueVal = parseFloat(todayPaySum.rows[0]?.sum || 0) || parseFloat(totalPaySum.rows[0]?.sum || 0);
-    const activeVehicles = parseInt(parkedVehicles.rows[0]?.count || 0, 10) || occupiedSlots;
+    const todayBookings = parseInt(todayResCount.rows[0]?.count || 0, 10);
+    const todayRevenueVal = parseFloat(todayPaySum.rows[0]?.sum || 0);
+    const activeVehicles = parseInt(parkedVehicles.rows[0]?.count || 0, 10);
 
     const recentRes = await pool.query(
-      "SELECT vehicle_number, slot_number, entry_time, exit_time, duration, fee, status FROM vehicle_history ORDER BY id DESC LIMIT 6"
+      "SELECT id, vehicle_number, slot_number, entry_time, exit_time, duration, fee, status FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC, id DESC LIMIT 10"
     );
 
     res.json({
@@ -3924,30 +4127,30 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
 
 app.get("/api/staff/shift-report", async (req, res) => {
   try {
-    const cashRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%cash%'");
-    const upiRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%upi%'");
-    const cardRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%card%' OR LOWER(payment_method) LIKE '%net%'");
-    const totalRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments");
-    const enteredRes = await pool.query("SELECT COUNT(*) FROM vehicle_history WHERE entry_time IS NOT NULL");
-    const exitedRes = await pool.query("SELECT COUNT(*) FROM vehicle_history WHERE exit_time IS NOT NULL");
+    const todayCashRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%cash%' AND DATE(created_at) = CURRENT_DATE");
+    const todayUpiRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%upi%' AND DATE(created_at) = CURRENT_DATE");
+    const todayCardRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE (LOWER(payment_method) LIKE '%card%' OR LOWER(payment_method) LIKE '%net%') AND DATE(created_at) = CURRENT_DATE");
+    const todayTotalRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE DATE(created_at) = CURRENT_DATE");
+    const enteredRes = await pool.query("SELECT COUNT(*) FROM vehicle_history WHERE entry_time IS NOT NULL AND DATE(entry_time) = CURRENT_DATE");
+    const exitedRes = await pool.query("SELECT COUNT(*) FROM vehicle_history WHERE exit_time IS NOT NULL AND DATE(exit_time) = CURRENT_DATE");
     const activeVehRes = await pool.query("SELECT COUNT(*) FROM vehicles WHERE status = 'Parked'");
 
     const shiftData = {
       shiftId: `SFT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-01`,
-      shiftName: "Morning & Afternoon Operational Shift",
-      startTime: "07:00 AM",
-      currentTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      shiftName: "Live Operational Duty Shift",
+      startTime: "08:00 AM",
+      currentTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
       staffName: req.query.staffName || "Staff Supervisor",
-      staffRole: "Senior Floor Supervisor",
+      staffRole: "Senior Operations Floor Officer",
       assignedGates: "Gate 1 (Entry), Gate 2 (Exit)",
-      cashCollected: parseFloat(cashRes.rows[0]?.sum || 0),
-      cashTransactions: parseInt(cashRes.rows[0]?.count || 0, 10),
-      upiCollected: parseFloat(upiRes.rows[0]?.sum || 0),
-      upiTransactions: parseInt(upiRes.rows[0]?.count || 0, 10),
-      cardCollected: parseFloat(cardRes.rows[0]?.sum || 0),
-      cardTransactions: parseInt(cardRes.rows[0]?.count || 0, 10),
-      totalCollected: parseFloat(totalRes.rows[0]?.sum || 0),
-      totalTransactions: parseInt(totalRes.rows[0]?.count || 0, 10),
+      cashCollected: parseFloat(todayCashRes.rows[0]?.sum || 0),
+      cashTransactions: parseInt(todayCashRes.rows[0]?.count || 0, 10),
+      upiCollected: parseFloat(todayUpiRes.rows[0]?.sum || 0),
+      upiTransactions: parseInt(todayUpiRes.rows[0]?.count || 0, 10),
+      cardCollected: parseFloat(todayCardRes.rows[0]?.sum || 0),
+      cardTransactions: parseInt(todayCardRes.rows[0]?.count || 0, 10),
+      totalCollected: parseFloat(todayTotalRes.rows[0]?.sum || 0),
+      totalTransactions: parseInt(todayTotalRes.rows[0]?.count || 0, 10),
       vehiclesEntered: parseInt(enteredRes.rows[0]?.count || 0, 10),
       vehiclesExited: parseInt(exitedRes.rows[0]?.count || 0, 10),
       activeInFacility: parseInt(activeVehRes.rows[0]?.count || 0, 10)
@@ -4000,15 +4203,35 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       amount: parseFloat(r.amount)
     }));
 
-    const zoneStats = slotsRes.rows.map(r => {
-      const tot = parseInt(r.total, 10);
-      const occ = parseInt(r.occupied || 0, 10);
-      return {
-        zone: r.zone,
-        total: tot,
-        occupied: occ,
-        rate: tot > 0 ? Math.round((occ / tot) * 100) : 0
-      };
+    const hourlyRes = await pool.query(`
+      SELECT 
+        TO_CHAR(entry_time, 'HH12 AM') as hour_label,
+        EXTRACT(HOUR FROM entry_time) as hr,
+        COUNT(*) as vehicle_count
+      FROM vehicle_history
+      WHERE entry_time IS NOT NULL
+      GROUP BY TO_CHAR(entry_time, 'HH12 AM'), EXTRACT(HOUR FROM entry_time)
+      ORDER BY hr ASC
+    `);
+
+    const hourlyTrends = [
+      { hour: "06 AM", vehicles: 0, revenue: 0 },
+      { hour: "08 AM", vehicles: 0, revenue: 0 },
+      { hour: "10 AM", vehicles: 0, revenue: 0 },
+      { hour: "12 PM", vehicles: 0, revenue: 0 },
+      { hour: "02 PM", vehicles: 0, revenue: 0 },
+      { hour: "04 PM", vehicles: 0, revenue: 0 },
+      { hour: "06 PM", vehicles: 0, revenue: 0 },
+      { hour: "08 PM", vehicles: 0, revenue: 0 },
+      { hour: "10 PM", vehicles: 0, revenue: 0 }
+    ];
+
+    hourlyRes.rows.forEach(r => {
+      const match = hourlyTrends.find(h => (h.hour || '').trim() === (r.hour_label || '').trim());
+      if (match) {
+        match.vehicles = parseInt(r.vehicle_count, 10);
+        match.revenue = match.vehicles * 60;
+      }
     });
 
     res.json({
@@ -4017,12 +4240,13 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       summary: {
         totalRevenue,
         totalBookings: totalBookings + totalPayments,
-        avgOccupancy: zoneStats.length > 0 ? Math.round(zoneStats.reduce((acc, z) => acc + z.rate, 0) / zoneStats.length) : 75,
+        avgOccupancy: zoneStats.length > 0 ? Math.round(zoneStats.reduce((acc, z) => acc + z.rate, 0) / zoneStats.length) : 0,
         activeParked: zoneStats.reduce((acc, z) => acc + z.occupied, 0)
       },
       vehicleBreakdown,
       paymentBreakdown,
-      zoneStats
+      zoneStats,
+      hourlyTrends
     });
   } catch (err) {
     console.error(err);

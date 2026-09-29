@@ -19,71 +19,51 @@ export default function ReportsAnalytics() {
       .catch(() => {});
   }, [timeRange]);
 
-  const summary = analyticsData?.summary || { totalRevenue: 2985, totalBookings: 32, avgOccupancy: 42, activeParked: 7 };
+  const summary = analyticsData?.summary || { totalRevenue: 0, totalBookings: 0, avgOccupancy: 0, activeParked: 0 };
   const vehicleBreakdown = analyticsData?.vehicleBreakdown || [];
   const paymentBreakdown = analyticsData?.paymentBreakdown || [];
   const zoneStats = analyticsData?.zoneStats || [];
 
-  const totalVehiclesCount = vehicleBreakdown.reduce((sum, v) => sum + v.count, 0) || summary.totalBookings || 30;
+  const totalVehiclesCount = vehicleBreakdown.reduce((sum, v) => sum + v.count, 0) || (summary.totalBookings || 1);
 
-  const vehicleDistribution = vehicleBreakdown.length > 0
-    ? vehicleBreakdown.map((v) => {
-        const pct = Math.round((v.count / totalVehiclesCount) * 100);
-        let icon = Car;
-        let color = "#0d9488";
-        if (v.type === "SUV") {
-          color = "#7c3aed";
-        } else if (v.type === "Bike") {
-          icon = Layers;
-          color = "#0284c7";
-        } else if (v.type === "EV") {
-          icon = Zap;
-          color = "#10b981";
-        }
-        return {
-          type: v.type === "Car" ? "Standard Cars" : v.type === "SUV" ? "SUVs & Large Vehicles" : v.type === "Bike" ? "Two-Wheelers" : "EV Fast Charged",
-          count: v.count,
-          pct,
-          color,
-          icon
-        };
-      })
-    : [
-        { type: "Standard Cars", count: 18, pct: 55, color: "#0d9488", icon: Car },
-        { type: "SUVs & Large Vehicles", count: 6, pct: 18, color: "#7c3aed", icon: Car },
-        { type: "Two-Wheelers", count: 5, pct: 15, color: "#0284c7", icon: Layers },
-        { type: "EV Fast Charged", count: 4, pct: 12, color: "#10b981", icon: Zap }
-      ];
+  const vehicleDistribution = vehicleBreakdown.map((v) => {
+    const pct = Math.round((v.count / totalVehiclesCount) * 100);
+    let icon = Car;
+    let color = "#0d9488";
+    if (v.type === "SUV") {
+      color = "#7c3aed";
+    } else if (v.type === "Bike") {
+      icon = Layers;
+      color = "#0284c7";
+    } else if (v.type === "EV") {
+      icon = Zap;
+      color = "#10b981";
+    }
+    return {
+      type: v.type === "Car" ? "Standard Cars" : v.type === "SUV" ? "SUVs & Large Vehicles" : v.type === "Bike" ? "Two-Wheelers" : "EV Fast Charged",
+      count: v.count,
+      pct,
+      color,
+      icon
+    };
+  });
 
   const totalPaymentsCount = paymentBreakdown.reduce((sum, p) => sum + p.count, 0) || 1;
-  const formattedPaymentBreakdown = paymentBreakdown.length > 0
-    ? paymentBreakdown.map((p) => ({
-        method: p.method === "UPI" ? "Fastag / UPI Express" : p.method && p.method.includes("Card") ? "Credit / Debit Cards" : "Cash Desk Counter",
-        amount: `₹ ${Math.round(p.amount).toLocaleString("en-IN")}`,
-        count: p.count,
-        pct: Math.round((p.count / totalPaymentsCount) * 100),
-        icon: p.method === "UPI" ? Smartphone : p.method && p.method.includes("Card") ? CreditCard : Layers
-      }))
-    : [
-        { method: "Fastag / UPI Express", amount: `₹ ${Math.round(summary.totalRevenue * 0.6).toLocaleString("en-IN")}`, count: 20, pct: 60, icon: Smartphone },
-        { method: "Credit / Debit Cards", amount: `₹ ${Math.round(summary.totalRevenue * 0.3).toLocaleString("en-IN")}`, count: 8, pct: 25, icon: CreditCard },
-        { method: "Cash Desk Counter", amount: `₹ ${Math.round(summary.totalRevenue * 0.1).toLocaleString("en-IN")}`, count: 4, pct: 15, icon: Layers }
-      ];
+  const formattedPaymentBreakdown = paymentBreakdown.map((p) => ({
+    method: p.method === "UPI" ? "Fastag / UPI Express" : p.method && p.method.includes("Card") ? "Credit / Debit Cards" : "Cash Desk Counter",
+    amount: `₹ ${Math.round(p.amount).toLocaleString("en-IN")}`,
+    count: p.count,
+    pct: Math.round((p.count / totalPaymentsCount) * 100),
+    icon: p.method === "UPI" ? Smartphone : p.method && p.method.includes("Card") ? CreditCard : Layers
+  }));
 
-  const zonePerformance = zoneStats.length > 0
-    ? zoneStats.map((z) => ({
-        zone: `${z.zone} (Facility Bay)`,
-        totalBays: z.total,
-        avgOccupancy: `${z.rate}%`,
-        turnover: `${(z.occupied > 0 ? (z.occupied * 0.8).toFixed(1) : "2.5")}x/day`,
-        revenue: `₹ ${Math.round((z.occupied || 1) * 250).toLocaleString("en-IN")}`
-      }))
-    : [
-        { zone: "Zone A (Ground Floor)", totalBays: 6, avgOccupancy: "50%", turnover: "3.2x/day", revenue: "₹ 750" },
-        { zone: "Zone B (Basement 1)", totalBays: 6, avgOccupancy: "50%", turnover: "3.0x/day", revenue: "₹ 600" },
-        { zone: "Zone C (EV VIP)", totalBays: 6, avgOccupancy: "50%", turnover: "2.8x/day", revenue: "₹ 960" },
-        { zone: "Zone D (Bikes)", totalBays: 6, avgOccupancy: "33%", turnover: "4.0x/day", revenue: "₹ 250" }
-      ];
+  const zonePerformance = zoneStats.map((z) => ({
+    zone: `${z.zone} (Facility Bay)`,
+    totalBays: z.total,
+    avgOccupancy: `${z.rate}%`,
+    turnover: `${(z.occupied > 0 ? (z.occupied * 0.8).toFixed(1) : "0.0")}x/day`,
+    revenue: `₹ ${Math.round((z.occupied || 0) * 150).toLocaleString("en-IN")}`
+  }));
 
   const currentData = {
     metrics: {
@@ -96,16 +76,16 @@ export default function ReportsAnalytics() {
       peakOccupancy: `${summary.avgOccupancy}%`,
       peakSubtitle: "Live occupancy status"
     },
-    hourlyTrends: [
-      { hour: "06 AM", vehicles: Math.max(1, Math.round(summary.totalBookings * 0.05)), revenue: Math.round(summary.totalRevenue * 0.04) },
-      { hour: "08 AM", vehicles: Math.max(2, Math.round(summary.totalBookings * 0.15)), revenue: Math.round(summary.totalRevenue * 0.12) },
-      { hour: "10 AM", vehicles: Math.max(4, Math.round(summary.totalBookings * 0.25)), revenue: Math.round(summary.totalRevenue * 0.22) },
-      { hour: "12 PM", vehicles: Math.max(3, Math.round(summary.totalBookings * 0.18)), revenue: Math.round(summary.totalRevenue * 0.18) },
-      { hour: "02 PM", vehicles: Math.max(2, Math.round(summary.totalBookings * 0.12)), revenue: Math.round(summary.totalRevenue * 0.12) },
-      { hour: "04 PM", vehicles: Math.max(4, Math.round(summary.totalBookings * 0.22)), revenue: Math.round(summary.totalRevenue * 0.20) },
-      { hour: "06 PM", vehicles: Math.max(5, Math.round(summary.totalBookings * 0.28)), revenue: Math.round(summary.totalRevenue * 0.25) },
-      { hour: "08 PM", vehicles: Math.max(3, Math.round(summary.totalBookings * 0.16)), revenue: Math.round(summary.totalRevenue * 0.14) },
-      { hour: "10 PM", vehicles: Math.max(1, Math.round(summary.totalBookings * 0.06)), revenue: Math.round(summary.totalRevenue * 0.05) }
+    hourlyTrends: analyticsData?.hourlyTrends || [
+      { hour: "06 AM", vehicles: 0, revenue: 0 },
+      { hour: "08 AM", vehicles: 0, revenue: 0 },
+      { hour: "10 AM", vehicles: 0, revenue: 0 },
+      { hour: "12 PM", vehicles: 0, revenue: 0 },
+      { hour: "02 PM", vehicles: 0, revenue: 0 },
+      { hour: "04 PM", vehicles: 0, revenue: 0 },
+      { hour: "06 PM", vehicles: 0, revenue: 0 },
+      { hour: "08 PM", vehicles: 0, revenue: 0 },
+      { hour: "10 PM", vehicles: 0, revenue: 0 }
     ],
     vehicleDistribution,
     paymentBreakdown: formattedPaymentBreakdown,

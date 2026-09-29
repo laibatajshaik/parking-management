@@ -4511,6 +4511,7 @@ html, body {
   gap: 16px;
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .pw-users-toolbar-row {
@@ -4695,10 +4696,10 @@ html, body {
 }
 
 .pw-bookings-reservations-grid {
-  grid-template-columns: minmax(115px, 1.1fr) minmax(125px, 1.2fr) minmax(120px, 1.1fr) minmax(85px, 0.8fr) minmax(120px, 1.1fr) minmax(95px, 0.9fr) minmax(105px, 115px) minmax(195px, auto);
-  gap: 12px;
+  grid-template-columns: minmax(95px, 0.95fr) minmax(110px, 1.1fr) minmax(110px, 1.1fr) minmax(75px, 0.75fr) minmax(115px, 1.15fr) minmax(80px, 0.8fr) minmax(90px, 100px) minmax(135px, auto);
+  gap: 8px;
   width: 100%;
-  min-width: 1045px;
+  box-sizing: border-box;
 }
 
 .pw-badge-status-completed {

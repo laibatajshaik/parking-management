@@ -29,7 +29,7 @@ export default function TodaysRevenue() {
       const res = await fetch(`${API_BASE_URL}/api/payments/today`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success) {
+      if (data.success && data.payments) {
         setRevenueData(data);
       }
     } catch {

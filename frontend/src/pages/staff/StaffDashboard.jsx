@@ -98,6 +98,7 @@ export default function StaffDashboard({ setView }) {
     setActiveTab(target);
     setIsMobileNavOpen(false);
     if (target === "dashboard") {
+      fetchStaffDashboard();
       navigate("/staff/dashboard/overview");
     } else {
       navigate(`/staff/dashboard/${target}`);
@@ -111,7 +112,6 @@ export default function StaffDashboard({ setView }) {
     activeVehicles: "0",
     occupiedPercent: 0,
   });
-
   const [recentEntries, setRecentEntries] = useState([]);
 
   const fetchStaffDashboard = () => {
@@ -121,14 +121,14 @@ export default function StaffDashboard({ setView }) {
         if (data.success) {
           if (data.metrics) {
             setMetrics({
-              todayBookings: data.metrics.todayBookings || "0",
-              availableSlots: data.metrics.availableSlots || "0",
-              todayRevenue: data.metrics.todayRevenue || "₹0",
-              activeVehicles: data.metrics.activeVehicles || "0",
-              occupiedPercent: data.metrics.occupancyRate || 0,
+              todayBookings: String(data.metrics.todayBookings ?? "0"),
+              availableSlots: String(data.metrics.availableSlots ?? "0"),
+              todayRevenue: String(data.metrics.todayRevenue ?? "₹0"),
+              activeVehicles: String(data.metrics.activeVehicles ?? "0"),
+              occupiedPercent: data.metrics.occupancyRate ?? 0,
             });
           }
-          if (data.recentEntries) {
+          if (Array.isArray(data.recentEntries)) {
             setRecentEntries(
               data.recentEntries.map((e, idx) => ({
                 id: `#ENT-${1000 + (e.id || idx)}`,
@@ -149,6 +149,15 @@ export default function StaffDashboard({ setView }) {
 
   useEffect(() => {
     fetchStaffDashboard();
+    const interval = setInterval(fetchStaffDashboard, 15000);
+    const handleUpdate = () => fetchStaffDashboard();
+    window.addEventListener("shnoor_activity_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("shnoor_activity_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -180,20 +189,7 @@ export default function StaffDashboard({ setView }) {
       }
       return;
     }
-    fetch(`${API_BASE_URL}/api/admin/dashboard-overview`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.stats) {
-          setMetrics({
-            todayBookings: String(data.stats.totalBookings || 0),
-            availableSlots: String(data.stats.availableSlots ?? 0),
-            todayRevenue: `₹${(parseFloat(data.stats.todayRevenue) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
-            activeVehicles: String(data.stats.occupiedSlots || 0),
-            occupiedPercent: data.stats.occupancyRate || 0,
-          });
-        }
-      })
-      .catch(() => {});
+    fetchStaffDashboard();
   }, [navigate, setView]);
 
   const handleSignOut = () => {

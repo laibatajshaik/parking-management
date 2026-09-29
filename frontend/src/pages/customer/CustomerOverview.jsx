@@ -26,6 +26,24 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
     thirtyDaysStr: new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
   }));
 
+  const formatTime = (isoStr) => {
+    if (!isoStr) return "Today";
+    try {
+      const str = String(isoStr).trim();
+      const match = str.match(/[T ](\d{2}):(\d{2})/);
+      if (match) {
+        const hourNum = parseInt(match[1], 10);
+        const ampm = hourNum >= 12 ? "pm" : "am";
+        const h12 = hourNum % 12 || 12;
+        return `${String(h12).padStart(2, "0")}:${match[2]} ${ampm}`;
+      }
+      const d = new Date(isoStr);
+      return isNaN(d.getTime()) ? "Today" : d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+    } catch {
+      return "Today";
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       {isPremiumActive && (
@@ -135,11 +153,11 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
           </span>
         </div>
 
-        <div className="pw-metric-card">
+        <div className="pw-metric-card" onClick={() => navigateTab && navigateTab("profile")} style={{ cursor: "pointer" }} title="Manage registered vehicles">
           <span className="pw-metric-label">Registered Vehicles</span>
           <span className="pw-metric-value">{vehicles.length}</span>
           <span className="pw-metric-trend positive">
-            <span>{vehicles.map((v) => v.plate).join(", ") || "No vehicles registered"}</span>
+            <span>{vehicles.length > 0 ? "Fastag RFID Linked" : "No vehicles registered"}</span>
           </span>
         </div>
 
@@ -200,7 +218,7 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
 
                 <div className="pw-upcoming-vehicle-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
                   <span className="pw-veh-label">Entry Timestamp</span>
-                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{activeSession.entry_time ? new Date(activeSession.entry_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Today"}</span>
+                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{formatTime(activeSession.entry_time)}</span>
                   <span style={{ fontSize: "0.72rem", color: isPremiumActive ? "#9A6B18" : "#0d9488", fontWeight: 600 }}>{activeSession.duration} elapsed</span>
                 </div>
               </div>

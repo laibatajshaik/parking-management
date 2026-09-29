@@ -23,10 +23,24 @@ export default function BookingsReservations({ setStatusActionMessage }) {
       const res = await fetch(`${API_BASE_URL}/api/bookings`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success && data.bookings) {
+      if (data.success && Array.isArray(data.bookings)) {
         setBookings(data.bookings);
         if (data.stats) {
           setStats(data.stats);
+        } else {
+          const total = data.bookings.length;
+          const confirmed = data.bookings.filter(b => (b.status || "").toLowerCase() === "confirmed").length;
+          const pending = data.bookings.filter(b => (b.status || "").toLowerCase() === "pending").length;
+          const checkedIn = data.bookings.filter(b => (b.status || "").toLowerCase() === "checked in").length;
+          const rev = data.bookings.reduce((sum, b) => sum + (parseFloat(b.total_amount) || 0), 0);
+          setStats({
+            total,
+            confirmed,
+            pending,
+            checkedIn,
+            totalRevenue: `₹${rev.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+            totalRevenueNumeric: rev
+          });
         }
       }
     } catch {
@@ -491,8 +505,8 @@ export default function BookingsReservations({ setStatusActionMessage }) {
           </div>
         </div>
 
-        <div className="pw-users-table-scroll-container">
-          <div className="pw-users-header-row pw-mgmt-grid-row pw-bookings-reservations-grid">
+        <div className="pw-users-table-scroll-container" style={{ width: "100%", overflowX: "auto" }}>
+          <div className="pw-users-header-row pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px" }}>
             <span>Booking Ref</span>
             <span>Customer Details</span>
             <span>Vehicle Info</span>
@@ -503,13 +517,13 @@ export default function BookingsReservations({ setStatusActionMessage }) {
             <span style={{ textAlign: "center" }}>Actions</span>
           </div>
 
-          <div className="pw-user-cards-stack">
+          <div className="pw-user-cards-stack" style={{ minWidth: "860px" }}>
             {filteredBookings.length > 0 ? (
               filteredBookings.map((b) => {
                 const amt = parseFloat(b.total_amount) || 0;
 
                 return (
-                  <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid">
+                  <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px", padding: "8px 12px" }}>
                     <div>
                       <div className="pw-txn-badge" style={{ background: "var(--bg-teal-sub, #f0fdfa)", color: "#2dd4bf", borderColor: "var(--border-color, #99f6e4)" }}>
                         <CalendarCheck size={12} />
@@ -571,14 +585,14 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       {getStatusBadge(b.status)}
                     </div>
 
-                    <div className="pw-user-card-actions-col" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", flexWrap: "nowrap" }}>
+                    <div className="pw-user-card-actions-col" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", flexWrap: "nowrap" }}>
                       {b.status === "Confirmed" && (
                         <button
                           type="button"
                           className="pw-btn-action-view"
                           onClick={() => handleUpdateStatus(b.id, "Checked In")}
                           title="Check-In / Validate customer arrival"
-                          style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0, color: "#0f766e", borderColor: "#99f6e4" }}
+                          style={{ padding: "4px 8px", fontSize: "0.72rem", whiteSpace: "nowrap", flexShrink: 0, color: "#0f766e", borderColor: "#99f6e4" }}
                         >
                           <CheckCircle2 size={12} style={{ color: "#0d9488" }} />
                           <span>Check-In</span>
@@ -591,7 +605,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                           className="pw-btn-action-view"
                           onClick={() => handleUpdateStatus(b.id, "Confirmed")}
                           title="Confirm reservation"
-                          style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0, color: "#047857", borderColor: "#a7f3d0" }}
+                          style={{ padding: "4px 8px", fontSize: "0.72rem", whiteSpace: "nowrap", flexShrink: 0, color: "#047857", borderColor: "#a7f3d0" }}
                         >
                           <CheckCircle size={12} style={{ color: "#16a34a" }} />
                           <span>Confirm</span>
@@ -604,7 +618,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                           className="pw-btn-action-delete"
                           onClick={() => handleUpdateStatus(b.id, "Cancelled")}
                           title="Cancel reservation"
-                          style={{ padding: "5px 7px", flexShrink: 0 }}
+                          style={{ padding: "4px 6px", flexShrink: 0 }}
                         >
                           <X size={12} />
                         </button>
@@ -615,7 +629,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                         className="pw-btn-action-download"
                         onClick={() => handleDownloadPass(b)}
                         title="Download official reservation pass"
-                        style={{ padding: "5px 9px", fontSize: "0.74rem", whiteSpace: "nowrap", flexShrink: 0 }}
+                        style={{ padding: "4px 8px", fontSize: "0.72rem", whiteSpace: "nowrap", flexShrink: 0 }}
                       >
                         <Download size={12} />
                         <span>Pass</span>

@@ -31,7 +31,7 @@ export default function SupportAuditLogs() {
       const res = await fetch(`${API_BASE_URL}/api/support-tickets`);
       const data = await res.json();
       setIsLoadingTickets(false);
-      if (data.success && data.tickets) {
+      if (data.success && Array.isArray(data.tickets)) {
         setTickets(data.tickets);
       }
     } catch {
@@ -45,7 +45,7 @@ export default function SupportAuditLogs() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs`);
       const data = await res.json();
-      if (data.success && data.logs) {
+      if (data.success && Array.isArray(data.logs)) {
         setAuditLogs(
           data.logs.map((l) => ({
             id: l.log_code || `AUD-${l.id}`,

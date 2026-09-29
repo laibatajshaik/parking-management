@@ -15,7 +15,7 @@ export default function ActiveParkingSessions() {
       const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success && data.sessions) {
+      if (data.success && Array.isArray(data.sessions)) {
         setSessions(data.sessions);
       }
     } catch {

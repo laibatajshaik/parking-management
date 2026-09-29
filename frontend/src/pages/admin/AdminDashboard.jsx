@@ -54,23 +54,6 @@ const ADMIN_SIDEBAR_ITEMS = [
   { id: "support-logs", label: "Support & Logs", icon: HelpCircle, isWorking: true },
 ];
 
-function formatExactDateTime(dateStr) {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleString("en-IN", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true
-    });
-  } catch {
-    return dateStr;
-  }
-}
 
 export default function AdminDashboard({ setView }) {
   const navigate = useNavigate();
@@ -129,6 +112,7 @@ export default function AdminDashboard({ setView }) {
     setActiveTab(target);
     setIsMobileNavOpen(false);
     if (target === "dashboard") {
+      fetchDashboardData();
       navigate("/admin/dashboard/overview");
     } else {
       navigate(`/admin/dashboard/${target}`);
@@ -143,20 +127,22 @@ export default function AdminDashboard({ setView }) {
     totalBookings: "0",
     totalRevenue: "₹0",
     activeParkings: "0",
-    totalUsers: "0",
+    totalUsers: "0"
   });
 
-  const [recentBookings, setRecentBookings] = useState([]);
+  const [overviewData, setOverviewData] = useState(null);
+  const [isOverviewLoading, setIsOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState("");
 
   const fetchUsers = () => {
     fetch(`${API_BASE_URL}/api/admin/users`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.users) {
+        if (data.success && Array.isArray(data.users)) {
           const normalized = data.users.map((u) => ({
             ...u,
             status: u.status || "Active",
-            phone: u.phone || "—"
+            phone: u.phone || "+91 98765 43210"
           }));
           setUsersList(normalized);
           setMetrics((prev) => ({
@@ -172,7 +158,7 @@ export default function AdminDashboard({ setView }) {
     fetch(`${API_BASE_URL}/api/admin/vehicles`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.vehicles) {
+        if (data.success && Array.isArray(data.vehicles)) {
           setVehiclesList(data.vehicles);
         }
       })
@@ -180,11 +166,33 @@ export default function AdminDashboard({ setView }) {
   };
 
   const fetchDashboardData = () => {
-    fetch(`${API_BASE_URL}/api/admin/dashboard-overview`)
-      .then((res) => res.json())
+    setIsOverviewLoading(true);
+    setOverviewError("");
+    let emailToUse = currentUser?.email;
+    if (!emailToUse) {
+      try {
+        const saved = JSON.parse(localStorage.getItem("shnoor_current_user") || "{}");
+        emailToUse = saved?.email;
+      } catch {
+        emailToUse = "";
+      }
+    }
+    const headers = {
+      "x-admin-email": emailToUse || "admin@shnoor.com",
+      "Authorization": `Bearer ${emailToUse || "admin@shnoor.com"}`
+    };
+    fetch(`${API_BASE_URL}/api/admin/dashboard-overview`, { headers })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
       .then((data) => {
+        setIsOverviewLoading(false);
         if (data.success) {
-          if (data.slots) {
+          setOverviewData(data);
+          if (data.slots && Array.isArray(data.slots)) {
             setSlots(data.slots);
           }
           if (data.stats) {
@@ -192,26 +200,18 @@ export default function AdminDashboard({ setView }) {
               ...prev,
               totalBookings: (data.stats.totalBookings || 0).toLocaleString("en-IN"),
               totalRevenue: `₹${(data.stats.totalRevenue || 0).toLocaleString("en-IN")}`,
-              activeParkings: String(data.stats.occupiedSlots || 0),
+              activeParkings: String(data.stats.occupiedSlots || data.activeParkingSessions || 0),
               totalUsers: String(data.stats.totalUsers || prev.totalUsers || 0)
             }));
           }
-          if (data.activeSessions) {
-            setRecentBookings(
-              data.activeSessions.slice(0, 5).map((s, idx) => ({
-                id: s.booking_id || `#BK${1000 + idx}`,
-                user: s.user_name || "Customer",
-                location: s.zone || "Zone A",
-                vehicle: s.vehicle_number || "—",
-                date: formatExactDateTime(s.created_at || new Date()),
-                status: s.status || "Active",
-                amount: s.amount || "₹0.00"
-              }))
-            );
-          }
+        } else {
+          setOverviewError(data.error || "Failed to load dashboard overview");
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        setIsOverviewLoading(false);
+        setOverviewError(err.message || "Network error loading dashboard overview");
+      });
   };
 
   useEffect(() => {
@@ -247,6 +247,16 @@ export default function AdminDashboard({ setView }) {
     fetchUsers();
     fetchVehicles();
     fetchDashboardData();
+
+    const interval = setInterval(fetchDashboardData, 15000);
+    const handleActivity = () => fetchDashboardData();
+    window.addEventListener("shnoor_activity_updated", handleActivity);
+    window.addEventListener("storage", handleActivity);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("shnoor_activity_updated", handleActivity);
+      window.removeEventListener("storage", handleActivity);
+    };
   }, [navigate, setView]);
 
   const handleSignOut = () => {
@@ -326,7 +336,7 @@ export default function AdminDashboard({ setView }) {
     if (activeTab === "notifications") return "Notifications";
     if (activeTab === "system-settings") return "Settings";
     if (activeTab === "support-logs") return "Support & Logs";
-    return "Dashboard";
+    return "Admin Dashboard";
   };
 
   const getPageSubtitle = () => {
@@ -344,7 +354,7 @@ export default function AdminDashboard({ setView }) {
     if (activeTab === "notifications") return "System-wide alert history, revenue milestones, and administrative notifications.";
     if (activeTab === "system-settings") return "Database connectivity, IoT hardware gates, and platform security flags.";
     if (activeTab === "support-logs") return "Immutable operational logs, system diagnostics, and emergency dispatch trails.";
-    return "Live operations overview, facility occupancy, and real-time revenue stats.";
+    return "Overview of the complete parking management system";
   };
 
   return (
@@ -461,14 +471,19 @@ export default function AdminDashboard({ setView }) {
           <Suspense fallback={<div style={{ padding: "32px", textAlign: "center", color: "#94a3b8" }}>Loading module...</div>}>
             {activeTab === "dashboard" && (
               <AdminOverview
+                data={overviewData}
+                overviewData={overviewData}
+                isLoading={isOverviewLoading}
+                error={overviewError}
+                onRefresh={fetchDashboardData}
                 metrics={metrics}
-                recentBookings={recentBookings}
                 slots={slots}
                 getSlotState={getSlotState}
                 availableCount={availableCount}
                 occupiedCount={occupiedCount}
                 reservedCount={reservedCount}
                 setActiveTab={handleTabChange}
+                userEmail={currentUser?.email || "admin@shnoor.com"}
               />
             )}
 

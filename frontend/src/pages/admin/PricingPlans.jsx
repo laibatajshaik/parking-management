@@ -51,7 +51,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
       const res = await fetch(`${API_BASE_URL}/api/pricing-plans`);
       const data = await res.json();
       setIsLoading(false);
-      if (data.success && data.plans) {
+      if (data.success && Array.isArray(data.plans)) {
         setPlans(data.plans);
       }
     } catch {
