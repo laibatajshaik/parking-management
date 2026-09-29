@@ -73,29 +73,39 @@ export default function ParkingHistory({ loggedInUser }) {
     }
   };
 
+  const isOngoingSession = (item) => {
+    if (!item) return false;
+    const s = (item.status || "").toLowerCase();
+    const hasExit = item.exit_time && item.exit_time !== "Ongoing" && item.exit_time !== "null";
+    if (hasExit) return false;
+    return s === "parked" || s === "active";
+  };
+
   const validHistory = historyList.filter(
     (item) =>
+      item &&
       item.vehicle_number &&
       item.vehicle_number.trim() !== "" &&
       item.vehicle_number !== "—" &&
       item.slot_number &&
       item.slot_number.trim() !== "" &&
-      item.slot_number !== "—"
+      item.slot_number !== "—" &&
+      (item.fee || item.duration || item.exit_time || (item.status && item.status.toLowerCase() === "parked"))
   );
 
   const filteredHistory = validHistory.filter((item) => {
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !q ||
       (item.vehicle_number && item.vehicle_number.toLowerCase().includes(q)) ||
       (item.slot_number && item.slot_number.toLowerCase().includes(q)) ||
       (item.transaction_id && item.transaction_id.toLowerCase().includes(q));
 
-    const itemStatus = (item.status || "").toLowerCase();
+    const isOngoing = isOngoingSession(item);
     const matchesStatus =
       statusFilter === "ALL" ||
-      (statusFilter === "Completed" && itemStatus === "completed") ||
-      (statusFilter === "Parked" && itemStatus === "parked");
+      (statusFilter === "Completed" && !isOngoing) ||
+      (statusFilter === "Parked" && isOngoing);
 
     return matchesSearch && matchesStatus;
   });
@@ -103,6 +113,12 @@ export default function ParkingHistory({ loggedInUser }) {
   const handleDownloadSlip = (item) => {
     const target = item || selectedSessionModal;
     if (!target) return;
+
+    const isOngoing = isOngoingSession(target);
+    const exitDisplay = isOngoing ? "Ongoing" : (target.exit_time ? formatDate(target.exit_time) : "Completed");
+    const durationDisplay = isOngoing ? (target.duration || "Ongoing") : (target.duration && target.duration !== "Ongoing" ? target.duration : "1h 00m");
+    const feeDisplay = target.fee || (isOngoing ? "Pending" : "₹50.00");
+    const statusDisplay = isOngoing ? "Parked" : "Completed";
 
     const slipHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -194,11 +210,11 @@ export default function ParkingHistory({ loggedInUser }) {
     <div class="grid">
       <div class="item">
         <span class="label">Customer</span>
-        <span class="val">${target.owner_name}</span>
+        <span class="val">${target.owner_name || "Customer"}</span>
       </div>
       <div class="item">
         <span class="label">Duration</span>
-        <span class="val">${target.duration}</span>
+        <span class="val">${durationDisplay}</span>
       </div>
       <div class="item">
         <span class="label">Entry Time</span>
@@ -206,15 +222,15 @@ export default function ParkingHistory({ loggedInUser }) {
       </div>
       <div class="item">
         <span class="label">Exit Time</span>
-        <span class="val">${formatDate(target.exit_time)}</span>
+        <span class="val">${exitDisplay}</span>
       </div>
       <div class="item">
         <span class="label">Amount Paid</span>
-        <span class="val">${target.fee}</span>
+        <span class="val">${feeDisplay}</span>
       </div>
       <div class="item">
         <span class="label">Status</span>
-        <span class="val">${target.status}</span>
+        <span class="val">${statusDisplay}</span>
       </div>
     </div>
     <div class="footer">
@@ -291,8 +307,13 @@ export default function ParkingHistory({ loggedInUser }) {
           <div className="pw-user-cards-stack">
             {filteredHistory.length > 0 ? (
               filteredHistory.map((item) => {
-                const isParked = (item.status || "").toLowerCase() === "parked";
+                const isOngoing = isOngoingSession(item);
                 const typeKey = (item.vehicle_type || "Car").toLowerCase();
+                const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "Completed");
+                const displayDuration = isOngoing
+                  ? (item.duration || "Ongoing")
+                  : (item.duration && item.duration !== "Ongoing" ? item.duration : "1h 00m");
+                const displayFee = item.fee ? item.fee : (isOngoing ? "Pending" : "₹50.00");
 
                 return (
                   <div key={item.id} className="pw-user-card-box pw-mgmt-grid-row pw-customer-history-grid">
@@ -323,30 +344,30 @@ export default function ParkingHistory({ loggedInUser }) {
 
                     <div className="pw-user-card-date-col">
                       <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
-                        {formatDate(item.exit_time)}
+                        {displayExit}
                       </span>
                     </div>
 
                     <div>
                       <span className="pw-duration-chip">
                         <Clock size={11} />
-                        <span>{item.duration}</span>
+                        <span>{displayDuration}</span>
                       </span>
                     </div>
 
                     <div>
                       <span className="pw-fee-amount" style={{ color: "#0f766e" }}>
-                        {item.fee}
+                        {displayFee}
                       </span>
                     </div>
 
                     <div>
                       <span
-                        className={`pw-veh-status-pill ${isParked ? "parked" : "checkedout"}`}
+                        className={`pw-veh-status-pill ${isOngoing ? "parked" : "checkedout"}`}
                         style={{ fontSize: "0.72rem" }}
                       >
                         <span className="pw-status-dot"></span>
-                        {isParked ? "Parked" : "Completed"}
+                        {isOngoing ? "Parked" : "Completed"}
                       </span>
                     </div>
 
@@ -427,21 +448,27 @@ export default function ParkingHistory({ loggedInUser }) {
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Check-out Time</span>
-                  <div className="pw-detail-val">{formatDate(selectedSessionModal.exit_time)}</div>
+                  <div className="pw-detail-val">
+                    {isOngoingSession(selectedSessionModal) ? "Ongoing" : (selectedSessionModal.exit_time ? formatDate(selectedSessionModal.exit_time) : "Completed")}
+                  </div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Total Duration</span>
-                  <div className="pw-detail-val">{selectedSessionModal.duration}</div>
+                  <div className="pw-detail-val">
+                    {isOngoingSession(selectedSessionModal) ? (selectedSessionModal.duration || "Ongoing") : (selectedSessionModal.duration && selectedSessionModal.duration !== "Ongoing" ? selectedSessionModal.duration : "1h 00m")}
+                  </div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Amount Paid</span>
                   <div className="pw-detail-val" style={{ color: "#0f766e", fontWeight: 800 }}>
-                    {selectedSessionModal.fee}
+                    {selectedSessionModal.fee || (isOngoingSession(selectedSessionModal) ? "Pending" : "₹50.00")}
                   </div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Trip Status</span>
-                  <div className="pw-detail-val">{selectedSessionModal.status}</div>
+                  <div className="pw-detail-val">
+                    {isOngoingSession(selectedSessionModal) ? "Parked" : "Completed"}
+                  </div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Assigned Location</span>

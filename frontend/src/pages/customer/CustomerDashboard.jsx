@@ -201,19 +201,23 @@ export default function CustomerDashboard({ setView }) {
         const histData = await histRes.json();
         if (histData.success && Array.isArray(histData.history)) {
           const mapped = histData.history.slice(0, 5).map((r) => {
+            const isOngoing = ["parked", "active"].includes((r.status || "").toLowerCase()) && !r.exit_time;
             const dateStr = r.exit_time
               ? new Date(r.exit_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
               : r.entry_time
               ? new Date(r.entry_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
               : "Recent";
+            const cleanFee = r.fee
+              ? (String(r.fee).startsWith("₹") ? String(r.fee) : `₹${parseFloat(String(r.fee).replace(/[^0-9.]/g, "") || 50).toFixed(2)}`)
+              : (isOngoing ? "Pending" : "₹50.00");
             return {
               id: r.id,
               location: r.zone ? `${r.zone} Garage` : "ParkSafe Facility",
               slot: r.slot_number || "—",
               date: dateStr,
-              duration: r.duration || "1 hr",
-              amount: `₹${parseFloat(r.fee || 50).toFixed(2)}`,
-              status: r.status || "Completed",
+              duration: isOngoing ? (r.duration || "Ongoing") : (r.duration && r.duration !== "Ongoing" ? r.duration : "1 hr"),
+              amount: cleanFee,
+              status: isOngoing ? "Parked" : "Completed",
               plate: r.vehicle_number || "—"
             };
           });

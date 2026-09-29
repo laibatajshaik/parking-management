@@ -2742,6 +2742,46 @@ app.post("/api/parking/calculate-fee", async (req, res) => {
 app.get("/api/customer/parking-history", async (req, res) => {
   const { email, name } = req.query;
   try {
+    await pool.query(`
+      DELETE FROM vehicle_history 
+      WHERE fee IS NULL AND duration IS NULL AND exit_time IS NULL AND status = 'Active'
+    `);
+
+    await pool.query(`
+      UPDATE reservations 
+      SET status = 'Completed' 
+      WHERE end_time <= CURRENT_TIMESTAMP AND status IN ('Confirmed', 'Checked In')
+    `);
+
+    await pool.query(`
+      UPDATE vehicle_history vh
+      SET exit_time = p.exit_time,
+          duration = COALESCE(p.duration, vh.duration, '1h 00m'),
+          fee = COALESCE(vh.fee, '₹' || CAST(p.amount AS numeric(10,2))),
+          status = 'Completed'
+      FROM payments p
+      WHERE vh.vehicle_number = p.vehicle_number
+        AND vh.exit_time IS NULL
+        AND p.payment_status = 'Completed'
+        AND p.exit_time <= CURRENT_TIMESTAMP
+        AND ABS(EXTRACT(EPOCH FROM (vh.entry_time - p.entry_time))) < 7200
+    `);
+
+    await pool.query(`
+      UPDATE vehicle_history vh
+      SET exit_time = r.end_time,
+          duration = COALESCE(vh.duration, r.duration_hours || 'h 00m'),
+          fee = COALESCE(vh.fee, '₹' || CAST(r.total_amount AS numeric(10,2))),
+          status = 'Completed'
+      FROM reservations r
+      WHERE vh.vehicle_number = r.vehicle_number
+        AND (vh.slot_number = r.slot_number OR vh.slot_number IS NULL)
+        AND vh.exit_time IS NULL
+        AND r.end_time <= CURRENT_TIMESTAMP
+        AND r.status = 'Completed'
+        AND ABS(EXTRACT(EPOCH FROM (vh.entry_time - COALESCE(r.validated_at, r.start_time)))) < 7200
+    `);
+
     let query = `
       SELECT 
         vh.id,
@@ -2755,26 +2795,32 @@ app.get("/api/customer/parking-history", async (req, res) => {
         vh.created_at,
         COALESCE(v.vehicle_type, 'Car') as vehicle_type,
         COALESCE(v.model, 'Standard') as model,
-        COALESCE(v.owner_name, p.customer_name, 'Customer') as owner_name,
-        COALESCE(v.owner_email, p.customer_email, '') as owner_email,
+        COALESCE(v.owner_name, p_match.customer_name, 'Customer') as owner_name,
+        COALESCE(v.owner_email, p_match.customer_email, '') as owner_email,
         COALESCE(ps.zone, 'Zone A') as zone,
         COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
-        p.transaction_id,
-        p.payment_method
+        p_match.transaction_id,
+        p_match.payment_method
       FROM vehicle_history vh
       LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
       LEFT JOIN parking_slots ps ON vh.slot_number = ps.slot_number
-      LEFT JOIN payments p ON vh.vehicle_number = p.vehicle_number
-      WHERE 1=1
+      LEFT JOIN LATERAL (
+        SELECT p.transaction_id, p.payment_method, p.customer_name, p.customer_email
+        FROM payments p
+        WHERE p.vehicle_number = vh.vehicle_number
+        ORDER BY ABS(EXTRACT(EPOCH FROM (p.entry_time - vh.entry_time))) ASC
+        LIMIT 1
+      ) p_match ON true
+      WHERE (vh.fee IS NOT NULL OR vh.duration IS NOT NULL OR vh.exit_time IS NOT NULL)
     `;
     const params = [];
 
     if (email) {
       params.push(email.toLowerCase());
-      query += ` AND (LOWER(COALESCE(v.owner_email, '')) = $${params.length} OR LOWER(COALESCE(p.customer_email, '')) = $${params.length})`;
+      query += ` AND (LOWER(COALESCE(v.owner_email, '')) = $${params.length} OR LOWER(COALESCE(p_match.customer_email, '')) = $${params.length})`;
     } else if (name) {
       params.push(`%${name.toLowerCase()}%`);
-      query += ` AND (LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
+      query += ` AND (LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(COALESCE(p_match.customer_name, '')) LIKE $${params.length})`;
     }
 
     query += " ORDER BY vh.entry_time DESC";
@@ -3253,6 +3299,30 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
           title: "Checked In Successfully",
           message: `Your vehicle ${updatedBooking.vehicle_number} has been checked into bay ${updatedBooking.slot_number}.`,
           type: "vehicle"
+        });
+      }
+    } else if (status.toLowerCase() === "completed" || status.toLowerCase() === "checked out") {
+      await pool.query(
+        "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
+        [updatedBooking.slot_number]
+      );
+      await pool.query(
+        "UPDATE vehicles SET status = 'Checked Out', current_slot = NULL WHERE vehicle_number = $1",
+        [updatedBooking.vehicle_number]
+      );
+      const exitTime = updatedBooking.end_time ? new Date(updatedBooking.end_time) : new Date();
+      const dur = updatedBooking.duration_hours ? `${parseFloat(updatedBooking.duration_hours).toFixed(0)}h 00m` : "1h 00m";
+      await pool.query(
+        `UPDATE vehicle_history 
+         SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
+         WHERE vehicle_number = $4 AND (exit_time IS NULL OR status = 'Parked')`,
+        [exitTime, dur, `₹${parseFloat(updatedBooking.total_amount || 0).toFixed(2)}`, updatedBooking.vehicle_number]
+      );
+      if (updatedBooking.customer_email) {
+        await notifyUser(updatedBooking.customer_email, {
+          title: "Parking Completed",
+          message: `Your parking session for ${updatedBooking.vehicle_number} at bay ${updatedBooking.slot_number} has concluded.`,
+          type: "parking"
         });
       }
     }
