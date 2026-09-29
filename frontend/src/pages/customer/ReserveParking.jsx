@@ -81,9 +81,21 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
       .catch(() => {});
   }, []);
 
+  const updateTimesForPlan = (plan) => {
+    const now = new Date();
+    const durHours = (plan?.billing_type || "").toLowerCase() === "monthly"
+      ? 30 * 24
+      : (plan?.billing_type || "").toLowerCase() === "daily"
+      ? 24
+      : (parseFloat(plan?.duration_hours) || 2);
+    setEntryDateTime(formatDateTime(now));
+    setExitDateTime(formatDateTime(new Date(now.getTime() + durHours * 3600000)));
+  };
+
   useEffect(() => {
     if (preselectedPlan) {
       setSelectedPlanObject(preselectedPlan);
+      updateTimesForPlan(preselectedPlan);
     }
   }, [preselectedPlan]);
 
@@ -116,6 +128,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
   const handleSelectPlan = (plan) => {
     setSelectedPlanObject(plan);
+    updateTimesForPlan(plan);
   };
 
   const handleProceedToSlot = () => {
@@ -148,7 +161,13 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
           model: vehicleModel || "Standard",
           slot_number: selectedSlot,
           zone: selectedZone,
-          duration_hours: selectedPlanObject?.duration_hours || 2,
+          start_time: entryDateTime,
+          end_time: exitDateTime,
+          duration_hours: (selectedPlanObject?.billing_type || "").toLowerCase() === "monthly"
+            ? 720
+            : (selectedPlanObject?.billing_type || "").toLowerCase() === "daily"
+            ? 24
+            : (selectedPlanObject?.duration_hours || 2),
           total_amount: getPlanCost(),
           plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
           plan_name: selectedPlanObject?.plan_name || "Standard Parking",

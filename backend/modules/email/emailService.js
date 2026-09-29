@@ -85,7 +85,29 @@ function buildHtmlTemplate({ title, subtitle, contentHtml, footerNote }) {
 }
 
 function formatExactTimestamp(val) {
-  const d = val ? new Date(val) : new Date();
+  if (!val) {
+    return new Date().toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true
+    });
+  }
+  const str = String(val).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (match) {
+    const [, y, m, d, h, min] = match;
+    const hourNum = parseInt(h, 10);
+    const ampm = hourNum >= 12 ? "pm" : "am";
+    const h12 = hourNum % 12 || 12;
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+    const monthStr = monthNames[parseInt(m, 10) - 1] || m;
+    return `${parseInt(d, 10)} ${monthStr} ${y}, ${String(h12).padStart(2, "0")}:${min} ${ampm}`;
+  }
+  const d = new Date(val);
   const dateObj = isNaN(d.getTime()) ? new Date() : d;
   return dateObj.toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",

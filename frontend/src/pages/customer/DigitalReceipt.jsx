@@ -66,6 +66,16 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     if (!isoStr) return "—";
     try {
       const str = String(isoStr).trim();
+      const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?/i);
+      if (dmyMatch) {
+        const [, d, m, y, h, min, ampm] = dmyMatch;
+        let hourNum = h ? parseInt(h, 10) : 0;
+        let p = ampm ? ampm.toLowerCase() : (hourNum >= 12 ? "pm" : "am");
+        if (!ampm) hourNum = hourNum % 12 || 12;
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+        const monthStr = monthNames[parseInt(m, 10) - 1] || m;
+        return `${parseInt(d, 10)} ${monthStr} ${y}, ${String(hourNum).padStart(2, "0")}:${min || "00"} ${p}`;
+      }
       const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
       if (match) {
         const [, y, m, d, h, min] = match;

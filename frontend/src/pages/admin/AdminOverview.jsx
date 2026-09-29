@@ -168,13 +168,20 @@ function formatTimeOnly(isoStr) {
   if (!isoStr) return "—";
   try {
     const str = String(isoStr).trim();
-    const match = str.match(/(\d{2}):(\d{2})/);
+    const ampmMatch = str.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)/i);
+    if (ampmMatch) {
+      const h = parseInt(ampmMatch[1], 10);
+      const m = ampmMatch[2];
+      const ampm = ampmMatch[3].toLowerCase();
+      return `${String(h).padStart(2, "0")}:${m} ${ampm}`;
+    }
+    const match = str.match(/(?:[T ]|^)(\d{1,2}):(\d{2})/);
     if (match) {
-      const [, h, min] = match;
-      const hourNum = parseInt(h, 10);
-      const ampm = hourNum >= 12 ? "pm" : "am";
-      const h12 = hourNum % 12 || 12;
-      return `${String(h12).padStart(2, "0")}:${min} ${ampm}`;
+      let h = parseInt(match[1], 10);
+      const m = match[2];
+      const ampm = h >= 12 ? "pm" : "am";
+      h = h % 12 || 12;
+      return `${String(h).padStart(2, "0")}:${m} ${ampm}`;
     }
     const dt = new Date(isoStr);
     if (isNaN(dt.getTime())) return String(isoStr);

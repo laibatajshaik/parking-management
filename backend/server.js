@@ -59,6 +59,42 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/notifications", notificationRoutes);
 
+const getLocalTimestamp = (d = new Date()) => {
+  const date = typeof d === "string" ? new Date(d) : d;
+  const pad = (n) => String(n).padStart(2, "0");
+  const padMs = (n) => String(n).padStart(3, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${padMs(date.getMilliseconds())}`;
+};
+
+function parseToLocalTimestampString(inputDateStr, fallbackDate = new Date()) {
+  if (!inputDateStr) {
+    return getLocalTimestamp(fallbackDate);
+  }
+  const str = String(inputDateStr).trim();
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?/i);
+  if (dmyMatch) {
+    const [, d, m, y, h, min, ampm] = dmyMatch;
+    let hour = h ? parseInt(h, 10) : 0;
+    const minute = min ? parseInt(min, 10) : 0;
+    if (ampm) {
+      if (ampm.toUpperCase() === "PM" && hour < 12) hour += 12;
+      if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+    }
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${y}-${pad(m)}-${pad(d)} ${pad(hour)}:${pad(minute)}:00.000`;
+  }
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (isoMatch) {
+    const [, y, m, d, h, min, s] = isoMatch;
+    const hour = h ? parseInt(h, 10) : 0;
+    const minute = min ? parseInt(min, 10) : 0;
+    const sec = s ? parseInt(s, 10) : 0;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${y}-${pad(m)}-${pad(d)} ${pad(hour)}:${pad(minute)}:${pad(sec)}.000`;
+  }
+  return getLocalTimestamp(fallbackDate);
+}
+
 app.get("/", (req, res) => {
   res.send("Shnoor Parking Backend is running");
 });
@@ -2947,9 +2983,12 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
   const vPlate = vehicle_number.trim().toUpperCase();
   const vType = vehicle_type || "Car";
   const vModel = model || "Standard";
-  const sTime = start_time ? new Date(start_time) : new Date();
+  const now = new Date();
   const durHours = parseFloat(duration_hours) || 2;
-  const eTime = end_time ? new Date(end_time) : new Date(sTime.getTime() + durHours * 3600000);
+  const sTimeStr = parseToLocalTimestampString(start_time, now);
+  const calculatedEndTime = new Date(new Date(sTimeStr.replace(" ", "T")).getTime() + durHours * 3600000);
+  const eTimeStr = end_time ? parseToLocalTimestampString(end_time, calculatedEndTime) : getLocalTimestamp(calculatedEndTime);
+  const createdAtStr = getLocalTimestamp(now);
   const amountNum = parseFloat(total_amount) || (durHours * 50);
 
   try {
@@ -2958,7 +2997,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         booking_id, customer_name, customer_email, customer_phone, vehicle_number,
         vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
         total_amount, status, validation_code, plan_code, plan_name, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Confirmed', $14, $15, $16, CURRENT_TIMESTAMP) RETURNING *`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Confirmed', $14, $15, $16, $17) RETURNING *`,
       [
         bookingId,
         customer_name,
@@ -2969,13 +3008,14 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         vModel,
         slot_number,
         zone || "Zone A",
-        sTime,
-        eTime,
+        sTimeStr,
+        eTimeStr,
         durHours,
         amountNum,
         valCode,
         plan_code || "PLAN-STD",
-        plan_name || "Standard Parking"
+        plan_name || "Standard Parking",
+        createdAtStr
       ]
     );
 
@@ -2998,7 +3038,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
         slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', $13)`,
       [
         payTxnId,
         vPlate,
@@ -3006,12 +3046,13 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         customer_email || "",
         customer_phone || "",
         slot_number,
-        sTime,
-        eTime,
+        sTimeStr,
+        eTimeStr,
         `${durHours}h 00m`,
         amountNum,
         payMethod,
-        payMethod
+        payMethod,
+        createdAtStr
       ]
     );
 
@@ -3107,11 +3148,12 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
     }
 
     const now = new Date();
+    const nowStr = getLocalTimestamp(now);
     const updatedRes = await pool.query(
       `UPDATE reservations 
        SET status = 'Checked In', validated_at = $1, validated_by = $2 
        WHERE id = $3 RETURNING *`,
-      [now, validated_by || "Staff Operator", booking.id]
+      [nowStr, validated_by || "Staff Operator", booking.id]
     );
 
     await pool.query(
@@ -3129,7 +3171,7 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
     await pool.query(
       `INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, exit_time, duration, fee, status)
        VALUES ($1, $2, $3, NULL, 'Ongoing', $4, 'Parked')`,
-      [booking.vehicle_number, booking.slot_number, now, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
+      [booking.vehicle_number, booking.slot_number, nowStr, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
     );
 
     if (booking.customer_email) {

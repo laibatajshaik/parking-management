@@ -47,6 +47,17 @@ export default function ReservationValidation({ setStatusActionMessage }) {
       });
     }
     try {
+      const str = String(isoStr).trim();
+      const match = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+      if (match) {
+        const [, y, m, d, h, min] = match;
+        const hourNum = parseInt(h, 10);
+        const ampm = hourNum >= 12 ? "pm" : "am";
+        const h12 = hourNum % 12 || 12;
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+        const monthStr = monthNames[parseInt(m, 10) - 1] || m;
+        return `${parseInt(d, 10)} ${monthStr} ${y}, ${String(h12).padStart(2, "0")}:${min} ${ampm}`;
+      }
       const d = new Date(isoStr);
       if (isNaN(d.getTime())) return isoStr;
       return d.toLocaleString("en-IN", {
@@ -62,10 +73,25 @@ export default function ReservationValidation({ setStatusActionMessage }) {
     }
   };
 
-  
   const formatTimeOnly = (isoStr) => {
     if (!isoStr) {
       return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+    }
+    const str = String(isoStr).trim();
+    const ampmMatch = str.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)/i);
+    if (ampmMatch) {
+      const h = parseInt(ampmMatch[1], 10);
+      const m = ampmMatch[2];
+      const ampm = ampmMatch[3].toLowerCase();
+      return `${String(h).padStart(2, "0")}:${m} ${ampm}`;
+    }
+    const match = str.match(/(?:[T ]|^)(\d{1,2}):(\d{2})/);
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const m = match[2];
+      const ampm = h >= 12 ? "pm" : "am";
+      h = h % 12 || 12;
+      return `${String(h).padStart(2, "0")}:${m} ${ampm}`;
     }
     try {
       const d = new Date(isoStr);
