@@ -14,11 +14,13 @@ import {
   HelpCircle,
   LogOut,
   Menu,
+  X,
   Search,
   ChevronDown,
   Crown
 } from "lucide-react";
 import CustomerOverview from "./CustomerOverview.jsx";
+import Sidebar from "../../components/Sidebar.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
 import { API_BASE_URL } from "../../config/api.js";
@@ -60,9 +62,37 @@ export default function CustomerDashboard({ setView }) {
   };
 
   const [activeTab, setActiveTab] = useState(() => normalizeTab(tab));
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
   const [selectedPlanForReserve, setSelectedPlanForReserve] = useState(null);
+
+  const toggleSidebar = () => {
+    if (window.innerWidth <= 1024) {
+      setIsMobileNavOpen((prev) => !prev);
+    } else {
+      setIsSidebarCollapsed((prev) => !prev);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isMobileNavOpen) {
+        setIsMobileNavOpen(false);
+      }
+    };
+    const handleResize = () => {
+      if (window.innerWidth > 1024) {
+        setIsMobileNavOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isMobileNavOpen]);
 
   useEffect(() => {
     if (tab) {
@@ -323,66 +353,18 @@ export default function CustomerDashboard({ setView }) {
         className={`pw-sidebar-backdrop ${isMobileNavOpen ? "open" : ""}`}
         onClick={() => setIsMobileNavOpen(false)}
       />
-      <aside className={`pw-dashboard-sidebar ${isMobileNavOpen ? "open" : ""}`}>
-        <div className="pw-sidebar-brand" onClick={() => (setView ? setView("landing") : navigate("/"))}>
-          <div className="pw-brand-logo-box" style={{ background: isPremiumActive ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488", borderRadius: "10px" }}>
-            <span className="pw-p-logo" style={{ color: "#ffffff", fontWeight: 800 }}>P</span>
-          </div>
-          <div>
-            <span className="pw-brand-word text-white" style={{ fontSize: "1.1rem" }}>ParkSafe</span>
-            <div style={{ fontSize: "0.64rem", color: "#94a3b8", marginTop: "-2px" }}>Smart Parking. Smarter You.</div>
-          </div>
-        </div>
-
-        <div className="pw-sidebar-menu">
-          {CUSTOMER_SIDEBAR_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`pw-sidebar-item ${isActive ? "active" : item.isWorking ? "" : "disabled"}`}
-                onClick={() => {
-                  if (item.isWorking) {
-                    handleTabChange(item.id);
-                  }
-                }}
-                title={item.isWorking ? "" : `${item.label} (Module disabled)`}
-              >
-                <Icon size={16} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {isPremiumActive && (
-          <div className="pw-sidebar-premium-pill" style={{ margin: "10px 0", background: "rgba(201, 154, 46, 0.12)", border: "1px solid rgba(201, 154, 46, 0.35)", borderRadius: "10px", padding: "10px 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Crown size={16} style={{ color: "#C99A2E" }} />
-              <div>
-                <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#F5E7C3" }}>PREMIUM ACTIVE</div>
-                <div style={{ fontSize: "0.68rem", color: "rgba(255,255,255,0.7)" }}>VIP Priority Pass</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="pw-sidebar-footer" style={{ marginTop: "auto" }}>
-          <button
-            type="button"
-            className="pw-sidebar-logout-btn"
-            onClick={() => {
-              setIsMobileNavOpen(false);
-              handleSignOut();
-            }}
-          >
-            <LogOut size={16} />
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        role="customer"
+        menuItems={CUSTOMER_SIDEBAR_ITEMS}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onLogout={handleSignOut}
+        isCollapsed={isSidebarCollapsed}
+        isMobileNavOpen={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
+        isPremiumActive={isPremiumActive}
+        onBrandClick={() => (setView ? setView("landing") : navigate("/"))}
+      />
 
       <div className="pw-dashboard-main">
         <header className="pw-dashboard-topbar">
@@ -390,11 +372,13 @@ export default function CustomerDashboard({ setView }) {
             <button
               type="button"
               className="pw-topbar-menu-icon"
-              aria-label="Menu"
-              onClick={() => setIsMobileNavOpen((prev) => !prev)}
+              aria-label={isMobileNavOpen ? "Close sidebar" : isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={isMobileNavOpen || !isSidebarCollapsed}
+              onClick={toggleSidebar}
             >
-              <Menu size={18} />
+              {isMobileNavOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
+            <span className="pw-topbar-mobile-brand">ParkSafe</span>
             <div className="pw-topbar-search">
               <Search size={14} className="pw-search-icon" />
               <input
