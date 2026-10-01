@@ -3,7 +3,7 @@ import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCar
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 import { API_BASE_URL } from "../../config/api.js";
 
-export default function CustomerOverview({ recentParkings = [], activeSession = null, onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser }) {
+export default function CustomerOverview({ recentParkings = [], activeSession = null, onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser, totalVisits, totalSpent }) {
   const navigateTab = onNavigate || setActiveTab;
   const user = currentUser || loggedInUser;
   const userEmail = user?.email || "";
@@ -161,19 +161,19 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
           </span>
         </div>
 
-        <div className="pw-metric-card">
-          <span className="pw-metric-label">Wallet Balance</span>
-          <span className="pw-metric-value">₹850.00</span>
+        <div className="pw-metric-card" onClick={() => navigateTab && navigateTab("payments")} style={{ cursor: "pointer" }} title="View payment receipts">
+          <span className="pw-metric-label">Total Spent</span>
+          <span className="pw-metric-value">₹{(totalSpent ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           <span className="pw-metric-trend positive">
-            <span>Auto-pay active</span>
+            <span>All-time expenditure</span>
           </span>
         </div>
 
-        <div className="pw-metric-card">
+        <div className="pw-metric-card" onClick={() => navigateTab && navigateTab("parking-history")} style={{ cursor: "pointer" }} title="View parking history">
           <span className="pw-metric-label">Total Visits</span>
-          <span className="pw-metric-value">{recentParkings.length}</span>
+          <span className="pw-metric-value">{totalVisits !== undefined ? totalVisits : recentParkings.length}</span>
           <span className="pw-metric-trend positive">
-            <span>{recentParkings.length > 0 ? "Lifetime recorded visits" : "No visits recorded"}</span>
+            <span>{(totalVisits !== undefined ? totalVisits : recentParkings.length) > 0 ? "Lifetime recorded visits" : "No visits recorded"}</span>
           </span>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { Search, CheckCircle2, CalendarCheck, Clock, Car, Download, Printer, RefreshCw } from "lucide-react";
 
 export default function ReservationValidation({ setStatusActionMessage }) {
@@ -9,15 +10,24 @@ export default function ReservationValidation({ setStatusActionMessage }) {
   const [isValidating, setIsValidating] = useState(false);
   const [validatedPass, setValidatedPass] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalBookings, setTotalBookings] = useState(0);
 
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bookings`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchCode || ""
+      });
+      const res = await fetch(`${API_BASE_URL}/api/bookings?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.bookings) {
         setReservations(data.bookings);
+        setTotalBookings(data.total !== undefined ? data.total : data.bookings.length);
         const pendingOrConfirmed = data.bookings.find(
           (b) => (b.status || "").toLowerCase() === "confirmed" || (b.status || "").toLowerCase() === "pending"
         );
@@ -28,11 +38,11 @@ export default function ReservationValidation({ setStatusActionMessage }) {
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [page, limit, searchCode]);
 
   useEffect(() => {
     fetchReservations();
-  }, []);
+  }, [fetchReservations]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) {
@@ -150,6 +160,7 @@ export default function ReservationValidation({ setStatusActionMessage }) {
           setTimeout(() => setStatusActionMessage(""), 4000);
         }
         fetchReservations();
+        window.dispatchEvent(new Event("shnoor_activity_updated"));
       } else {
         if (setStatusActionMessage) {
           setStatusActionMessage(data.error || "Validation failed");
@@ -440,7 +451,10 @@ export default function ReservationValidation({ setStatusActionMessage }) {
                     placeholder="e.g. BK-12345 or VAL-1042 or KA01 AB 1234"
                     className="pw-form-input"
                     value={searchCode}
-                    onChange={(e) => setSearchCode(e.target.value)}
+                    onChange={(e) => {
+                      setSearchCode(e.target.value);
+                      setPage(1);
+                    }}
                   />
                   <button type="submit" className="pw-btn-primary" style={{ padding: "0 16px", whiteSpace: "nowrap" }}>
                     <Search size={14} />
@@ -513,6 +527,17 @@ export default function ReservationValidation({ setStatusActionMessage }) {
                   </div>
                 )}
               </div>
+              <Pagination
+                currentPage={page}
+                totalItems={totalBookings}
+                itemsPerPage={limit}
+                onPageChange={setPage}
+                onLimitChange={(newLimit) => {
+                  setLimit(newLimit);
+                  setPage(1);
+                }}
+                itemLabel="reservations"
+              />
             </div>
           </div>
         </div>

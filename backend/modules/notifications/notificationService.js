@@ -10,15 +10,88 @@ export const createNotification = async ({ user_email, title, message, type = "i
   return result.rows[0];
 };
 
-export const getNotificationsByUser = async (email) => {
-  const result = await pool.query(
-    `SELECT id, user_email, title, message, type, is_read, created_at
+export const getNotificationsByUser = async (email, options = {}) => {
+  const { page, limit, type, is_read, search } = options;
+  let query = `SELECT id, user_email, title, message, type, is_read, created_at
      FROM notifications
-     WHERE LOWER(user_email) = LOWER($1)
-     ORDER BY created_at DESC`,
+     WHERE LOWER(user_email) = LOWER($1)`;
+  let countQuery = `SELECT COUNT(*) FROM notifications WHERE LOWER(user_email) = LOWER($1)`;
+  const params = [email];
+
+  if (search && search.trim()) {
+    params.push(`%${search.trim().toLowerCase()}%`);
+    query += ` AND (LOWER(title) LIKE $${params.length} OR LOWER(message) LIKE $${params.length})`;
+    countQuery += ` AND (LOWER(title) LIKE $${params.length} OR LOWER(message) LIKE $${params.length})`;
+  }
+
+  if (type && type !== "ALL" && type !== "all") {
+    const t = type.toLowerCase();
+    if (t === "payment") {
+      query += ` AND LOWER(type) IN ('payment', 'receipt', 'pricing')`;
+      countQuery += ` AND LOWER(type) IN ('payment', 'receipt', 'pricing')`;
+    } else if (t === "parking") {
+      query += ` AND LOWER(type) IN ('vehicle', 'slot')`;
+      countQuery += ` AND LOWER(type) IN ('vehicle', 'slot')`;
+    } else if (t === "system") {
+      query += ` AND LOWER(type) IN ('alert', 'support', 'user', 'premium', 'info', 'system')`;
+      countQuery += ` AND LOWER(type) IN ('alert', 'support', 'user', 'premium', 'info', 'system')`;
+    } else {
+      params.push(t);
+      query += ` AND LOWER(type) = $${params.length}`;
+      countQuery += ` AND LOWER(type) = $${params.length}`;
+    }
+  }
+
+  if (is_read !== undefined && is_read !== null && is_read !== "ALL" && is_read !== "") {
+    const isReadBool = is_read === true || is_read === "true";
+    params.push(isReadBool);
+    query += ` AND is_read = $${params.length}`;
+    countQuery += ` AND is_read = $${params.length}`;
+  }
+
+  query += " ORDER BY created_at DESC";
+
+  const countRes = await pool.query(countQuery, params);
+  const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+  const unreadCountRes = await pool.query(
+    "SELECT COUNT(*) FROM notifications WHERE LOWER(user_email) = LOWER($1) AND is_read = FALSE",
     [email]
   );
-  return result.rows;
+  const unreadCount = parseInt(unreadCountRes.rows[0].count, 10) || 0;
+
+  if (page || limit) {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+    const offset = (pageNum - 1) * limitNum;
+    params.push(limitNum, offset);
+    query += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const result = await pool.query(query, params);
+    return {
+      notifications: result.rows,
+      total,
+      unreadCount,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    };
+  }
+
+  const result = await pool.query(query, params);
+  return {
+    notifications: result.rows,
+    total,
+    unreadCount,
+    pagination: {
+      page: 1,
+      limit: total || 5,
+      total,
+      totalPages: 1
+    }
+  };
 };
 
 export const markNotificationAsRead = async (id) => {

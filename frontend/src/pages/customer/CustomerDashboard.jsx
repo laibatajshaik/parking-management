@@ -221,6 +221,8 @@ export default function CustomerDashboard({ setView }) {
 
   const [recentParkings, setRecentParkings] = useState([]);
   const [activeSession, setActiveSession] = useState(null);
+  const [totalVisits, setTotalVisits] = useState(0);
+  const [totalSpent, setTotalSpent] = useState(0);
   const [primaryLocation, setPrimaryLocation] = useState({ name: "Central Parking Garage", available: "Available Bays" });
 
   useEffect(() => {
@@ -230,6 +232,7 @@ export default function CustomerDashboard({ setView }) {
         const histRes = await fetch(`${API_BASE_URL}/api/customer/parking-history?email=${encodeURIComponent(currentUser.email)}`);
         const histData = await histRes.json();
         if (histData.success && Array.isArray(histData.history)) {
+          setTotalVisits(histData.total !== undefined ? histData.total : histData.history.length);
           const mapped = histData.history.slice(0, 5).map((r) => {
             const isOngoing = ["parked", "active"].includes((r.status || "").toLowerCase()) && !r.exit_time;
             const dateStr = r.exit_time
@@ -252,9 +255,26 @@ export default function CustomerDashboard({ setView }) {
             };
           });
           setRecentParkings(mapped);
+        } else {
+          setTotalVisits(0);
+          setRecentParkings([]);
         }
       } catch {
+        setTotalVisits(0);
         setRecentParkings([]);
+      }
+
+      try {
+        const payRes = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(currentUser.email)}`);
+        const payData = await payRes.json();
+        if (payData.success && Array.isArray(payData.payments)) {
+          const sum = payData.payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+          setTotalSpent(sum);
+        } else {
+          setTotalSpent(0);
+        }
+      } catch {
+        setTotalSpent(0);
       }
 
       try {
@@ -451,6 +471,8 @@ export default function CustomerDashboard({ setView }) {
                 onViewReceipt={handleViewReceipt}
                 isPremiumActive={isPremiumActive}
                 premiumPlanInfo={premiumPlanInfo}
+                totalVisits={totalVisits}
+                totalSpent={totalSpent}
               />
             )}
 

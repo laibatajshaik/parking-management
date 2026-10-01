@@ -1,33 +1,44 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, CreditCard, Zap, Eye, X } from "lucide-react";
 
-export default function ActiveParking({ onSelectVehicleForPayment }) {
+export default function ActiveParking({ onSelectVehicleForPayment, onCheckout }) {
   const [sessions, setSessions] = useState([]);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [selectedSessionModal, setSelectedSessionModal] = useState(null);
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        type: typeFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.sessions) {
         setSessions(data.sessions);
+        setTotalSessions(data.total !== undefined ? data.total : data.sessions.length);
       }
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [page, limit, searchQuery, typeFilter]);
 
   useEffect(() => {
     fetchSessions();
     const interval = setInterval(fetchSessions, 20000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchSessions]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) return "Just now";
@@ -46,21 +57,7 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
     }
   };
 
-  const filteredSessions = sessions.filter((s) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (s.vehicle_number || "").toLowerCase().includes(q) ||
-      (s.owner_name || "").toLowerCase().includes(q) ||
-      (s.current_slot || "").toLowerCase().includes(q) ||
-      (s.model || "").toLowerCase().includes(q);
-
-    const matchesType =
-      typeFilter === "ALL" ||
-      (s.vehicle_type || "").toLowerCase() === typeFilter.toLowerCase();
-
-    return matchesSearch && matchesType;
-  });
+  const filteredSessions = sessions;
 
   return (
     <div className="pw-staff-active-parking-module">
@@ -72,7 +69,10 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
               type="text"
               placeholder="Search active vehicle plate, owner, bay..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -81,7 +81,10 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Vehicle Types</option>
@@ -194,6 +197,8 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
                         onClick={() => {
                           if (onSelectVehicleForPayment) {
                             onSelectVehicleForPayment(s);
+                          } else if (onCheckout) {
+                            onCheckout(s);
                           }
                         }}
                         title="Proceed to Payment & Checkout"
@@ -217,9 +222,17 @@ export default function ActiveParking({ onSelectVehicleForPayment }) {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredSessions.length} of {sessions.length} parked vehicles</span>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalItems={totalSessions}
+          itemsPerPage={limit}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          itemLabel="active vehicles"
+        />
       </div>
 
       {selectedSessionModal && (

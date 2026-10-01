@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import {
   Users,
   Search,
@@ -25,6 +26,9 @@ export default function UserManagement({
   const [userSearch, setUserSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalUsers, setTotalUsers] = useState(0);
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
@@ -52,26 +56,31 @@ export default function UserManagement({
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isAddingUser, setIsAddingUser] = useState(false);
 
-  const filteredUsers = usersList.filter((user) => {
-    const query = (userSearch || "").toLowerCase();
-    const matchesSearch =
-      !query ||
-      (user.name && user.name.toLowerCase().includes(query)) ||
-      (user.email && user.email.toLowerCase().includes(query)) ||
-      (user.phone && user.phone.toLowerCase().includes(query));
+  const loadUsers = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: userSearch || "",
+        role: roleFilter,
+        status: statusFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/admin/users?${params}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        setUsersList(data.users);
+        setTotalUsers(data.total !== undefined ? data.total : data.users.length);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [page, limit, userSearch, roleFilter, statusFilter, setUsersList]);
 
-    const userRole = (user.role || "customer").toLowerCase();
-    const matchesRole =
-      roleFilter === "ALL" ||
-      userRole === roleFilter.toLowerCase();
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
-    const userStat = (user.status || "Active").toLowerCase();
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      userStat === statusFilter.toLowerCase();
-
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const filteredUsers = usersList;
 
   const openEditModal = (user) => {
     setEditingUser(user);
@@ -114,6 +123,7 @@ export default function UserManagement({
         setTimeout(() => setStatusActionMessage(""), 3500);
       }
       fetchUsers();
+      loadUsers();
     } catch {
       setIsSavingUser(false);
       setStatusActionMessage("Error connecting to server");
@@ -163,6 +173,7 @@ export default function UserManagement({
         });
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchUsers();
+        loadUsers();
       } else {
         setStatusActionMessage(data.error || "Failed to add user");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -209,6 +220,7 @@ export default function UserManagement({
         setTimeout(() => setStatusActionMessage(""), 3500);
       }
       fetchUsers();
+      loadUsers();
     } catch {
       setIsUpdatingStatus(false);
       setUsersList((prev) =>
@@ -252,6 +264,7 @@ export default function UserManagement({
         setTimeout(() => setStatusActionMessage(""), 3500);
       }
       fetchUsers();
+      loadUsers();
     } catch {
       setIsDeletingUser(false);
       setUsersList((prev) => prev.filter((u) => u.id !== userToDelete.id));
@@ -273,14 +286,20 @@ export default function UserManagement({
             type="text"
             placeholder="Search name, email, or phone..."
             value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
+            onChange={(e) => {
+              setUserSearch(e.target.value);
+              setPage(1);
+            }}
             className="pw-user-search-input"
           />
           {userSearch && (
             <button
               type="button"
               className="pw-clear-search-btn"
-              onClick={() => setUserSearch("")}
+              onClick={() => {
+                setUserSearch("");
+                setPage(1);
+              }}
             >
               <X size={14} />
             </button>
@@ -292,7 +311,10 @@ export default function UserManagement({
             <span className="pw-filter-icon">Role:</span>
             <select
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Roles</option>
@@ -306,7 +328,10 @@ export default function UserManagement({
             <span className="pw-filter-icon">Status:</span>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Status</option>
@@ -461,9 +486,17 @@ export default function UserManagement({
         </div>
       </div>
 
-      <div className="pw-users-table-footer">
-        <span>Showing {filteredUsers.length} of {usersList.length} total users</span>
-      </div>
+      <Pagination
+        page={page}
+        limit={limit}
+        total={totalUsers}
+        onPageChange={setPage}
+        onLimitChange={(newLimit) => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        limitOptions={[5, 10, 25, 50]}
+      />
 
       {isAddUserModalOpen && (
         <div className="pw-modal-backdrop" onClick={() => setIsAddUserModalOpen(false)}>

@@ -1,15 +1,19 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, History, Download, Printer, X, Zap, Receipt } from "lucide-react";
 
 export default function ParkingHistory({ loggedInUser }) {
   const [historyList, setHistoryList] = useState([]);
+  const [totalTrips, setTotalTrips] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedSessionModal, setSelectedSessionModal] = useState(null);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
       let user = loggedInUser;
@@ -26,23 +30,32 @@ export default function ParkingHistory({ loggedInUser }) {
         setHistoryList([]);
         return;
       }
-      const queryParam = user.email
-        ? `email=${encodeURIComponent(user.email)}`
-        : `name=${encodeURIComponent(user.name)}`;
-      const res = await fetch(`${API_BASE_URL}/api/customer/parking-history?${queryParam}`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        status: statusFilter
+      });
+      if (user.email) {
+        params.append("email", user.email);
+      } else {
+        params.append("name", user.name);
+      }
+      const res = await fetch(`${API_BASE_URL}/api/customer/parking-history?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.history) {
         setHistoryList(data.history);
+        setTotalTrips(data.total !== undefined ? data.total : data.history.length);
       }
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [loggedInUser, page, limit, searchQuery, statusFilter]);
 
   useEffect(() => {
     fetchHistory();
-  }, [loggedInUser]);
+  }, [fetchHistory]);
 
   const formatDate = (isoStr) => {
     if (!isoStr || isoStr === "Ongoing") return "Ongoing";
@@ -91,34 +104,8 @@ export default function ParkingHistory({ loggedInUser }) {
     return s === "parked" || s === "active";
   };
 
-  const validHistory = historyList.filter(
-    (item) =>
-      item &&
-      item.vehicle_number &&
-      item.vehicle_number.trim() !== "" &&
-      item.vehicle_number !== "—" &&
-      item.slot_number &&
-      item.slot_number.trim() !== "" &&
-      item.slot_number !== "—" &&
-      (item.fee || item.duration || item.exit_time || (item.status && item.status.toLowerCase() === "parked"))
-  );
-
-  const filteredHistory = validHistory.filter((item) => {
-    const q = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      (item.vehicle_number && item.vehicle_number.toLowerCase().includes(q)) ||
-      (item.slot_number && item.slot_number.toLowerCase().includes(q)) ||
-      (item.transaction_id && item.transaction_id.toLowerCase().includes(q));
-
-    const isOngoing = isOngoingSession(item);
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (statusFilter === "Completed" && !isOngoing) ||
-      (statusFilter === "Parked" && isOngoing);
-
-    return matchesSearch && matchesStatus;
-  });
+  const validHistory = historyList;
+  const filteredHistory = historyList;
 
   const handleDownloadSlip = (item) => {
     const target = item || selectedSessionModal;
@@ -272,7 +259,10 @@ export default function ParkingHistory({ loggedInUser }) {
               type="text"
               placeholder="Search by license plate or bay..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -281,7 +271,10 @@ export default function ParkingHistory({ loggedInUser }) {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Sessions</option>
@@ -416,9 +409,16 @@ export default function ParkingHistory({ loggedInUser }) {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredHistory.length} of {validHistory.length} past parking trips</span>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalItems={totalTrips}
+          pageSize={limit}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
       </div>
 
       {selectedSessionModal && (

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, Mail, Zap } from "lucide-react";
 
 export default function ActiveParkingSessions() {
@@ -8,26 +9,37 @@ export default function ActiveParkingSessions() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [zoneFilter, setZoneFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalSessions, setTotalSessions] = useState(0);
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        type: typeFilter,
+        zone: zoneFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.sessions)) {
         setSessions(data.sessions);
+        setTotalSessions(data.total !== undefined ? data.total : data.sessions.length);
       }
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [page, limit, searchQuery, typeFilter, zoneFilter]);
 
   useEffect(() => {
     fetchSessions();
     const interval = setInterval(fetchSessions, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchSessions]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) return "Just now";
@@ -46,35 +58,8 @@ export default function ActiveParkingSessions() {
     }
   };
 
-  const validSessions = sessions.filter(
-    (s) =>
-      s.vehicle_number &&
-      s.vehicle_number.trim() !== "" &&
-      s.vehicle_number !== "—" &&
-      (s.current_slot || s.slot_number) &&
-      s.current_slot !== "—" &&
-      s.slot_number !== "—"
-  );
-
-  const filteredSessions = validSessions.filter((s) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (s.vehicle_number || "").toLowerCase().includes(q) ||
-      (s.owner_name || "").toLowerCase().includes(q) ||
-      (s.current_slot || "").toLowerCase().includes(q) ||
-      (s.model || "").toLowerCase().includes(q);
-
-    const matchesType =
-      typeFilter === "ALL" ||
-      (s.vehicle_type || "").toLowerCase() === typeFilter.toLowerCase();
-
-    const matchesZone =
-      zoneFilter === "ALL" ||
-      (s.zone || "").toLowerCase() === zoneFilter.toLowerCase();
-
-    return matchesSearch && matchesType && matchesZone;
-  });
+  const validSessions = sessions;
+  const filteredSessions = sessions;
 
   const totalParked = validSessions.length;
   const carsCount = validSessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "car" || (s.vehicle_type || "").toLowerCase() === "suv").length;
@@ -126,7 +111,10 @@ export default function ActiveParkingSessions() {
               type="text"
               placeholder="Search plate, owner, bay..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -135,7 +123,10 @@ export default function ActiveParkingSessions() {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Vehicle Types</option>
@@ -149,7 +140,10 @@ export default function ActiveParkingSessions() {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={zoneFilter}
-                onChange={(e) => setZoneFilter(e.target.value)}
+                onChange={(e) => {
+                  setZoneFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Zones</option>
@@ -270,9 +264,17 @@ export default function ActiveParkingSessions() {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredSessions.length} of {validSessions.length} active parked vehicles</span>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalItems={totalSessions}
+          itemsPerPage={limit}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          itemLabel="active sessions"
+        />
       </div>
     </div>
   );

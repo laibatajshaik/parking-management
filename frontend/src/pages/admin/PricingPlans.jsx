@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import {
   CreditCard,
   Plus,
@@ -24,6 +25,9 @@ export default function PricingPlans({ setStatusActionMessage }) {
   const [vehicleFilter, setVehicleFilter] = useState("All");
   const [billingFilter, setBillingFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -45,23 +49,36 @@ export default function PricingPlans({ setStatusActionMessage }) {
   const [formError, setFormError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  const fetchPlans = async () => {
+  const fetchPlans = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/pricing-plans`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        vehicle_type: vehicleFilter,
+        billing_type: billingFilter
+      });
+      if (statusFilter === "Active") {
+        params.append("active", "true");
+      } else if (statusFilter === "Inactive") {
+        params.append("active", "false");
+      }
+      const res = await fetch(`${API_BASE_URL}/api/pricing-plans?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.plans)) {
         setPlans(data.plans);
+        setTotalCount(data.total !== undefined ? data.total : data.plans.length);
       }
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [page, limit, searchQuery, vehicleFilter, billingFilter, statusFilter]);
 
   useEffect(() => {
     fetchPlans();
-  }, []);
+  }, [fetchPlans]);
 
   const showNotification = (msg) => {
     setActionSuccess(msg);
@@ -217,27 +234,9 @@ export default function PricingPlans({ setStatusActionMessage }) {
     } catch (err) { void err; }
   };
 
-  const filteredPlans = plans.filter((p) => {
-    const matchesSearch =
-      (p.plan_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.plan_code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.description || "").toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredPlans = plans;
 
-    const matchesVehicle =
-      vehicleFilter === "All" || (p.vehicle_type || "").toLowerCase() === vehicleFilter.toLowerCase();
-
-    const matchesBilling =
-      billingFilter === "All" || (p.billing_type || "").toLowerCase() === billingFilter.toLowerCase();
-
-    const matchesStatus =
-      statusFilter === "All" ||
-      (statusFilter === "Active" && p.is_active) ||
-      (statusFilter === "Inactive" && !p.is_active);
-
-    return matchesSearch && matchesVehicle && matchesBilling && matchesStatus;
-  });
-
-  const totalPlans = plans.length;
+  const totalPlans = totalCount;
   const activePlans = plans.filter((p) => p.is_active).length;
   const hourlyPlans = plans.filter((p) => p.billing_type === "Hourly").length;
   const dailyPlans = plans.filter((p) => p.billing_type === "Daily").length;
@@ -302,7 +301,10 @@ export default function PricingPlans({ setStatusActionMessage }) {
               className="pw-search-input"
               placeholder="Search plan name, code, vehicle..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
@@ -312,7 +314,10 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 key={v}
                 type="button"
                 className={`pw-filter-pill ${vehicleFilter === v ? "active" : ""}`}
-                onClick={() => setVehicleFilter(v)}
+                onClick={() => {
+                  setVehicleFilter(v);
+                  setPage(1);
+                }}
               >
                 {v}
               </button>
@@ -325,7 +330,10 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 key={b}
                 type="button"
                 className={`pw-filter-pill ${billingFilter === b ? "active" : ""}`}
-                onClick={() => setBillingFilter(b)}
+                onClick={() => {
+                  setBillingFilter(b);
+                  setPage(1);
+                }}
               >
                 {b}
               </button>
@@ -338,7 +346,10 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 key={s}
                 type="button"
                 className={`pw-filter-pill ${statusFilter === s ? "active" : ""}`}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s);
+                  setPage(1);
+                }}
               >
                 {s}
               </button>
@@ -455,6 +466,18 @@ export default function PricingPlans({ setStatusActionMessage }) {
           ))}
         </div>
       )}
+
+      <Pagination
+        currentPage={page}
+        totalItems={totalCount}
+        itemsPerPage={limit}
+        onPageChange={setPage}
+        onLimitChange={(newLimit) => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        itemLabel="pricing plans"
+      />
 
       {isModalOpen && (
         <div className="pw-modal-overlay" onClick={() => setIsModalOpen(false)}>

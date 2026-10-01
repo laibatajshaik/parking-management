@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import {
   ShieldAlert,
   Search,
@@ -23,27 +24,47 @@ export default function SupportAuditLogs() {
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
   const [statusActionMsg, setStatusActionMsg] = useState("");
 
+  const [ticketPage, setTicketPage] = useState(1);
+  const [ticketLimit, setTicketLimit] = useState(5);
+  const [ticketTotal, setTicketTotal] = useState(0);
+
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLimit, setAuditLimit] = useState(5);
+  const [auditTotal, setAuditTotal] = useState(0);
+
   const [tickets, setTickets] = useState([]);
 
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     setIsLoadingTickets(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets`);
+      const params = new URLSearchParams({
+        page: String(ticketPage),
+        limit: String(ticketLimit),
+        search: searchQuery || "",
+        status: statusFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets?${params}`);
       const data = await res.json();
       setIsLoadingTickets(false);
       if (data.success && Array.isArray(data.tickets)) {
         setTickets(data.tickets);
+        setTicketTotal(data.total !== undefined ? data.total : data.tickets.length);
       }
     } catch {
       setIsLoadingTickets(false);
     }
-  };
+  }, [ticketPage, ticketLimit, searchQuery, statusFilter]);
 
   const [auditLogs, setAuditLogs] = useState([]);
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs`);
+      const params = new URLSearchParams({
+        page: String(auditPage),
+        limit: String(auditLimit),
+        search: searchQuery || ""
+      });
+      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs?${params}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.logs)) {
         setAuditLogs(
@@ -65,14 +86,18 @@ export default function SupportAuditLogs() {
             ip: l.ip || "127.0.0.1"
           }))
         );
+        setAuditTotal(data.total !== undefined ? data.total : data.logs.length);
       }
     } catch {}
-  };
+  }, [auditPage, auditLimit, searchQuery]);
 
   useEffect(() => {
     fetchTickets();
+  }, [fetchTickets]);
+
+  useEffect(() => {
     fetchAuditLogs();
-  }, []);
+  }, [fetchAuditLogs]);
 
   const handleUpdatePriority = async (ticketId, newPriority) => {
     try {
@@ -280,17 +305,7 @@ export default function SupportAuditLogs() {
     }
   };
 
-  const filteredTickets = tickets.filter((t) => {
-    const tCode = t.ticket_code || String(t.id);
-    const cName = t.customer_name || t.customer || "";
-    const subj = t.subject || "";
-    const matchesSearch =
-      subj.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tCode.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "All" || t.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredTickets = tickets;
 
   const openTicketsCount = tickets.filter((t) => t.status !== "Resolved").length;
   const resolvedTicketsCount = tickets.filter((t) => t.status === "Resolved").length;
@@ -343,7 +358,10 @@ export default function SupportAuditLogs() {
           <button
             type="button"
             className={`pw-filter-pill ${activeSubTab === "tickets" ? "active" : ""}`}
-            onClick={() => setActiveSubTab("tickets")}
+            onClick={() => {
+              setActiveSubTab("tickets");
+              setTicketPage(1);
+            }}
             style={{
               background: activeSubTab === "tickets" ? "#0f766e" : "var(--bg-sub, #f1f5f9)",
               color: activeSubTab === "tickets" ? "#ffffff" : "var(--text-secondary, #475569)",
@@ -365,7 +383,10 @@ export default function SupportAuditLogs() {
           <button
             type="button"
             className={`pw-filter-pill ${activeSubTab === "audit" ? "active" : ""}`}
-            onClick={() => setActiveSubTab("audit")}
+            onClick={() => {
+              setActiveSubTab("audit");
+              setAuditPage(1);
+            }}
             style={{
               background: activeSubTab === "audit" ? "#0f766e" : "var(--bg-sub, #f1f5f9)",
               color: activeSubTab === "audit" ? "#ffffff" : "var(--text-secondary, #475569)",
@@ -392,7 +413,11 @@ export default function SupportAuditLogs() {
               type="text"
               placeholder="Search tickets or audit..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setTicketPage(1);
+                setAuditPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -625,6 +650,17 @@ export default function SupportAuditLogs() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={ticketPage}
+              totalItems={ticketTotal}
+              itemsPerPage={ticketLimit}
+              onPageChange={setTicketPage}
+              onLimitChange={(newLimit) => {
+                setTicketLimit(newLimit);
+                setTicketPage(1);
+              }}
+              itemLabel="support tickets"
+            />
           </div>
 
           {selectedTicket && (
@@ -765,6 +801,17 @@ export default function SupportAuditLogs() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={auditPage}
+            totalItems={auditTotal}
+            itemsPerPage={auditLimit}
+            onPageChange={setAuditPage}
+            onLimitChange={(newLimit) => {
+              setAuditLimit(newLimit);
+              setAuditPage(1);
+            }}
+            itemLabel="audit events"
+          />
         </div>
       )}
     </div>

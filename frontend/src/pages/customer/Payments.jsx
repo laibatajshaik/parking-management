@@ -1,14 +1,19 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { CreditCard, Smartphone, Banknote, Globe, Receipt, Search, RefreshCw, CheckCircle2, Calendar, Clock, Layers, ArrowUpRight } from "lucide-react";
 
 export default function Payments({ loggedInUser, onViewReceipt }) {
   const [payments, setPayments] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [totalSpentAmount, setTotalSpentAmount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [methodFilter, setMethodFilter] = useState("ALL");
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     setIsLoading(true);
     try {
       let user = loggedInUser;
@@ -23,26 +28,44 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
       if (!user || (!user.email && !user.name)) {
         setIsLoading(false);
         setPayments([]);
+        setTotal(0);
+        setTotalSpentAmount(0);
         return;
       }
-      const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name)}`;
-      const res = await fetch(`${API_BASE_URL}/api/customer/payments?${queryParam}`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        method: methodFilter
+      });
+      if (user.email) {
+        params.append("email", user.email);
+      } else {
+        params.append("name", user.name);
+      }
+      const res = await fetch(`${API_BASE_URL}/api/customer/payments?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.payments)) {
         setPayments(data.payments);
+        setTotal(data.total !== undefined ? data.total : data.payments.length);
+        if (data.totalAmount !== undefined) {
+          setTotalSpentAmount(data.totalAmount);
+        }
       } else {
         setPayments([]);
+        setTotal(0);
       }
     } catch {
       setIsLoading(false);
       setPayments([]);
+      setTotal(0);
     }
-  };
+  }, [loggedInUser, page, limit, searchQuery, methodFilter]);
 
   useEffect(() => {
     fetchPayments();
-  }, [loggedInUser]);
+  }, [fetchPayments]);
 
   
   const formatDateOnly = (isoStr) => {
@@ -85,35 +108,10 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
     return <Globe size={13} className="pw-method-icon netbanking" />;
   };
 
-  const validPayments = payments.filter(
-    (p) =>
-      p.vehicle_number &&
-      p.vehicle_number.trim() !== "" &&
-      p.vehicle_number !== "—" &&
-      p.slot_number &&
-      p.slot_number.trim() !== "" &&
-      p.slot_number !== "—" &&
-      p.transaction_id &&
-      p.transaction_id.trim() !== "" &&
-      p.transaction_id !== "—"
-  );
+  const validPayments = payments;
+  const filteredPayments = payments;
 
-  const filteredPayments = validPayments.filter((p) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (p.transaction_id || "").toLowerCase().includes(q) ||
-      (p.vehicle_number || "").toLowerCase().includes(q) ||
-      (p.slot_number || "").toLowerCase().includes(q);
-
-    const matchesMethod =
-      methodFilter === "ALL" ||
-      (p.payment_method || "").toLowerCase() === methodFilter.toLowerCase();
-
-    return matchesSearch && matchesMethod;
-  });
-
-  const totalSpent = validPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const totalSpent = totalSpentAmount || validPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
   return (
     <div className="pw-customer-payments-module">
@@ -128,7 +126,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Completed Transactions</span>
-          <span className="pw-metric-value">{validPayments.length}</span>
+          <span className="pw-metric-value">{total}</span>
           <span className="pw-metric-trend positive">
             <CheckCircle2 size={12} />
             <span>Receipts available</span>
@@ -165,7 +163,10 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
               type="text"
               placeholder="Search reference, vehicle plate, bay..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -174,7 +175,10 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={methodFilter}
-                onChange={(e) => setMethodFilter(e.target.value)}
+                onChange={(e) => {
+                  setMethodFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Payment Methods</option>
@@ -293,9 +297,16 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredPayments.length} of {validPayments.length} transactions</span>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalItems={total}
+          pageSize={limit}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { CalendarCheck, Search, RefreshCw, CheckCircle2, Clock, Layers, Download, X, TrendingUp, Tag, CheckCircle, XCircle } from "lucide-react";
 
 export default function BookingsReservations({ setStatusActionMessage }) {
@@ -16,41 +17,37 @@ export default function BookingsReservations({ setStatusActionMessage }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedPassBooking] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalBookings, setTotalBookings] = useState(0);
 
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bookings`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        status: statusFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/bookings?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.bookings)) {
         setBookings(data.bookings);
+        setTotalBookings(data.total !== undefined ? data.total : data.bookings.length);
         if (data.stats) {
           setStats(data.stats);
-        } else {
-          const total = data.bookings.length;
-          const confirmed = data.bookings.filter(b => (b.status || "").toLowerCase() === "confirmed").length;
-          const pending = data.bookings.filter(b => (b.status || "").toLowerCase() === "pending").length;
-          const checkedIn = data.bookings.filter(b => (b.status || "").toLowerCase() === "checked in").length;
-          const rev = data.bookings.reduce((sum, b) => sum + (parseFloat(b.total_amount) || 0), 0);
-          setStats({
-            total,
-            confirmed,
-            pending,
-            checkedIn,
-            totalRevenue: `₹${rev.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
-            totalRevenueNumeric: rev
-          });
         }
       }
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [page, limit, searchQuery, statusFilter]);
 
   useEffect(() => {
     fetchBookings();
-  }, []);
+  }, [fetchBookings]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) {
@@ -393,23 +390,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const filteredBookings = bookings.filter((b) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (b.booking_id || "").toLowerCase().includes(q) ||
-      (b.customer_name || "").toLowerCase().includes(q) ||
-      (b.customer_email || "").toLowerCase().includes(q) ||
-      (b.vehicle_number || "").toLowerCase().includes(q) ||
-      (b.slot_number || "").toLowerCase().includes(q) ||
-      (b.validation_code || "").toLowerCase().includes(q);
-
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (b.status || "").toLowerCase() === statusFilter.toLowerCase();
-
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBookings = bookings;
 
   const getStatusBadge = (st) => {
     const raw = (st || "").toLowerCase();
@@ -507,7 +488,10 @@ export default function BookingsReservations({ setStatusActionMessage }) {
               type="text"
               placeholder="Search booking ID, customer, plate, bay, or code..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -516,7 +500,10 @@ export default function BookingsReservations({ setStatusActionMessage }) {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Reservation Statuses</option>
@@ -685,9 +672,17 @@ export default function BookingsReservations({ setStatusActionMessage }) {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredBookings.length} of {bookings.length} reservations</span>
-        </div>
+        <Pagination
+          page={page}
+          limit={limit}
+          total={totalBookings}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          limitOptions={[5, 10, 25, 50]}
+        />
       </div>
     </div>
   );

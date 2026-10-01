@@ -2,7 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { CreditCard, Smartphone, Banknote, Globe, CheckCircle2, Car, Printer, Download, RotateCcw, CheckCircle } from "lucide-react";
 
-export default function Payment({ preselectedVehicle, onPaymentCompleted, setStatusActionMessage }) {
+export default function Payment({ preselectedVehicle, selectedVehicle, onPaymentCompleted, onPaymentSuccess, setStatusActionMessage }) {
   const [activeSessions, setActiveSessions] = useState([]);
   const [selectedVehicleNumber, setSelectedVehicleNumber] = useState("");
   const [currentSession, setCurrentSession] = useState(null);
@@ -17,15 +17,16 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
       const data = await res.json();
       if (data.success && data.sessions) {
         setActiveSessions(data.sessions);
-        if (preselectedVehicle && preselectedVehicle.vehicle_number) {
-          setSelectedVehicleNumber(preselectedVehicle.vehicle_number);
-          const found = data.sessions.find((s) => s.vehicle_number === preselectedVehicle.vehicle_number);
+        const targetVehicle = selectedVehicle || preselectedVehicle;
+        if (targetVehicle && targetVehicle.vehicle_number) {
+          setSelectedVehicleNumber(targetVehicle.vehicle_number);
+          const found = data.sessions.find((s) => s.vehicle_number === targetVehicle.vehicle_number);
           if (found) {
             setCurrentSession(found);
             setCustomAmount(String(found.fee_numeric || 50));
           } else {
-            setCurrentSession(preselectedVehicle);
-            setCustomAmount(String(preselectedVehicle.fee_numeric || 50));
+            setCurrentSession(targetVehicle);
+            setCustomAmount(String(targetVehicle.fee_numeric || 50));
           }
         } else if (data.sessions.length > 0 && !selectedVehicleNumber) {
           setSelectedVehicleNumber(data.sessions[0].vehicle_number);
@@ -38,7 +39,7 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
 
   useEffect(() => {
     fetchActiveSessions();
-  }, [preselectedVehicle]);
+  }, [preselectedVehicle, selectedVehicle]);
 
   const handleVehicleSelect = (plate) => {
     setSelectedVehicleNumber(plate);
@@ -87,6 +88,10 @@ export default function Payment({ preselectedVehicle, onPaymentCompleted, setSta
         if (onPaymentCompleted) {
           onPaymentCompleted(data.receipt);
         }
+        if (onPaymentSuccess) {
+          onPaymentSuccess(data.receipt);
+        }
+        window.dispatchEvent(new Event("shnoor_activity_updated"));
       } else {
         if (setStatusActionMessage) {
           setStatusActionMessage(data.error || "Failed to process payment");

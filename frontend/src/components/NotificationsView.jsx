@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import Pagination from "./Pagination.jsx";
 import {
   Bell,
   Check,
@@ -89,6 +90,9 @@ export default function NotificationsView({
   subtitle = "Real-time updates, activity alerts, and official system announcements."
 }) {
   const [notifications, setNotifications] = useState([]);
+  const [totalNotifications, setTotalNotifications] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
@@ -116,16 +120,33 @@ export default function NotificationsView({
     const email = resolveEmail();
     if (!email) {
       setNotifications([]);
+      setTotalNotifications(0);
       setUnreadCount(0);
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications?email=${encodeURIComponent(email)}`);
+      const params = new URLSearchParams({
+        email: email,
+        page: String(page),
+        limit: String(limit)
+      });
+      if (searchQuery.trim()) {
+        params.append("search", searchQuery.trim());
+      }
+      if (filterType !== "all") {
+        if (filterType === "unread") {
+          params.append("is_read", "false");
+        } else {
+          params.append("type", filterType);
+        }
+      }
+      const res = await fetch(`${API_BASE_URL}/api/notifications?${params}`);
       const data = await res.json();
       if (res.ok && data && data.success && Array.isArray(data.notifications)) {
         setNotifications(data.notifications);
+        setTotalNotifications(data.total !== undefined ? data.total : data.notifications.length);
         const count = typeof data.unread_count === "number"
           ? data.unread_count
           : data.notifications.filter((n) => !n.is_read).length;
@@ -136,7 +157,7 @@ export default function NotificationsView({
     } finally {
       setLoading(false);
     }
-  }, [resolveEmail]);
+  }, [resolveEmail, page, limit, filterType, searchQuery]);
 
   useEffect(() => {
     fetchNotifications();
@@ -189,24 +210,7 @@ export default function NotificationsView({
     }
   };
 
-  const filteredNotifications = useMemo(() => {
-    return notifications.filter((item) => {
-      if (filterType === "unread" && item.is_read) return false;
-      if (filterType === "reservation" && item.type !== "reservation") return false;
-      if (filterType === "payment" && item.type !== "payment" && item.type !== "receipt" && item.type !== "pricing") return false;
-      if (filterType === "parking" && item.type !== "vehicle" && item.type !== "slot") return false;
-      if (filterType === "system" && item.type !== "alert" && item.type !== "support" && item.type !== "user" && item.type !== "premium") return false;
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesTitle = (item.title || "").toLowerCase().includes(q);
-        const matchesMsg = (item.message || "").toLowerCase().includes(q);
-        const matchesType = (item.type || "").toLowerCase().includes(q);
-        return matchesTitle || matchesMsg || matchesType;
-      }
-      return true;
-    });
-  }, [notifications, filterType, searchQuery]);
+  const filteredNotifications = notifications;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px", width: "100%" }}>
@@ -323,7 +327,7 @@ export default function NotificationsView({
         <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center", justifyContent: "space-between", marginBottom: "18px" }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {[
-              { id: "all", label: "All", count: notifications.length },
+              { id: "all", label: "All", count: totalNotifications },
               { id: "unread", label: "Unread", count: unreadCount },
               { id: "reservation", label: "Reservations" },
               { id: "payment", label: "Payments & Fees" },
@@ -335,7 +339,10 @@ export default function NotificationsView({
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setFilterType(tab.id)}
+                  onClick={() => {
+                    setFilterType(tab.id);
+                    setPage(1);
+                  }}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -388,7 +395,10 @@ export default function NotificationsView({
               type="text"
               placeholder="Search notifications..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
               style={{ fontSize: "0.80rem" }}
             />
@@ -445,6 +455,7 @@ export default function NotificationsView({
                   onClick={() => {
                     setSearchQuery("");
                     setFilterType("all");
+                    setPage(1);
                   }}
                   style={{
                     marginTop: "14px",
@@ -586,6 +597,17 @@ export default function NotificationsView({
             ))
           )}
         </div>
+
+        <Pagination
+          currentPage={page}
+          totalItems={totalNotifications}
+          pageSize={limit}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
       </div>
     </div>
   );

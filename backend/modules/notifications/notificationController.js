@@ -10,14 +10,16 @@ export const getNotifications = async (req, res) => {
       });
     }
 
-    const notifications = await notificationService.getNotificationsByUser(email.trim());
-    const unreadCount = notifications.filter((n) => !n.is_read).length;
+    const { page, limit, type, is_read, search } = req.query;
+    const result = await notificationService.getNotificationsByUser(email.trim(), { page, limit, type, is_read, search });
 
     res.json({
       success: true,
-      notifications,
-      unread_count: unreadCount,
-      count: notifications.length
+      notifications: result.notifications,
+      unread_count: result.unreadCount,
+      count: result.notifications.length,
+      total: result.total,
+      pagination: result.pagination
     });
   } catch (error) {
     res.status(500).json({

@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers } from "lucide-react";
 
 export default function TodaysRevenue() {
@@ -19,27 +20,59 @@ export default function TodaysRevenue() {
     },
     payments: []
   });
+  const [paymentsList, setPaymentsList] = useState([]);
+  const [totalPayments, setTotalPayments] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [methodFilter, setMethodFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
 
-  const fetchRevenue = async () => {
-    setIsLoading(true);
+  const fetchRevenueSummary = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/payments/today`);
       const data = await res.json();
-      setIsLoading(false);
-      if (data.success && data.payments) {
+      if (data.success && data.summary) {
         setRevenueData(data);
+      }
+    } catch {
+      void 0;
+    }
+  };
+
+  const fetchPayments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        method: methodFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/payments?${params}`);
+      const data = await res.json();
+      setIsLoading(false);
+      if (data.success && Array.isArray(data.payments)) {
+        setPaymentsList(data.payments);
+        setTotalPayments(data.total !== undefined ? data.total : data.payments.length);
       }
     } catch {
       setIsLoading(false);
     }
+  }, [page, limit, searchQuery, methodFilter]);
+
+  const refreshAll = () => {
+    fetchRevenueSummary();
+    fetchPayments();
   };
 
   useEffect(() => {
-    fetchRevenue();
+    fetchRevenueSummary();
   }, []);
+
+  useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) {
@@ -92,46 +125,17 @@ export default function TodaysRevenue() {
     return <Globe size={13} className="pw-method-icon netbanking" />;
   };
 
-  const validPayments = (revenueData.payments || []).filter(
-    (p) =>
-      p.vehicle_number &&
-      p.vehicle_number.trim() !== "" &&
-      p.vehicle_number !== "—" &&
-      p.slot_number &&
-      p.slot_number.trim() !== "" &&
-      p.slot_number !== "—" &&
-      p.transaction_id &&
-      p.transaction_id.trim() !== "" &&
-      p.transaction_id !== "—"
-  );
-
-  const filteredPayments = validPayments.filter((p) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (p.transaction_id || "").toLowerCase().includes(q) ||
-      (p.vehicle_number || "").toLowerCase().includes(q) ||
-      (p.customer_name || "").toLowerCase().includes(q) ||
-      (p.slot_number || "").toLowerCase().includes(q);
-
-    const matchesMethod =
-      methodFilter === "ALL" ||
-      (p.payment_method || "").toLowerCase() === methodFilter.toLowerCase();
-
-    return matchesSearch && matchesMethod;
-  });
-
-  const totalRevNumeric = validPayments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-  const totalRevFormatted = `₹${totalRevNumeric.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-  const completedCountVal = validPayments.length;
-  const avgTicketVal = completedCountVal > 0 ? `₹${(totalRevNumeric / completedCountVal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00";
-
-  const methods = {
-    UPI: validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("upi") || (p.payment_method || "").toLowerCase().includes("gpay")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
-    "Credit Card": validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("credit")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
-    "Debit Card": validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("debit")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
-    Cash: validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("cash")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0),
-    "Net Banking": validPayments.filter(p => (p.payment_method || "").toLowerCase().includes("net") || (p.payment_method || "").toLowerCase().includes("bank")).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+  const filteredPayments = paymentsList;
+  const summary = revenueData.summary || {};
+  const totalRevFormatted = summary.totalRevenue || "₹0.00";
+  const completedCountVal = summary.completedCount || 0;
+  const avgTicketVal = summary.avgTicket || "₹0.00";
+  const methods = summary.methodsBreakdown || {
+    UPI: 0,
+    "Credit Card": 0,
+    "Debit Card": 0,
+    Cash: 0,
+    "Net Banking": 0
   };
 
   return (
@@ -216,7 +220,10 @@ export default function TodaysRevenue() {
               type="text"
               placeholder="Search reference, plate, customer..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -225,7 +232,10 @@ export default function TodaysRevenue() {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={methodFilter}
-                onChange={(e) => setMethodFilter(e.target.value)}
+                onChange={(e) => {
+                  setMethodFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Payment Methods</option>
@@ -240,7 +250,7 @@ export default function TodaysRevenue() {
             <button
               type="button"
               className="pw-btn-action-refresh"
-              onClick={fetchRevenue}
+              onClick={refreshAll}
               title="Refresh revenue data"
             >
               <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
@@ -337,9 +347,17 @@ export default function TodaysRevenue() {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredPayments.length} of {validPayments.length} completed transactions</span>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalItems={totalPayments}
+          itemsPerPage={limit}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          itemLabel="transactions"
+        />
       </div>
     </div>
   );

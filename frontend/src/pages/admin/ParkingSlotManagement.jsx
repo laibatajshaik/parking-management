@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import {
   Car,
   Search,
@@ -26,6 +27,10 @@ export default function ParkingSlotManagement({
   const [slotZoneFilter, setSlotZoneFilter] = useState("ALL");
   const [slotStatusFilter, setSlotStatusFilter] = useState("ALL");
   const [slotTypeFilter, setSlotTypeFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [paginatedSlots, setPaginatedSlots] = useState([]);
+  const [totalSlots, setTotalSlots] = useState(0);
 
   const [isAddSlotModalOpen, setIsAddSlotModalOpen] = useState(false);
   const [addSlotFormData, setAddSlotFormData] = useState({
@@ -51,21 +56,30 @@ export default function ParkingSlotManagement({
   const [isDeletingSlot, setIsDeletingSlot] = useState(false);
   const [isAddingSlot, setIsAddingSlot] = useState(false);
 
-  const filteredSlotManagerSlots = slots.filter((slot) => {
-    const query = (slotSearch || "").toLowerCase();
-    const matchesSearch =
-      !query ||
-      slot.slot_number.toLowerCase().includes(query) ||
-      slot.zone.toLowerCase().includes(query) ||
-      (slot.slot_type && slot.slot_type.toLowerCase().includes(query));
+  const fetchSlots = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: slotSearch || "",
+        zone: slotZoneFilter,
+        status: slotStatusFilter,
+        type: slotTypeFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/parking-slots?${params}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.slots)) {
+        setPaginatedSlots(data.slots);
+        setTotalSlots(data.total !== undefined ? data.total : data.slots.length);
+      }
+    } catch {}
+  }, [page, limit, slotSearch, slotZoneFilter, slotStatusFilter, slotTypeFilter]);
 
-    const matchesZone = slotZoneFilter === "ALL" || slot.zone === slotZoneFilter;
-    const slotState = getSlotState(slot);
-    const matchesStatus = slotStatusFilter === "ALL" || slotState === slotStatusFilter.toLowerCase();
-    const matchesType = slotTypeFilter === "ALL" || (slot.slot_type || "Standard").toLowerCase() === slotTypeFilter.toLowerCase();
+  useEffect(() => {
+    fetchSlots();
+  }, [fetchSlots]);
 
-    return matchesSearch && matchesZone && matchesStatus && matchesType;
-  });
+  const filteredSlotManagerSlots = paginatedSlots;
 
   const handleAddSlot = async (e) => {
     e.preventDefault();
@@ -93,6 +107,7 @@ export default function ParkingSlotManagement({
         });
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchDashboardData();
+        fetchSlots();
       } else {
         setStatusActionMessage(data.error || "Failed to create slot");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -135,6 +150,7 @@ export default function ParkingSlotManagement({
         setEditingSlot(null);
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchDashboardData();
+        fetchSlots();
       } else {
         setStatusActionMessage(data.error || "Failed to update slot");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -163,6 +179,7 @@ export default function ParkingSlotManagement({
         setSlotToDelete(null);
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchDashboardData();
+        fetchSlots();
       } else {
         setStatusActionMessage(data.error || "Failed to delete slot");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -217,14 +234,20 @@ export default function ParkingSlotManagement({
             type="text"
             placeholder="Search bay number, zone, or type..."
             value={slotSearch}
-            onChange={(e) => setSlotSearch(e.target.value)}
+            onChange={(e) => {
+              setSlotSearch(e.target.value);
+              setPage(1);
+            }}
             className="pw-user-search-input"
           />
           {slotSearch && (
             <button
               type="button"
               className="pw-clear-search-btn"
-              onClick={() => setSlotSearch("")}
+              onClick={() => {
+                setSlotSearch("");
+                setPage(1);
+              }}
             >
               <X size={14} />
             </button>
@@ -236,7 +259,10 @@ export default function ParkingSlotManagement({
             <span className="pw-filter-icon">Zone:</span>
             <select
               value={slotZoneFilter}
-              onChange={(e) => setSlotZoneFilter(e.target.value)}
+              onChange={(e) => {
+                setSlotZoneFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Zones</option>
@@ -251,7 +277,10 @@ export default function ParkingSlotManagement({
             <span className="pw-filter-icon">Type:</span>
             <select
               value={slotTypeFilter}
-              onChange={(e) => setSlotTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setSlotTypeFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Types</option>
@@ -265,7 +294,10 @@ export default function ParkingSlotManagement({
             <span className="pw-filter-icon">Status:</span>
             <select
               value={slotStatusFilter}
-              onChange={(e) => setSlotStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setSlotStatusFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Statuses</option>
@@ -339,9 +371,10 @@ export default function ParkingSlotManagement({
                     <span
                       className={`pw-tile-status-chip ${state === "available" ? "avail" : state === "occupied" ? "occ" : "reserved"}`}
                       style={{ cursor: "pointer" }}
-                      onClick={() => {
+                      onClick={async () => {
                         const nextStatus = state === "available" ? "occupied" : state === "occupied" ? "reserved" : "available";
-                        handleSlotStatusChange(s.slot_number, nextStatus);
+                        await handleSlotStatusChange(s.slot_number, nextStatus);
+                        fetchSlots();
                       }}
                       title="Click to cycle status"
                     >
@@ -394,9 +427,17 @@ export default function ParkingSlotManagement({
         </div>
       </div>
 
-      <div className="pw-users-table-footer">
-        <span>Showing {filteredSlotManagerSlots.length} of {slots.length} total parking slots</span>
-      </div>
+      <Pagination
+        currentPage={page}
+        totalItems={totalSlots}
+        itemsPerPage={limit}
+        onPageChange={setPage}
+        onLimitChange={(newLimit) => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        itemLabel="parking slots"
+      />
 
       {isAddSlotModalOpen && (
         <div className="pw-modal-backdrop" onClick={() => setIsAddSlotModalOpen(false)}>

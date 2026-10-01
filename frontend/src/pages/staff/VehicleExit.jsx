@@ -2,7 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Search, LogOut, CheckCircle2, Printer, Download, RotateCcw, ArrowRight } from "lucide-react";
 
-export default function VehicleExit({ onProceedToPayment, setStatusActionMessage }) {
+export default function VehicleExit({ onProceedToPayment, setStatusActionMessage, onExitSuccess }) {
   const [activeVehicles, setActiveVehicles] = useState([]);
   const [selectedPlate, setSelectedPlate] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -88,6 +88,11 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
           setStatusActionMessage(`Vehicle ${selectedVehicle.vehicle_number} checked out successfully. Bay ${selectedVehicle.current_slot} is now available.`);
           setTimeout(() => setStatusActionMessage(""), 4500);
         }
+        if (onExitSuccess) {
+          onExitSuccess({ plate: selectedVehicle.vehicle_number, slot: selectedVehicle.current_slot });
+        }
+        window.dispatchEvent(new Event("shnoor_activity_updated"));
+        fetchActiveVehicles();
       } else {
         if (setStatusActionMessage) {
           setStatusActionMessage(data.error || "Failed to complete exit");

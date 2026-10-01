@@ -1,4 +1,4 @@
-import { TrendingUp, ChevronRight, LogIn, Layers, Activity, CreditCard } from "lucide-react";
+import { TrendingUp, ChevronRight, LogIn, Layers, Activity, CreditCard, Car } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
 export default function StaffOverview({ metrics, recentEntries = [], userEmail, setActiveTab }) {
@@ -8,7 +8,7 @@ export default function StaffOverview({ metrics, recentEntries = [], userEmail, 
 
   return (
     <>
-      <div className="pw-metrics-four-grid">
+      <div className="pw-metrics-five-grid">
         <div
           className="pw-metric-card"
           style={{ cursor: "pointer", transition: "transform 0.15s ease, box-shadow 0.15s ease" }}
@@ -49,6 +49,28 @@ export default function StaffOverview({ metrics, recentEntries = [], userEmail, 
           <span className="pw-metric-value">{metrics.availableSlots}</span>
           <span className="pw-metric-trend positive">
             <span>Free bays</span>
+          </span>
+        </div>
+
+        <div
+          className="pw-metric-card"
+          style={{ cursor: "pointer", transition: "transform 0.15s ease, box-shadow 0.15s ease" }}
+          onClick={() => setActiveTab && setActiveTab("active-parking")}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setActiveTab && setActiveTab("active-parking");
+            }
+          }}
+          title="View occupied parking slots"
+        >
+          <span className="pw-metric-label">Occupied Slots</span>
+          <span className="pw-metric-value">{metrics.occupiedSlots !== undefined ? metrics.occupiedSlots : (metrics.activeVehicles ?? 0)}</span>
+          <span className="pw-metric-trend positive">
+            <Car size={12} />
+            <span>In use</span>
           </span>
         </div>
 
@@ -234,7 +256,7 @@ export default function StaffOverview({ metrics, recentEntries = [], userEmail, 
               <div className="pw-legend-row">
                 <span className="pw-bullet-chip dot-teal"></span>
                 <span className="pw-legend-name">Occupied</span>
-                <span className="pw-legend-val">{metrics.activeVehicles} slots</span>
+                <span className="pw-legend-val">{metrics.occupiedSlots !== undefined ? metrics.occupiedSlots : metrics.activeVehicles} slots</span>
               </div>
               <div className="pw-legend-row">
                 <span className="pw-bullet-chip dot-amber"></span>
@@ -242,7 +264,7 @@ export default function StaffOverview({ metrics, recentEntries = [], userEmail, 
                 <span className="pw-legend-val">{metrics.availableSlots} slots</span>
               </div>
               <div className="pw-total-slots-note">
-                Total Capacity: 24 active bays (Zones A - D)
+                Total Capacity: {metrics.totalSlots || 25} active bays
               </div>
             </div>
           </div>

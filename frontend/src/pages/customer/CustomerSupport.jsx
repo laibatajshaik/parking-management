@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import {
   HelpCircle,
   PhoneCall,
@@ -19,6 +20,9 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
   const [statusMessage, setStatusMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [ticketPage, setTicketPage] = useState(1);
+  const [ticketLimit, setTicketLimit] = useState(5);
+  const [totalTickets, setTotalTickets] = useState(0);
 
   const [faqs] = useState([
     {
@@ -58,24 +62,30 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
     }
   })();
 
-  const fetchMyTickets = async () => {
+  const fetchMyTickets = useCallback(async () => {
     if (!userEmail) return;
     setIsLoadingTickets(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets?email=${encodeURIComponent(userEmail)}`);
+      const params = new URLSearchParams({
+        email: userEmail,
+        page: String(ticketPage),
+        limit: String(ticketLimit)
+      });
+      const res = await fetch(`${API_BASE_URL}/api/support-tickets?${params}`);
       const data = await res.json();
       setIsLoadingTickets(false);
       if (data.success && data.tickets) {
         setMyTickets(data.tickets);
+        setTotalTickets(data.total !== undefined ? data.total : data.tickets.length);
       }
     } catch {
       setIsLoadingTickets(false);
     }
-  };
+  }, [userEmail, ticketPage, ticketLimit]);
 
   useEffect(() => {
     fetchMyTickets();
-  }, [userEmail]);
+  }, [fetchMyTickets]);
 
   const [ticketForm, setTicketForm] = useState({
     category: "Reservation Query",
@@ -106,11 +116,11 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
       setIsSubmitting(false);
 
       if (data.success && data.ticket) {
-        setMyTickets([data.ticket, ...myTickets]);
         setIsNewTicketOpen(false);
         setTicketForm({ category: "Reservation Query", subject: "", description: "", priority: "Normal" });
         setStatusMessage(`Ticket ${data.ticket.ticket_code} created successfully! Our team will assist you.`);
         setTimeout(() => setStatusMessage(""), 5000);
+        fetchMyTickets();
       } else {
         setIsNewTicketOpen(false);
         setStatusMessage("Ticket submitted successfully!");
@@ -271,7 +281,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
 
           <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>My Active Inquiries ({myTickets.length})</h4>
+              <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>My Active Inquiries ({totalTickets})</h4>
               <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>Status Overview</span>
             </div>
 
@@ -315,6 +325,18 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
                 })
               )}
             </div>
+
+            <Pagination
+              currentPage={ticketPage}
+              totalItems={totalTickets}
+              pageSize={ticketLimit}
+              pageSizeOptions={[5, 10, 25, 50]}
+              onPageChange={setTicketPage}
+              onPageSizeChange={(newSize) => {
+                setTicketLimit(newSize);
+                setTicketPage(1);
+              }}
+            />
           </div>
         </div>
       </div>

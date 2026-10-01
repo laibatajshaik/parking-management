@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import {
   Car,
   Bike,
@@ -25,6 +26,10 @@ export default function VehicleManagement({
   const [vehicleSearch, setVehicleSearch] = useState("");
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState("ALL");
   const [vehicleStatusFilter, setVehicleStatusFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalVehicles, setTotalVehicles] = useState(0);
+  const [localVehicles, setLocalVehicles] = useState([]);
 
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
   const [addVehicleFormData, setAddVehicleFormData] = useState({
@@ -59,25 +64,31 @@ export default function VehicleManagement({
   const [isDeletingVehicle, setIsDeletingVehicle] = useState(false);
   const [isAddingVehicle, setIsAddingVehicle] = useState(false);
 
-  const filteredVehicles = vehiclesList.filter((veh) => {
-    const query = (vehicleSearch || "").toLowerCase();
-    const matchesSearch =
-      !query ||
-      veh.vehicle_number.toLowerCase().includes(query) ||
-      veh.owner_name.toLowerCase().includes(query) ||
-      veh.owner_email.toLowerCase().includes(query) ||
-      (veh.model && veh.model.toLowerCase().includes(query));
+  const loadVehicles = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: vehicleSearch || "",
+        type: vehicleTypeFilter,
+        status: vehicleStatusFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles?${params}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.vehicles)) {
+        setLocalVehicles(data.vehicles);
+        setTotalVehicles(data.total !== undefined ? data.total : data.vehicles.length);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, [page, limit, vehicleSearch, vehicleTypeFilter, vehicleStatusFilter]);
 
-    const matchesType =
-      vehicleTypeFilter === "ALL" ||
-      (veh.vehicle_type || "").toLowerCase() === vehicleTypeFilter.toLowerCase();
+  useEffect(() => {
+    loadVehicles();
+  }, [loadVehicles]);
 
-    const matchesStatus =
-      vehicleStatusFilter === "ALL" ||
-      (veh.status || "Parked").toLowerCase() === vehicleStatusFilter.toLowerCase();
-
-    return matchesSearch && matchesType && matchesStatus;
-  });
+  const filteredVehicles = localVehicles;
 
   const fetchVehicleHistory = (vehicle) => {
     setVehicleForHistory(vehicle);
@@ -127,6 +138,7 @@ export default function VehicleManagement({
         });
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchVehicles();
+        loadVehicles();
       } else {
         setStatusActionMessage(data.error || "Failed to register vehicle");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -172,6 +184,7 @@ export default function VehicleManagement({
         setEditingVehicle(null);
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchVehicles();
+        loadVehicles();
       } else {
         setStatusActionMessage(data.error || "Failed to update vehicle");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -200,6 +213,7 @@ export default function VehicleManagement({
         setVehicleToDelete(null);
         setTimeout(() => setStatusActionMessage(""), 3500);
         fetchVehicles();
+        loadVehicles();
       } else {
         setStatusActionMessage(data.error || "Failed to delete vehicle");
         setTimeout(() => setStatusActionMessage(""), 3500);
@@ -254,14 +268,20 @@ export default function VehicleManagement({
             type="text"
             placeholder="Search plate, owner, model, or email..."
             value={vehicleSearch}
-            onChange={(e) => setVehicleSearch(e.target.value)}
+            onChange={(e) => {
+              setVehicleSearch(e.target.value);
+              setPage(1);
+            }}
             className="pw-user-search-input"
           />
           {vehicleSearch && (
             <button
               type="button"
               className="pw-clear-search-btn"
-              onClick={() => setVehicleSearch("")}
+              onClick={() => {
+                setVehicleSearch("");
+                setPage(1);
+              }}
             >
               <X size={14} />
             </button>
@@ -273,7 +293,10 @@ export default function VehicleManagement({
             <span className="pw-filter-icon">Type:</span>
             <select
               value={vehicleTypeFilter}
-              onChange={(e) => setVehicleTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setVehicleTypeFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Types</option>
@@ -288,7 +311,10 @@ export default function VehicleManagement({
             <span className="pw-filter-icon">Status:</span>
             <select
               value={vehicleStatusFilter}
-              onChange={(e) => setVehicleStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setVehicleStatusFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Status</option>
@@ -427,9 +453,17 @@ export default function VehicleManagement({
         </div>
       </div>
 
-      <div className="pw-users-table-footer">
-        <span>Showing {filteredVehicles.length} of {vehiclesList.length} total registered vehicles</span>
-      </div>
+      <Pagination
+        page={page}
+        limit={limit}
+        total={totalVehicles}
+        onPageChange={setPage}
+        onLimitChange={(newLimit) => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        limitOptions={[5, 10, 25, 50]}
+      />
 
       {vehicleForHistory && (
         <div className="pw-modal-backdrop" onClick={() => setVehicleForHistory(null)}>

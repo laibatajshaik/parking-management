@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Printer, X } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function StaffParkingRecords() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -8,6 +9,15 @@ export default function StaffParkingRecords() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [records, setRecords] = useState([]);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    completed: 0,
+    amount: 0
+  });
 
   const formatTime = (isoStr, fallback) => {
     if (!isoStr || isoStr === "Ongoing") return fallback;
@@ -54,29 +64,39 @@ export default function StaffParkingRecords() {
     operator: r.operator || "Laiba Taj"
   });
 
-  const fetchRecords = () => {
-    fetch(`${API_BASE_URL}/api/admin/parking-records`)
+  const fetchRecords = useCallback(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      search: searchQuery || "",
+      status: statusFilter
+    });
+    fetch(`${API_BASE_URL}/api/admin/parking-records?${params}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.records) {
           setRecords(data.records.map(normalizeRecord));
+          setTotalCount(data.total !== undefined ? data.total : data.records.length);
+          if (data.stats) {
+            setStats(data.stats);
+          }
         }
       })
       .catch(() => {});
-  };
+  }, [page, limit, searchQuery, statusFilter]);
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+    const handleUpdate = () => fetchRecords();
+    window.addEventListener("shnoor_activity_updated", handleUpdate);
+    const interval = setInterval(fetchRecords, 15000);
+    return () => {
+      window.removeEventListener("shnoor_activity_updated", handleUpdate);
+      clearInterval(interval);
+    };
+  }, [fetchRecords]);
 
-  const filteredRecords = records.filter((r) => {
-    const matchesSearch =
-      r.plateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.slot.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "All" || r.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredRecords = records;
 
   const handlePrintReceipt = (rec) => {
     setSelectedRecord(rec);
@@ -90,7 +110,7 @@ export default function StaffParkingRecords() {
       <div className="pw-metrics-four-grid">
         <div className="pw-metric-card">
           <span className="pw-metric-label">Total Sessions Logged</span>
-          <span className="pw-metric-value">{records.length}</span>
+          <span className="pw-metric-value">{stats.total || totalCount || records.length}</span>
           <span className="pw-metric-trend positive">
             <span>Shift Records</span>
           </span>
@@ -98,7 +118,7 @@ export default function StaffParkingRecords() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Currently Parked</span>
-          <span className="pw-metric-value" style={{ color: "#0d9488" }}>{records.filter(r => r.status === "Active").length}</span>
+          <span className="pw-metric-value" style={{ color: "#0d9488" }}>{stats.active !== undefined ? stats.active : records.filter(r => r.status === "Active").length}</span>
           <span className="pw-metric-trend positive">
             <span>Active Bays</span>
           </span>
@@ -106,7 +126,7 @@ export default function StaffParkingRecords() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Completed & Paid</span>
-          <span className="pw-metric-value" style={{ color: "#16a34a" }}>{records.filter(r => r.status === "Completed").length}</span>
+          <span className="pw-metric-value" style={{ color: "#16a34a" }}>{stats.completed !== undefined ? stats.completed : records.filter(r => r.status === "Completed").length}</span>
           <span className="pw-metric-trend positive">
             <span>Settled Receipts</span>
           </span>
@@ -114,7 +134,7 @@ export default function StaffParkingRecords() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Shift Receipts Amount</span>
-          <span className="pw-metric-value">₹ {totalPaidAmount.toFixed(2)}</span>
+          <span className="pw-metric-value">₹ {(stats.amount !== undefined ? stats.amount : totalPaidAmount).toFixed(2)}</span>
           <span className="pw-metric-trend positive">
             <span>Counter Log</span>
           </span>
@@ -129,7 +149,10 @@ export default function StaffParkingRecords() {
               type="text"
               placeholder="Search plate, ticket, slot..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -140,7 +163,10 @@ export default function StaffParkingRecords() {
                 key={st}
                 type="button"
                 className={`pw-filter-pill ${statusFilter === st ? "active" : ""}`}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => {
+                  setStatusFilter(st);
+                  setPage(1);
+                }}
                 style={{
                   background: statusFilter === st ? "#0d9488" : "var(--bg-sub, #f1f5f9)",
                   color: statusFilter === st ? "#ffffff" : "var(--text-secondary, #475569)",
@@ -176,42 +202,61 @@ export default function StaffParkingRecords() {
               </tr>
             </thead>
             <tbody>
-              {filteredRecords.map((r) => (
-                <tr key={r.id}>
-                  <td style={{ fontWeight: 800, color: "#0d9488" }}>{r.ticketNumber}</td>
-                  <td>
-                    <div style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{r.plateNumber}</div>
-                    <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{r.vehicleType}</div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 800, color: "var(--text-primary, #1e293b)", background: "var(--bg-sub, #f8fafc)", padding: "3px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
-                      Bay {r.slot}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>{r.entryTime}</td>
-                  <td style={{ fontSize: "0.78rem", color: r.status === "Active" ? "#0d9488" : "#475569", fontWeight: r.status === "Active" ? 700 : 400 }}>{r.exitTime}</td>
-                  <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>{r.duration}</td>
-                  <td style={{ fontWeight: 900, color: "#0d9488" }}>{r.amount}</td>
-                  <td>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", background: r.status === "Completed" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-teal-sub, #f0fdfa)", color: r.status === "Completed" ? "#16a34a" : "#0d9488", border: r.status === "Completed" ? "1px solid #bbf7d0" : "1px solid #ccfbf1" }}>
-                      {r.status}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => handlePrintReceipt(r)}
-                      style={{ background: "var(--bg-teal-sub, #f0fdfa)", border: "1px solid #ccfbf1", color: "#0d9488", padding: "5px 10px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                    >
-                      <Printer size={13} />
-                      <span>Print</span>
-                    </button>
+              {filteredRecords.length > 0 ? (
+                filteredRecords.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ fontWeight: 800, color: "#0d9488" }}>{r.ticketNumber}</td>
+                    <td>
+                      <div style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>{r.plateNumber}</div>
+                      <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{r.vehicleType}</div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 800, color: "var(--text-primary, #1e293b)", background: "var(--bg-sub, #f8fafc)", padding: "3px 8px", borderRadius: "6px", fontSize: "0.8rem" }}>
+                        Bay {r.slot}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>{r.entryTime}</td>
+                    <td style={{ fontSize: "0.78rem", color: r.status === "Active" ? "#0d9488" : "#475569", fontWeight: r.status === "Active" ? 700 : 400 }}>{r.exitTime}</td>
+                    <td style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>{r.duration}</td>
+                    <td style={{ fontWeight: 900, color: "#0d9488" }}>{r.amount}</td>
+                    <td>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", background: r.status === "Completed" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-teal-sub, #f0fdfa)", color: r.status === "Completed" ? "#16a34a" : "#0d9488", border: r.status === "Completed" ? "1px solid #bbf7d0" : "1px solid #ccfbf1" }}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => handlePrintReceipt(r)}
+                        style={{ background: "var(--bg-teal-sub, #f0fdfa)", border: "1px solid #ccfbf1", color: "#0d9488", padding: "5px 10px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                      >
+                        <Printer size={13} />
+                        <span>Print</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="9" style={{ textAlign: "center", padding: "32px", color: "var(--text-secondary, #94a3b8)" }}>
+                    No parking records found matching your filters.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={page}
+          totalItems={totalCount}
+          itemsPerPage={limit}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          itemLabel="parking records"
+        />
       </div>
 
       {isReceiptModalOpen && selectedRecord && (

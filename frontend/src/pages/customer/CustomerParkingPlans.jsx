@@ -258,7 +258,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
         </button>
       </div>
 
-      <div className="pw-plans-cards-trio-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(295px, 1fr))", gap: "20px", alignItems: "start" }}>
+      <div className="pw-plans-cards-trio-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: "20px", alignItems: "start", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
         {filteredPlans.map((p) => {
           const isMonthly = (p.billing_type || "").toLowerCase() === "monthly" || (p.plan_name || "").toLowerCase().includes("monthly") || (p.plan_name || "").toLowerCase().includes("vip");
 

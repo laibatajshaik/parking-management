@@ -1,11 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MapPin, Search, Plus, Edit2, Trash2, X, Building } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function ParkingLocations() {
   const [locations, setLocations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [editingLocation, setEditingLocation] = useState(null);
@@ -34,29 +38,29 @@ export default function ParkingLocations() {
     status: loc.status === "Active" ? "Operational" : (loc.status || "Operational")
   });
 
-  const fetchLocations = () => {
-    fetch(`${API_BASE_URL}/api/parking-locations`)
+  const fetchLocations = useCallback(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      search: searchQuery || "",
+      status: statusFilter
+    });
+    fetch(`${API_BASE_URL}/api/parking-locations?${params}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.locations)) {
           setLocations(data.locations.map(normalizeLocation));
+          setTotalCount(data.total !== undefined ? data.total : data.locations.length);
         }
       })
       .catch(() => {});
-  };
+  }, [page, limit, searchQuery, statusFilter]);
 
   useEffect(() => {
     fetchLocations();
-  }, []);
+  }, [fetchLocations]);
 
-  const filteredLocations = locations.filter((loc) => {
-    const matchesSearch =
-      loc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loc.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loc.address.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "All" || loc.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredLocations = locations;
 
   const handleOpenCreate = () => {
     setModalMode("create");
@@ -184,7 +188,10 @@ export default function ParkingLocations() {
               type="text"
               placeholder="Search location name, code, address..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -195,7 +202,10 @@ export default function ParkingLocations() {
                 key={st}
                 type="button"
                 className={`pw-filter-pill ${statusFilter === st ? "active" : ""}`}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => {
+                  setStatusFilter(st);
+                  setPage(1);
+                }}
                 style={{
                   background: statusFilter === st ? "#0f766e" : "#f1f5f9",
                   color: statusFilter === st ? "#ffffff" : "#475569",
@@ -224,7 +234,7 @@ export default function ParkingLocations() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: "18px", width: "100%", minWidth: 0, boxSizing: border-box }}>
         {filteredLocations.length > 0 ? (
           filteredLocations.map((loc) => {
           const occPct = Math.round((loc.occupiedSlots / (loc.totalSlots || 1)) * 100);
@@ -330,6 +340,18 @@ export default function ParkingLocations() {
           </div>
         )}
       </div>
+
+      <Pagination
+        currentPage={page}
+        totalItems={totalCount}
+        itemsPerPage={limit}
+        onPageChange={setPage}
+        onLimitChange={(newLimit) => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        itemLabel="parking locations"
+      />
 
       {isModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", padding: "16px" }}>

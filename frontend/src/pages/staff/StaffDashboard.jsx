@@ -112,6 +112,9 @@ export default function StaffDashboard({ setView }) {
       if (match && activeTab !== normalized) {
         setActiveTab(normalized);
       }
+      if (normalized === "dashboard") {
+        fetchStaffDashboard();
+      }
     } else {
       navigate("/staff/dashboard/overview", { replace: true });
     }
@@ -140,7 +143,9 @@ export default function StaffDashboard({ setView }) {
     availableSlots: "0",
     todayRevenue: "₹0",
     activeVehicles: "0",
+    occupiedSlots: 0,
     occupiedPercent: 0,
+    totalSlots: 25
   });
   const [recentEntries, setRecentEntries] = useState([]);
 
@@ -155,7 +160,9 @@ export default function StaffDashboard({ setView }) {
               availableSlots: String(data.metrics.availableSlots ?? "0"),
               todayRevenue: String(data.metrics.todayRevenue ?? "₹0"),
               activeVehicles: String(data.metrics.activeVehicles ?? "0"),
+              occupiedSlots: data.metrics.occupiedSlots !== undefined ? data.metrics.occupiedSlots : (data.metrics.activeVehicles ? parseInt(data.metrics.activeVehicles, 10) : 0),
               occupiedPercent: data.metrics.occupancyRate ?? 0,
+              totalSlots: data.metrics.totalSlots ?? 25
             });
           }
           if (Array.isArray(data.recentEntries)) {
@@ -381,7 +388,8 @@ export default function StaffDashboard({ setView }) {
             {activeTab === "vehicle-entry" && (
               <VehicleEntry
                 onEntrySuccess={(entryData) => {
-                  setStatusActionMessage(`Vehicle ${entryData.plate} successfully checked into Bay ${entryData.slot}`);
+                  fetchStaffDashboard();
+                  setStatusActionMessage(`Vehicle ${entryData?.plate || ""} successfully checked into Bay ${entryData?.slot || ""}`);
                   setTimeout(() => setStatusActionMessage(""), 4000);
                 }}
               />
@@ -398,13 +406,17 @@ export default function StaffDashboard({ setView }) {
                 onCheckout={(vehicle) => {
                   handleSelectVehicleForPayment(vehicle);
                 }}
+                onSelectVehicleForPayment={(vehicle) => {
+                  handleSelectVehicleForPayment(vehicle);
+                }}
               />
             )}
 
             {activeTab === "vehicle-exit" && (
               <VehicleExit
                 onExitSuccess={(exitData) => {
-                  setStatusActionMessage(`Vehicle ${exitData.plate} cleared from Bay ${exitData.slot}`);
+                  fetchStaffDashboard();
+                  setStatusActionMessage(`Vehicle ${exitData?.plate || ""} cleared from Bay ${exitData?.slot || ""}`);
                   setTimeout(() => setStatusActionMessage(""), 4000);
                 }}
               />
@@ -423,6 +435,7 @@ export default function StaffDashboard({ setView }) {
               <Payment
                 selectedVehicle={selectedVehicleForPayment}
                 onPaymentSuccess={() => {
+                  fetchStaffDashboard();
                   setSelectedVehicleForPayment(null);
                   setStatusActionMessage("Payment successfully collected and digital pass issued.");
                   setTimeout(() => setStatusActionMessage(""), 4000);

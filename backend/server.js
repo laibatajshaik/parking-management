@@ -61,9 +61,22 @@ app.use("/api/notifications", notificationRoutes);
 
 const getLocalTimestamp = (d = new Date()) => {
   const date = typeof d === "string" ? new Date(d) : d;
-  const pad = (n) => String(n).padStart(2, "0");
+  if (isNaN(date.getTime())) {
+    return getLocalTimestamp(new Date());
+  }
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const getPart = (type) => (parts.find(p => p.type === type)?.value || "00");
   const padMs = (n) => String(n).padStart(3, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${padMs(date.getMilliseconds())}`;
+  return `${getPart("year")}-${getPart("month")}-${getPart("day")} ${getPart("hour")}:${getPart("minute")}:${getPart("second")}.${padMs(date.getMilliseconds())}`;
 };
 
 function parseToLocalTimestampString(inputDateStr, fallbackDate = new Date()) {
@@ -80,17 +93,23 @@ function parseToLocalTimestampString(inputDateStr, fallbackDate = new Date()) {
       if (ampm.toUpperCase() === "PM" && hour < 12) hour += 12;
       if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
     }
+    hour = hour % 24;
     const pad = (n) => String(n).padStart(2, "0");
     return `${y}-${pad(m)}-${pad(d)} ${pad(hour)}:${pad(minute)}:00.000`;
   }
   const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (isoMatch) {
     const [, y, m, d, h, min, s] = isoMatch;
-    const hour = h ? parseInt(h, 10) : 0;
+    let hour = h ? parseInt(h, 10) : 0;
     const minute = min ? parseInt(min, 10) : 0;
     const sec = s ? parseInt(s, 10) : 0;
+    hour = hour % 24;
     const pad = (n) => String(n).padStart(2, "0");
     return `${y}-${pad(m)}-${pad(d)} ${pad(hour)}:${pad(minute)}:${pad(sec)}.000`;
+  }
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return getLocalTimestamp(parsed);
   }
   return getLocalTimestamp(fallbackDate);
 }
@@ -559,6 +578,44 @@ const initDbSchema = async () => {
         ON CONFLICT (incident_code) DO NOTHING;
       `);
     }
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email));
+      CREATE INDEX IF NOT EXISTS idx_users_role ON users(LOWER(role));
+      CREATE INDEX IF NOT EXISTS idx_users_status ON users(LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON vehicles(UPPER(vehicle_number));
+      CREATE INDEX IF NOT EXISTS idx_vehicles_owner_email ON vehicles(LOWER(owner_email));
+      CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_vehicle_history_plate ON vehicle_history(UPPER(vehicle_number));
+      CREATE INDEX IF NOT EXISTS idx_vehicle_history_entry_time ON vehicle_history(entry_time DESC);
+      CREATE INDEX IF NOT EXISTS idx_vehicle_history_status ON vehicle_history(LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_payments_plate ON payments(UPPER(vehicle_number));
+      CREATE INDEX IF NOT EXISTS idx_payments_email ON payments(LOWER(customer_email));
+      CREATE INDEX IF NOT EXISTS idx_reservations_email ON reservations(LOWER(customer_email));
+      CREATE INDEX IF NOT EXISTS idx_reservations_plate ON reservations(UPPER(vehicle_number));
+      CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_reservations_created_at ON reservations(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_notifications_user_email ON notifications(LOWER(user_email));
+      CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_email ON support_tickets(LOWER(customer_email));
+      CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+    `);
+
+    await pool.query(`
+      UPDATE parking_slots
+      SET status = 'available', is_available = true
+      WHERE status = 'occupied'
+        AND slot_number NOT IN (SELECT current_slot FROM vehicles WHERE LOWER(status) = 'parked' AND current_slot IS NOT NULL)
+    `);
+    await pool.query(`
+      UPDATE parking_slots
+      SET status = 'occupied', is_available = false
+      WHERE slot_number IN (SELECT current_slot FROM vehicles WHERE LOWER(status) = 'parked' AND current_slot IS NOT NULL)
+        AND status != 'occupied'
+    `);
   } catch (err) {
     console.error("Schema init error:", err);
   }
@@ -1166,9 +1223,70 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
 });
 
 app.get("/api/parking-slots", async (req, res) => {
+  const { page, limit, search, zone, status, slot_type } = req.query;
   try {
-    const slotsResult = await pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC");
-    res.json({ success: true, slots: slotsResult.rows });
+    let baseQuery = "FROM parking_slots WHERE 1=1";
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseQuery += ` AND (LOWER(slot_number) LIKE $${params.length} OR LOWER(zone) LIKE $${params.length} OR LOWER(COALESCE(slot_type, '')) LIKE $${params.length})`;
+    }
+
+    if (zone && zone !== "ALL") {
+      params.push(zone);
+      baseQuery += ` AND zone = $${params.length}`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseQuery += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    if (slot_type && slot_type !== "ALL") {
+      params.push(slot_type.toLowerCase());
+      baseQuery += ` AND LOWER(COALESCE(slot_type, 'standard')) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    if (page || limit) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      const slotsResult = await pool.query(
+        `SELECT * ${baseQuery} ORDER BY slot_number ASC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+      return res.json({
+        success: true,
+        slots: slotsResult.rows,
+        data: slotsResult.rows,
+        total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
+    }
+
+    const slotsResult = await pool.query(`SELECT * ${baseQuery} ORDER BY slot_number ASC`, params);
+    res.json({
+      success: true,
+      slots: slotsResult.rows,
+      data: slotsResult.rows,
+      total,
+      pagination: {
+        page: 1,
+        limit: total || 5,
+        total,
+        totalPages: 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching parking slots" });
@@ -1258,7 +1376,7 @@ app.delete("/api/admin/slots/:id", async (req, res) => {
   }
 });
 
-app.post("/api/parking-slots/:slotNumber/status", async (req, res) => {
+const handleSlotStatusUpdate = async (req, res) => {
   const { slotNumber } = req.params;
   const { status } = req.body;
   const normalizedStatus = (status || "").toLowerCase();
@@ -1295,7 +1413,10 @@ app.post("/api/parking-slots/:slotNumber/status", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Server error updating slot status" });
   }
-});
+};
+
+app.post("/api/parking-slots/:slotNumber/status", handleSlotStatusUpdate);
+app.put("/api/parking-slots/:slotNumber/status", handleSlotStatusUpdate);
 
 app.post("/api/parking-slots/:slotNumber/toggle", async (req, res) => {
   const { slotNumber } = req.params;
@@ -1335,9 +1456,65 @@ app.post("/api/parking-slots/:slotNumber/toggle", async (req, res) => {
 });
 
 app.get("/api/admin/vehicles", async (req, res) => {
+  const { page, limit, search, type, status } = req.query;
   try {
-    const vehiclesResult = await pool.query("SELECT * FROM vehicles ORDER BY id ASC");
-    res.json({ success: true, vehicles: vehiclesResult.rows });
+    let baseQuery = "FROM vehicles WHERE 1=1";
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseQuery += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(owner_name) LIKE $${params.length} OR LOWER(COALESCE(owner_email, '')) LIKE $${params.length} OR LOWER(COALESCE(owner_phone, '')) LIKE $${params.length} OR LOWER(COALESCE(current_slot, '')) LIKE $${params.length})`;
+    }
+
+    if (type && type !== "ALL") {
+      params.push(type.toLowerCase());
+      baseQuery += ` AND LOWER(vehicle_type) = $${params.length}`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseQuery += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    if (page || limit) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      const vehiclesResult = await pool.query(
+        `SELECT * ${baseQuery} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+      return res.json({
+        success: true,
+        vehicles: vehiclesResult.rows,
+        data: vehiclesResult.rows,
+        total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
+    }
+
+    const vehiclesResult = await pool.query(`SELECT * ${baseQuery} ORDER BY id ASC`, params);
+    res.json({
+      success: true,
+      vehicles: vehiclesResult.rows,
+      data: vehiclesResult.rows,
+      total,
+      pagination: {
+        page: 1,
+        limit: total || 5,
+        total,
+        totalPages: 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching vehicles" });
@@ -1369,45 +1546,72 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
   const vType = vehicle_type;
   const vModel = model || "Standard";
   const vOwner = owner_name.trim();
-  const vEmail = owner_email || "";
-  const vPhone = owner_phone || "";
+  const vEmail = (owner_email || "").trim();
+  const vPhone = (owner_phone || "").trim();
   const vSlot = slot_number;
   const vEntryTime = entry_time ? new Date(entry_time) : new Date();
 
+  const client = await pool.connect();
   try {
-    const slotCheck = await pool.query("SELECT * FROM parking_slots WHERE slot_number = $1", [vSlot]);
+    await client.query("BEGIN");
+
+    const slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [vSlot]);
     if (slotCheck.rowCount === 0) {
+      await client.query("ROLLBACK");
+      client.release();
       return res.status(400).json({ error: `Slot ${vSlot} does not exist` });
     }
-    if (slotCheck.rows[0].status === "occupied") {
+    if (slotCheck.rows[0].status === "occupied" || !slotCheck.rows[0].is_available) {
+      await client.query("ROLLBACK");
+      client.release();
       return res.status(400).json({ error: `Slot ${vSlot} is already occupied` });
     }
 
-    const existVeh = await pool.query("SELECT * FROM vehicles WHERE vehicle_number = $1", [vPlate]);
-    let vehicleData;
-    if (existVeh.rowCount > 0) {
-      const updateVeh = await pool.query(
-        "UPDATE vehicles SET vehicle_type = $1, model = $2, owner_name = $3, owner_phone = $4, status = 'Parked', current_slot = $5 WHERE vehicle_number = $6 RETURNING *",
-        [vType, vModel, vOwner, vPhone, vSlot, vPlate]
-      );
-      vehicleData = updateVeh.rows[0];
-    } else {
-      const insertVeh = await pool.query(
-        "INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot) VALUES ($1, $2, $3, $4, $5, $6, 'Parked', $7) RETURNING *",
-        [vPlate, vType, vModel, vOwner, vEmail, vPhone, vSlot]
-      );
-      vehicleData = insertVeh.rows[0];
+    const activeCheck = await client.query(
+      "SELECT * FROM vehicle_history WHERE UPPER(vehicle_number) = $1 AND (exit_time IS NULL OR LOWER(status) = 'parked')",
+      [vPlate]
+    );
+    if (activeCheck.rowCount > 0) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(400).json({ error: `Vehicle ${vPlate} already has an active parking session at slot ${activeCheck.rows[0].slot_number}` });
     }
 
-    await pool.query(
+    const upsertVeh = await client.query(`
+      INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot)
+      VALUES ($1, $2, $3, $4, $5, $6, 'Parked', $7)
+      ON CONFLICT (vehicle_number)
+      DO UPDATE SET
+        status = 'Parked',
+        current_slot = EXCLUDED.current_slot,
+        vehicle_type = COALESCE(NULLIF(EXCLUDED.vehicle_type, ''), vehicles.vehicle_type),
+        model = COALESCE(NULLIF(EXCLUDED.model, ''), vehicles.model),
+        owner_name = COALESCE(NULLIF(EXCLUDED.owner_name, ''), vehicles.owner_name),
+        owner_email = COALESCE(NULLIF(EXCLUDED.owner_email, ''), vehicles.owner_email),
+        owner_phone = COALESCE(NULLIF(EXCLUDED.owner_phone, ''), vehicles.owner_phone)
+      RETURNING *
+    `, [vPlate, vType, vModel, vOwner, vEmail, vPhone, vSlot]);
+    const vehicleData = upsertVeh.rows[0];
+
+    await client.query(
       "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
       [vSlot]
     );
 
-    const historyInsert = await pool.query(
+    const nowStr = getLocalTimestamp(vEntryTime);
+    const historyInsert = await client.query(
       "INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, duration, fee, status) VALUES ($1, $2, $3, 'Ongoing', '₹50.00', 'Parked') RETURNING *",
-      [vPlate, vSlot, vEntryTime]
+      [vPlate, vSlot, nowStr]
     );
+
+    const logCode1 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
+    await client.query(
+      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Staff', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
+      [logCode1, vOwner || "Staff Operator", `Vehicle Entry: ${vPlate}`, `Vehicle ${vPlate} parked in slot ${vSlot}`]
+    );
+
+    await client.query("COMMIT");
+    client.release();
 
     const targetOwnerEmail = vehicleData?.owner_email || vEmail;
     await notifyUser(targetOwnerEmail, {
@@ -1466,14 +1670,42 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
       vehicle: vehicleData
     });
   } catch (err) {
+    await client.query("ROLLBACK");
+    client.release();
     console.error(err);
     res.status(500).json({ error: "Server error registering vehicle entry" });
   }
 });
 
 app.get("/api/staff/vehicle-entries", async (req, res) => {
+  const { page, limit, search, status, type } = req.query;
   try {
-    const entriesRes = await pool.query(`
+    let baseQuery = `
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseQuery += ` AND (LOWER(vh.vehicle_number) LIKE $${params.length} OR LOWER(vh.slot_number) LIKE $${params.length} OR LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(COALESCE(v.owner_phone, '')) LIKE $${params.length})`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseQuery += ` AND LOWER(vh.status) = $${params.length}`;
+    }
+
+    if (type && type !== "ALL") {
+      params.push(type.toLowerCase());
+      baseQuery += ` AND LOWER(COALESCE(v.vehicle_type, 'car')) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    const selectCols = `
       SELECT 
         vh.id,
         vh.vehicle_number,
@@ -1487,11 +1719,44 @@ app.get("/api/staff/vehicle-entries", async (req, res) => {
         COALESCE(v.model, 'Standard') AS model,
         COALESCE(v.owner_name, 'Customer') AS owner_name,
         COALESCE(v.owner_phone, '') AS owner_phone
-      FROM vehicle_history vh
-      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
-      ORDER BY vh.entry_time DESC
-    `);
-    res.json({ success: true, entries: entriesRes.rows });
+    `;
+
+    if (page || limit) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      const entriesRes = await pool.query(
+        `${selectCols} ${baseQuery} ORDER BY vh.entry_time DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+      return res.json({
+        success: true,
+        entries: entriesRes.rows,
+        data: entriesRes.rows,
+        total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
+    }
+
+    const entriesRes = await pool.query(`${selectCols} ${baseQuery} ORDER BY vh.entry_time DESC`, params);
+    res.json({
+      success: true,
+      entries: entriesRes.rows,
+      data: entriesRes.rows,
+      total,
+      pagination: {
+        page: 1,
+        limit: total || 5,
+        total,
+        totalPages: 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching vehicle entries" });
@@ -1734,9 +1999,67 @@ app.delete("/api/admin/vehicles/:id", async (req, res) => {
 });
 
 app.get("/api/admin/users", async (req, res) => {
+  const { page, limit, search, role, status } = req.query;
   try {
-    const usersResult = await pool.query("SELECT id, name, email, phone, role, status, created_at FROM users ORDER BY created_at DESC");
-    res.json({ success: true, users: usersResult.rows });
+    let baseQuery = "FROM users WHERE 1=1";
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseQuery += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length} OR LOWER(COALESCE(phone, '')) LIKE $${params.length})`;
+    }
+
+    if (role && role !== "ALL") {
+      params.push(role.toLowerCase());
+      baseQuery += ` AND LOWER(role) = $${params.length}`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseQuery += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    const selectCols = "SELECT id, name, email, phone, role, status, created_at";
+
+    if (page || limit) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      const usersResult = await pool.query(
+        `${selectCols} ${baseQuery} ORDER BY created_at DESC, id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+      return res.json({
+        success: true,
+        users: usersResult.rows,
+        data: usersResult.rows,
+        total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
+    }
+
+    const usersResult = await pool.query(`${selectCols} ${baseQuery} ORDER BY created_at DESC, id DESC`, params);
+    res.json({
+      success: true,
+      users: usersResult.rows,
+      data: usersResult.rows,
+      total,
+      pagination: {
+        page: 1,
+        limit: total || 5,
+        total,
+        totalPages: 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching registered users" });
@@ -1908,8 +2231,34 @@ app.get("/api/admin/messages", async (req, res) => {
 });
 
 const handleActiveSessions = async (req, res) => {
+  const { page, limit, search, zone, type } = req.query;
   try {
-    const activeVehiclesRes = await pool.query(`
+    let baseQuery = `
+      FROM vehicles v
+      LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
+      WHERE LOWER(v.status) = 'parked'
+    `;
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseQuery += ` AND (LOWER(v.vehicle_number) LIKE $${params.length} OR LOWER(v.owner_name) LIKE $${params.length} OR LOWER(COALESCE(v.current_slot, '')) LIKE $${params.length} OR LOWER(COALESCE(v.owner_email, '')) LIKE $${params.length})`;
+    }
+
+    if (zone && zone !== "ALL") {
+      params.push(zone);
+      baseQuery += ` AND ps.zone = $${params.length}`;
+    }
+
+    if (type && type !== "ALL") {
+      params.push(type.toLowerCase());
+      baseQuery += ` AND LOWER(v.vehicle_type) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    const selectCols = `
       SELECT 
         v.id,
         v.vehicle_number,
@@ -1931,11 +2280,24 @@ const handleActiveSessions = async (req, res) => {
           ORDER BY entry_time DESC 
           LIMIT 1
         ) as entry_time
-      FROM vehicles v
-      LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
-      WHERE LOWER(v.status) = 'parked'
-      ORDER BY v.id DESC
-    `);
+    `;
+
+    let activeVehiclesRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      activeVehiclesRes = await pool.query(
+        `${selectCols} ${baseQuery} ORDER BY v.id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      activeVehiclesRes = await pool.query(`${selectCols} ${baseQuery} ORDER BY v.id DESC`, params);
+    }
 
     const now = new Date();
     const sessions = activeVehiclesRes.rows.map((row) => {
@@ -1970,7 +2332,20 @@ const handleActiveSessions = async (req, res) => {
       };
     });
 
-    res.json({ success: true, count: sessions.length, sessions, vehicles: sessions });
+    res.json({
+      success: true,
+      count: sessions.length,
+      sessions,
+      vehicles: sessions,
+      data: sessions,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching active parking sessions" });
@@ -2037,25 +2412,65 @@ app.get("/api/payments/today", async (req, res) => {
 });
 
 app.get("/api/payments", async (req, res) => {
-  const { search, method } = req.query;
+  const { page, limit, search, method, status } = req.query;
   try {
-    let query = "SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL";
+    let baseQuery = "FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL";
     const params = [];
 
-    if (search) {
-      params.push(`%${search.toLowerCase()}%`);
-      query += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(customer_name) LIKE $${params.length} OR LOWER(transaction_id) LIKE $${params.length})`;
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseQuery += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(COALESCE(customer_name, '')) LIKE $${params.length} OR LOWER(transaction_id) LIKE $${params.length} OR LOWER(COALESCE(slot_number, '')) LIKE $${params.length})`;
     }
 
     if (method && method !== "ALL") {
       params.push(method);
-      query += ` AND payment_method = $${params.length}`;
+      baseQuery += ` AND payment_method = $${params.length}`;
     }
 
-    query += " ORDER BY created_at DESC, id DESC";
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseQuery += ` AND LOWER(COALESCE(payment_status, 'completed')) = $${params.length}`;
+    }
 
-    const paymentsRes = await pool.query(query, params);
-    res.json({ success: true, payments: paymentsRes.rows });
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    if (page || limit) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      const paymentsRes = await pool.query(
+        `SELECT * ${baseQuery} ORDER BY created_at DESC, id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+      return res.json({
+        success: true,
+        payments: paymentsRes.rows,
+        data: paymentsRes.rows,
+        total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
+    }
+
+    const paymentsRes = await pool.query(`SELECT * ${baseQuery} ORDER BY created_at DESC, id DESC`, params);
+    res.json({
+      success: true,
+      payments: paymentsRes.rows,
+      data: paymentsRes.rows,
+      total,
+      pagination: {
+        page: 1,
+        limit: total || 5,
+        total,
+        totalPages: 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching payments" });
@@ -2063,9 +2478,50 @@ app.get("/api/payments", async (req, res) => {
 });
 
 app.get("/api/customer/payments", async (req, res) => {
-  const { email, name, search, method } = req.query;
+  const { email, name, search, method, status, page, limit } = req.query;
   try {
-    let query = `
+    let baseFromWhere = `
+      FROM payments p
+      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
+      LEFT JOIN reservations r ON (
+        LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
+        AND (r.slot_number = p.slot_number OR LOWER(r.customer_email) = LOWER(p.customer_email))
+      )
+      WHERE p.vehicle_number IS NOT NULL AND p.vehicle_number != '' AND p.slot_number IS NOT NULL AND p.transaction_id IS NOT NULL
+    `;
+    const params = [];
+
+    if (email) {
+      params.push(`%${email.toLowerCase().trim()}%`);
+      baseFromWhere += ` AND (LOWER(COALESCE(p.customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
+    } else if (name) {
+      params.push(`%${name.toLowerCase().trim()}%`);
+      baseFromWhere += ` AND LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search.toLowerCase().trim()}%`);
+      baseFromWhere += ` AND (LOWER(p.vehicle_number) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(p.slot_number) LIKE $${params.length})`;
+    }
+
+    if (method && method !== "ALL") {
+      params.push(method);
+      baseFromWhere += ` AND p.payment_method = $${params.length}`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseFromWhere += ` AND LOWER(COALESCE(p.payment_status, 'completed')) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount FROM (SELECT DISTINCT p.id, p.amount ${baseFromWhere}) sub`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+    const totalAmount = parseFloat(countRes.rows[0].total_amount) || 0;
+
+    const selectCols = `
       SELECT 
         p.id,
         p.transaction_id,
@@ -2087,38 +2543,49 @@ app.get("/api/customer/payments", async (req, res) => {
         COALESCE(p.payment_status, 'Completed') AS payment_status,
         p.created_at AS receipt_date,
         p.created_at
-      FROM payments p
-      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
-      LEFT JOIN reservations r ON (
-        LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
-        AND (r.slot_number = p.slot_number OR LOWER(r.customer_email) = LOWER(p.customer_email))
-      )
-      WHERE p.vehicle_number IS NOT NULL AND p.vehicle_number != '' AND p.slot_number IS NOT NULL AND p.transaction_id IS NOT NULL
     `;
-    const params = [];
 
-    if (email) {
-      params.push(`%${email.toLowerCase().trim()}%`);
-      query += ` AND (LOWER(COALESCE(p.customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
-    } else if (name) {
-      params.push(`%${name.toLowerCase().trim()}%`);
-      query += ` AND LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length}`;
+    if (page || limit) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      const paymentsRes = await pool.query(
+        `${selectCols} ${baseFromWhere} ORDER BY p.created_at DESC, p.id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+      return res.json({
+        success: true,
+        payments: paymentsRes.rows,
+        data: paymentsRes.rows,
+        total,
+        totalAmount,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum) || 1
+        }
+      });
     }
 
-    if (search) {
-      params.push(`%${search.toLowerCase().trim()}%`);
-      query += ` AND (LOWER(p.vehicle_number) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(p.slot_number) LIKE $${params.length})`;
-    }
-
-    if (method && method !== "ALL") {
-      params.push(method);
-      query += ` AND p.payment_method = $${params.length}`;
-    }
-
-    query += " ORDER BY p.created_at DESC, p.id DESC";
-
-    const paymentsRes = await pool.query(query, params);
-    res.json({ success: true, payments: paymentsRes.rows });
+    const paymentsRes = await pool.query(
+      `${selectCols} ${baseFromWhere} ORDER BY p.created_at DESC, p.id DESC`,
+      params
+    );
+    res.json({
+      success: true,
+      payments: paymentsRes.rows,
+      data: paymentsRes.rows,
+      total,
+      totalAmount,
+      pagination: {
+        page: 1,
+        limit: total || 5,
+        total,
+        totalPages: 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching customer payments" });
@@ -2222,7 +2689,7 @@ app.post("/api/staff/process-payment", async (req, res) => {
     );
 
     await pool.query(
-      "UPDATE vehicles SET status = 'Checked Out' WHERE vehicle_number = $1",
+      "UPDATE vehicles SET status = 'Checked Out', current_slot = NULL WHERE vehicle_number = $1",
       [vehicle_number.toUpperCase()]
     );
 
@@ -2378,53 +2845,89 @@ app.post(["/api/payments", "/api/customer/process-payment"], async (req, res) =>
 app.get("/api/customer/my-parking", async (req, res) => {
   const { email, name } = req.query;
   try {
-    let query = `
-      SELECT 
-        v.id,
-        v.vehicle_number,
-        v.vehicle_type,
-        v.model,
-        v.owner_name,
-        v.owner_email,
-        v.owner_phone,
-        v.status,
-        v.current_slot,
-        v.created_at,
-        ps.zone,
-        ps.slot_type,
-        COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
-        (
-          SELECT entry_time 
-          FROM vehicle_history 
-          WHERE vehicle_number = v.vehicle_number 
-          ORDER BY entry_time DESC 
-          LIMIT 1
-        ) as entry_time
-      FROM vehicles v
-      LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
-      WHERE LOWER(v.status) = 'parked'
-    `;
-    const params = [];
+    const cleanEmail = email ? email.toLowerCase().trim() : null;
+    const cleanName = name ? name.toLowerCase().trim() : null;
 
-    if (email) {
-      params.push(email.toLowerCase());
-      query += ` AND LOWER(v.owner_email) = $${params.length}`;
-    } else if (name) {
-      params.push(`%${name.toLowerCase()}%`);
-      query += ` AND LOWER(v.owner_name) LIKE $${params.length}`;
-    }
-
-    query += " ORDER BY v.id DESC LIMIT 1";
-
-    const vehRes = await pool.query(query, params);
-
-    if (vehRes.rowCount === 0) {
+    if (!cleanEmail && !cleanName) {
       return res.json({ success: true, session: null, message: "No active parking session found" });
     }
 
-    const row = vehRes.rows[0];
+    let result = await pool.query(`
+      SELECT 
+        vh.id as history_id,
+        vh.vehicle_number,
+        COALESCE(v.vehicle_type, res.vehicle_type, 'Car') as vehicle_type,
+        COALESCE(v.model, res.model, 'Standard') as model,
+        COALESCE(v.owner_name, res.customer_name, 'Customer') as owner_name,
+        COALESCE(v.owner_email, res.customer_email, '') as owner_email,
+        COALESCE(v.owner_phone, res.customer_phone, '') as owner_phone,
+        COALESCE(v.status, vh.status, 'Parked') as status,
+        COALESCE(v.current_slot, vh.slot_number) as current_slot,
+        COALESCE(vh.entry_time, v.created_at) as entry_time,
+        ps.zone,
+        ps.slot_type,
+        COALESCE(ps.hourly_rate, 50.00) as hourly_rate
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(vh.vehicle_number)
+      LEFT JOIN LATERAL (
+        SELECT customer_name, customer_email, customer_phone, vehicle_type, model
+        FROM reservations 
+        WHERE LOWER(vehicle_number) = LOWER(vh.vehicle_number)
+        ORDER BY id DESC LIMIT 1
+      ) res ON true
+      LEFT JOIN parking_slots ps ON COALESCE(v.current_slot, vh.slot_number) = ps.slot_number
+      WHERE (vh.exit_time IS NULL OR LOWER(vh.status) = 'parked')
+        AND (
+          ($1::text IS NOT NULL AND (LOWER(v.owner_email) = $1 OR LOWER(res.customer_email) = $1))
+          OR
+          ($2::text IS NOT NULL AND (LOWER(v.owner_name) LIKE '%' || $2 || '%' OR LOWER(res.customer_name) LIKE '%' || $2 || '%'))
+        )
+      ORDER BY vh.entry_time DESC
+      LIMIT 1
+    `, [cleanEmail, cleanName]);
+
+    if (result.rowCount === 0) {
+      result = await pool.query(`
+        SELECT 
+          v.id,
+          v.vehicle_number,
+          v.vehicle_type,
+          v.model,
+          v.owner_name,
+          v.owner_email,
+          v.owner_phone,
+          v.status,
+          v.current_slot,
+          v.created_at,
+          ps.zone,
+          ps.slot_type,
+          COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
+          (
+            SELECT entry_time 
+            FROM vehicle_history 
+            WHERE LOWER(vehicle_number) = LOWER(v.vehicle_number) 
+            ORDER BY entry_time DESC 
+            LIMIT 1
+          ) as entry_time
+        FROM vehicles v
+        LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
+        WHERE LOWER(v.status) = 'parked'
+          AND (
+            ($1::text IS NOT NULL AND LOWER(v.owner_email) = $1)
+            OR
+            ($2::text IS NOT NULL AND LOWER(v.owner_name) LIKE '%' || $2 || '%')
+          )
+        ORDER BY v.id DESC LIMIT 1
+      `, [cleanEmail, cleanName]);
+    }
+
+    if (result.rowCount === 0) {
+      return res.json({ success: true, session: null, message: "No active parking session found" });
+    }
+
+    const row = result.rows[0];
     const now = new Date();
-    const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at);
+    const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at || now);
     const diffMs = Math.max(0, now - entryDate);
     const diffMins = Math.floor(diffMs / (1000 * 60));
     const hours = Math.floor(diffMins / 60);
@@ -2437,9 +2940,9 @@ app.get("/api/customer/my-parking", async (req, res) => {
     res.json({
       success: true,
       session: {
-        id: row.id,
+        id: row.id || row.history_id,
         vehicle_number: row.vehicle_number,
-        vehicle_type: row.vehicle_type,
+        vehicle_type: row.vehicle_type || "Car",
         model: row.model || "Standard",
         owner_name: row.owner_name,
         owner_email: row.owner_email,
@@ -2462,10 +2965,72 @@ app.get("/api/customer/my-parking", async (req, res) => {
   }
 });
 
-app.get("/api/admin/parking-records", async (req, res) => {
-  const { search, status, type } = req.query;
+app.get(["/api/admin/parking-records", "/api/staff/parking-records"], async (req, res) => {
+  const { search, status, type, zone, page, limit } = req.query;
   try {
-    let query = `
+    let baseWhere = `
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON UPPER(TRIM(vh.vehicle_number)) = UPPER(TRIM(v.vehicle_number))
+      LEFT JOIN parking_slots ps ON UPPER(TRIM(vh.slot_number)) = UPPER(TRIM(ps.slot_number))
+    `;
+    const params = [];
+    let whereClauses = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      whereClauses.push(`(
+        LOWER(vh.vehicle_number) LIKE $${params.length} OR 
+        LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR 
+        LOWER(vh.slot_number) LIKE $${params.length} OR 
+        CAST(vh.id AS TEXT) LIKE $${params.length} OR 
+        LOWER(CONCAT('tkt-', (88400 + vh.id)::text)) LIKE $${params.length} OR 
+        LOWER(CONCAT('rec-', (9000 + vh.id)::text)) LIKE $${params.length}
+      )`);
+    }
+
+    if (status && status.toUpperCase() !== "ALL") {
+      const s = status.toLowerCase();
+      if (s === "active" || s === "parked") {
+        whereClauses.push(`LOWER(vh.status) IN ('parked', 'active')`);
+      } else if (s === "completed") {
+        whereClauses.push(`LOWER(vh.status) = 'completed'`);
+      } else {
+        params.push(s);
+        whereClauses.push(`LOWER(vh.status) = $${params.length}`);
+      }
+    }
+
+    if (type && type.toUpperCase() !== "ALL") {
+      params.push(type.toLowerCase());
+      whereClauses.push(`LOWER(COALESCE(v.vehicle_type, 'car')) = $${params.length}`);
+    }
+
+    if (zone && zone.toUpperCase() !== "ALL") {
+      params.push(zone);
+      whereClauses.push(`ps.zone = $${params.length}`);
+    }
+
+    const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere} ${whereStr}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    const statsRes = await pool.query(`
+      SELECT 
+        COUNT(*) as total_count,
+        COUNT(CASE WHEN LOWER(status) IN ('parked', 'active') THEN 1 END) as active_count,
+        COUNT(CASE WHEN LOWER(status) = 'completed' THEN 1 END) as completed_count,
+        COALESCE(SUM(CASE WHEN LOWER(status) = 'completed' THEN CAST(REGEXP_REPLACE(fee, '[^0-9.]', '', 'g') AS NUMERIC) ELSE 0 END), 0) as completed_sum
+      FROM vehicle_history
+    `);
+    const stats = {
+      total: parseInt(statsRes.rows[0]?.total_count || 0, 10),
+      active: parseInt(statsRes.rows[0]?.active_count || 0, 10),
+      completed: parseInt(statsRes.rows[0]?.completed_count || 0, 10),
+      amount: parseFloat(statsRes.rows[0]?.completed_sum || 0)
+    };
+
+    const selectQuery = `
       SELECT 
         vh.id,
         vh.vehicle_number,
@@ -2481,72 +3046,84 @@ app.get("/api/admin/parking-records", async (req, res) => {
         COALESCE(v.owner_name, p.customer_name, 'Customer') as customer_name,
         COALESCE(v.owner_email, p.customer_email, '') as customer_email,
         COALESCE(v.owner_phone, p.customer_phone, '') as customer_phone,
-        COALESCE(ps.zone, 'Zone A') as zone,
+        COALESCE(ps.zone, CONCAT('Zone ', SUBSTRING(vh.slot_number, 1, 1)), 'Zone A') as zone,
         COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
         p.transaction_id,
         p.payment_method,
-        COALESCE(p.payment_status, CASE WHEN vh.status = 'Completed' THEN 'Paid' ELSE 'Pending' END) as payment_status
-      FROM vehicle_history vh
-      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
-      LEFT JOIN parking_slots ps ON vh.slot_number = ps.slot_number
-      LEFT JOIN payments p ON vh.vehicle_number = p.vehicle_number AND (
-        (vh.exit_time IS NOT NULL AND ABS(EXTRACT(EPOCH FROM (p.exit_time - vh.exit_time))) < 3600) OR
-        (p.slot_number = vh.slot_number)
-      )
-      WHERE 1=1
+        COALESCE(p.payment_status, CASE WHEN LOWER(vh.status) = 'completed' THEN 'Paid' ELSE 'Pending' END) as payment_status
+      ${baseWhere}
+      LEFT JOIN LATERAL (
+        SELECT p2.transaction_id, p2.payment_method, p2.payment_status, p2.customer_name, p2.customer_email, p2.customer_phone
+        FROM payments p2
+        WHERE p2.vehicle_number = vh.vehicle_number AND (
+          (vh.exit_time IS NOT NULL AND ABS(EXTRACT(EPOCH FROM (p2.exit_time - vh.exit_time))) < 3600) OR
+          (p2.slot_number = vh.slot_number)
+        )
+        ORDER BY p2.created_at DESC
+        LIMIT 1
+      ) p ON true
+      ${whereStr}
     `;
-    const params = [];
 
-    if (search) {
-      params.push(`%${search.toLowerCase()}%`);
-      query += ` AND (LOWER(vh.vehicle_number) LIKE $${params.length} OR LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(vh.slot_number) LIKE $${params.length} OR LOWER(COALESCE(p.transaction_id, '')) LIKE $${params.length})`;
+    let histRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      histRes = await pool.query(
+        `${selectQuery} ORDER BY vh.entry_time DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      histRes = await pool.query(`${selectQuery} ORDER BY vh.entry_time DESC`, params);
     }
-
-    if (status && status !== "ALL") {
-      params.push(status.toLowerCase());
-      query += ` AND LOWER(vh.status) = $${params.length}`;
-    }
-
-    if (type && type !== "ALL") {
-      params.push(type.toLowerCase());
-      query += ` AND LOWER(COALESCE(v.vehicle_type, 'car')) = $${params.length}`;
-    }
-
-    query += " ORDER BY vh.entry_time DESC";
-
-    const histRes = await pool.query(query, params);
 
     const now = new Date();
-    const seenMap = new Map();
-    histRes.rows.forEach((row) => {
-      if (!seenMap.has(row.id)) {
-        const isParked = (row.status || "").toLowerCase() === "parked";
-        let duration = row.duration;
-        let fee = row.fee;
+    const records = histRes.rows.map((row) => {
+      const isParked = (row.status || "").toLowerCase() === "parked";
+      let duration = row.duration;
+      let fee = row.fee;
 
-        if (isParked && row.entry_time) {
-          const entryDate = new Date(row.entry_time);
-          const diffMs = Math.max(0, now - entryDate);
-          const diffMins = Math.floor(diffMs / (1000 * 60));
-          const hours = Math.floor(diffMins / 60);
-          const mins = diffMins % 60;
-          duration = hours > 0 ? `${hours}h ${mins}m (Ongoing)` : `${mins}m (Ongoing)`;
-          const billedHours = Math.max(1, Math.ceil(diffMins / 60));
-          const rate = parseFloat(row.hourly_rate) || 50;
-          fee = `₹${(billedHours * rate).toFixed(2)}`;
-        }
-
-        seenMap.set(row.id, {
-          ...row,
-          duration: duration || "1h 00m",
-          fee: fee || "₹50.00",
-          payment_status: row.payment_status || (isParked ? "Pending" : "Paid")
-        });
+      if (isParked && row.entry_time) {
+        const entryDate = new Date(row.entry_time);
+        const diffMs = Math.max(0, now - entryDate);
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        duration = hours > 0 ? `${hours}h ${mins}m (Ongoing)` : `${mins}m (Ongoing)`;
+        const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+        const rate = parseFloat(row.hourly_rate) || 50;
+        fee = `₹${(billedHours * rate).toFixed(2)}`;
       }
+
+      return {
+        ...row,
+        ticket_number: `TKT-${88400 + row.id}`,
+        record_id: `REC-${9000 + row.id}`,
+        duration: duration || "1h 00m",
+        fee: fee || "₹50.00",
+        payment_status: row.payment_status || (isParked ? "Pending" : "Paid")
+      };
     });
 
-    const records = Array.from(seenMap.values());
-    res.json({ success: true, count: records.length, records });
+    res.json({
+      success: true,
+      count: records.length,
+      records,
+      data: records,
+      total,
+      stats,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching parking records" });
@@ -2570,68 +3147,91 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
     return res.status(400).json({ error: "Vehicle number is required for checkout" });
   }
 
-  const exitDate = exit_time ? new Date(exit_time) : new Date();
-  const dur = duration || "1h 00m";
-  const rawFee = typeof fee === "string" ? parseFloat(fee.replace(/[^0-9.]/g, "")) : parseFloat(fee) || 50.00;
+  const vPlate = vehicle_number.toUpperCase().trim();
   const payMethod = payment_method || "Cash";
   const txnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
 
+  const client = await pool.connect();
   try {
-    let slotToFree = slot_number;
-    let ownerName = customer_name;
-    let ownerEmail = customer_email;
-    let ownerPhone = customer_phone;
-    let entryDate = new Date(Date.now() - 3600000);
+    await client.query("BEGIN");
 
-    const vehQuery = await pool.query("SELECT * FROM vehicles WHERE vehicle_number = $1", [vehicle_number.toUpperCase()]);
-    if (vehQuery.rowCount > 0) {
-      const v = vehQuery.rows[0];
-      slotToFree = slotToFree || v.current_slot;
-      ownerName = ownerName || v.owner_name;
-      ownerEmail = ownerEmail || v.owner_email;
-      ownerPhone = ownerPhone || v.owner_phone;
-    }
-
-    const histQuery = await pool.query(
-      "SELECT * FROM vehicle_history WHERE vehicle_number = $1 AND (exit_time IS NULL OR status = 'Parked') ORDER BY entry_time DESC LIMIT 1",
-      [vehicle_number.toUpperCase()]
+    const vehQuery = await client.query("SELECT * FROM vehicles WHERE UPPER(vehicle_number) = $1 FOR UPDATE", [vPlate]);
+    const histQuery = await client.query(
+      "SELECT * FROM vehicle_history WHERE UPPER(vehicle_number) = $1 AND (exit_time IS NULL OR LOWER(status) = 'parked') ORDER BY entry_time DESC LIMIT 1 FOR UPDATE",
+      [vPlate]
     );
-    if (histQuery.rowCount > 0) {
-      entryDate = new Date(histQuery.rows[0].entry_time);
-      slotToFree = slotToFree || histQuery.rows[0].slot_number;
+
+    if (vehQuery.rowCount === 0 && histQuery.rowCount === 0) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(404).json({ error: `Vehicle ${vPlate} does not have an active parking session` });
     }
+
+    const veh = vehQuery.rows[0];
+    const hist = histQuery.rows[0];
+
+    const slotToFree = slot_number || hist?.slot_number || veh?.current_slot || "A-01";
+    const ownerName = customer_name || veh?.owner_name || "Customer";
+    const ownerEmail = (customer_email || veh?.owner_email || "").trim();
+    const ownerPhone = (customer_phone || veh?.owner_phone || "").trim();
+    const entryDate = hist?.entry_time ? new Date(hist.entry_time) : (veh?.created_at ? new Date(veh.created_at) : new Date(Date.now() - 3600000));
+
+    const exitDate = exit_time ? new Date(exit_time) : new Date();
+    const diffMs = Math.max(0, exitDate - entryDate);
+    const diffMins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    const dur = duration || (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
+    const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+
+    let rate = 50;
+    if (slotToFree) {
+      const slotRes = await client.query("SELECT hourly_rate FROM parking_slots WHERE slot_number = $1", [slotToFree]);
+      if (slotRes.rowCount > 0 && slotRes.rows[0].hourly_rate) {
+        rate = parseFloat(slotRes.rows[0].hourly_rate) || 50;
+      }
+    }
+    const calculatedFee = billedHours * rate;
+    const rawFee = fee !== undefined ? (typeof fee === "string" ? parseFloat(fee.replace(/[^0-9.]/g, "")) || calculatedFee : parseFloat(fee) || calculatedFee) : calculatedFee;
 
     if (slotToFree) {
-      await pool.query(
+      await client.query(
         "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
         [slotToFree]
       );
     }
 
-    await pool.query(
-      "UPDATE vehicles SET status = 'Checked Out' WHERE vehicle_number = $1",
-      [vehicle_number.toUpperCase()]
+    await client.query(
+      "UPDATE vehicles SET status = 'Checked Out', current_slot = NULL WHERE UPPER(vehicle_number) = $1",
+      [vPlate]
     );
 
-    await pool.query(
+    await client.query(
       `UPDATE vehicle_history 
        SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
-       WHERE vehicle_number = $4 AND (exit_time IS NULL OR status = 'Parked')`,
-      [exitDate, dur, `₹${rawFee.toFixed(2)}`, vehicle_number.toUpperCase()]
+       WHERE UPPER(vehicle_number) = $4 AND (exit_time IS NULL OR LOWER(status) = 'parked')`,
+      [exitDate, dur, `₹${rawFee.toFixed(2)}`, vPlate]
     );
 
-    const paymentInsert = await pool.query(
+    await client.query(
+      `UPDATE reservations 
+       SET status = 'Completed' 
+       WHERE UPPER(vehicle_number) = $1 AND LOWER(status) IN ('checked in', 'confirmed')`,
+      [vPlate]
+    );
+
+    const paymentInsert = await client.query(
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
         slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
       [
         txnId,
-        vehicle_number.toUpperCase(),
-        ownerName || "Customer",
-        ownerEmail || "",
-        ownerPhone || "",
-        slotToFree || "A-01",
+        vPlate,
+        ownerName,
+        ownerEmail,
+        ownerPhone,
+        slotToFree,
         entryDate,
         exitDate,
         dur,
@@ -2641,14 +3241,22 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       ]
     );
 
-    const exitCustEmail = ownerEmail || "";
-    if (exitCustEmail) {
-      await notifyUser(exitCustEmail, {
+    const logCode2 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
+    await client.query(
+      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Staff', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
+      [logCode2, ownerName || "Staff Operator", `Vehicle Checkout: ${vPlate}`, `Vehicle ${vPlate} checked out from slot ${slotToFree}, fee: ₹${rawFee.toFixed(2)}`]
+    );
+
+    await client.query("COMMIT");
+    client.release();
+
+    if (ownerEmail) {
+      await notifyUser(ownerEmail, {
         title: "Parking Completed",
-        message: `Your parking session for vehicle ${vehicle_number.toUpperCase()} has been completed.`,
+        message: `Your parking session for vehicle ${vPlate} has been completed.`,
         type: "parking"
       });
-      await notifyUser(exitCustEmail, {
+      await notifyUser(ownerEmail, {
         title: "Receipt Available",
         message: "Your digital parking receipt is now available.",
         type: "receipt"
@@ -2656,33 +3264,33 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
     }
     await notifyStaff({
       title: "Vehicle Exit",
-      message: `Vehicle ${vehicle_number.toUpperCase()} exited slot ${slotToFree || ''}.`,
+      message: `Vehicle ${vPlate} exited slot ${slotToFree || ''}.`,
       type: "parking"
     });
     await notifyAdmins({
       title: "Important Parking Activity",
-      message: `Vehicle ${vehicle_number.toUpperCase()} exited slot ${slotToFree || ''}.`,
+      message: `Vehicle ${vPlate} exited slot ${slotToFree || ''}.`,
       type: "parking"
     });
 
     try {
       await sendParkingSessionCompletedEmail({
-        vehicleNumber: vehicle_number.toUpperCase(),
+        vehicleNumber: vPlate,
         slotNumber: slotToFree || "Assigned Bay",
         entryTime: entryDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
         exitTime: exitDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
         duration: dur,
         fee: `₹${rawFee.toFixed(2)}`,
         paymentMethod: payMethod,
-        recipient: exitCustEmail
+        recipient: ownerEmail
       });
       await sendDigitalReceiptEmail({
         receiptNumber: txnId,
         amount: rawFee,
-        vehicleNumber: vehicle_number.toUpperCase(),
+        vehicleNumber: vPlate,
         slotNumber: slotToFree || "Assigned Bay",
         duration: dur,
-        recipient: exitCustEmail
+        recipient: ownerEmail
       });
     } catch (e) {
       console.error(e);
@@ -2690,10 +3298,10 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Vehicle ${vehicle_number.toUpperCase()} checked out successfully. Bay ${slotToFree || ''} is now available.`,
+      message: `Vehicle ${vPlate} checked out successfully. Bay ${slotToFree || ''} is now available.`,
       exitRecord: {
         transaction_id: txnId,
-        vehicle_number: vehicle_number.toUpperCase(),
+        vehicle_number: vPlate,
         slot_number: slotToFree,
         customer_name: ownerName,
         entry_time: entryDate.toISOString(),
@@ -2706,6 +3314,8 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       receipt: paymentInsert.rows[0]
     });
   } catch (err) {
+    await client.query("ROLLBACK");
+    client.release();
     console.error(err);
     res.status(500).json({ error: "Server error completing vehicle exit" });
   }
@@ -2776,49 +3386,66 @@ app.post("/api/parking/calculate-fee", async (req, res) => {
 });
 
 app.get("/api/customer/parking-history", async (req, res) => {
-  const { email, name } = req.query;
+  const { email, name, search, status, page, limit } = req.query;
   try {
-    await pool.query(`
-      DELETE FROM vehicle_history 
-      WHERE fee IS NULL AND duration IS NULL AND exit_time IS NULL AND status = 'Active'
-    `);
+    let baseFromWhere = `
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON UPPER(vh.vehicle_number) = UPPER(v.vehicle_number)
+      LEFT JOIN parking_slots ps ON vh.slot_number = ps.slot_number
+      LEFT JOIN LATERAL (
+        SELECT p.transaction_id, p.payment_method, p.customer_name, p.customer_email
+        FROM payments p
+        WHERE UPPER(p.vehicle_number) = UPPER(vh.vehicle_number)
+        ORDER BY ABS(EXTRACT(EPOCH FROM (p.created_at - vh.entry_time))) ASC
+        LIMIT 1
+      ) p_match ON true
+      LEFT JOIN LATERAL (
+        SELECT r.booking_id, r.customer_name, r.customer_email
+        FROM reservations r
+        WHERE UPPER(r.vehicle_number) = UPPER(vh.vehicle_number)
+        ORDER BY ABS(EXTRACT(EPOCH FROM (r.created_at - vh.entry_time))) ASC
+        LIMIT 1
+      ) r_match ON true
+      WHERE 1=1
+    `;
+    const params = [];
+    if (email) {
+      params.push(email.trim().toLowerCase());
+      baseFromWhere += ` AND (
+        LOWER(COALESCE(v.owner_email, '')) = $${params.length}
+        OR LOWER(COALESCE(p_match.customer_email, '')) = $${params.length}
+        OR LOWER(COALESCE(r_match.customer_email, '')) = $${params.length}
+        OR EXISTS (SELECT 1 FROM vehicles v2 WHERE UPPER(v2.vehicle_number) = UPPER(vh.vehicle_number) AND LOWER(v2.owner_email) = $${params.length})
+        OR EXISTS (SELECT 1 FROM reservations r2 WHERE UPPER(r2.vehicle_number) = UPPER(vh.vehicle_number) AND LOWER(r2.customer_email) = $${params.length})
+        OR EXISTS (SELECT 1 FROM payments p2 WHERE UPPER(p2.vehicle_number) = UPPER(vh.vehicle_number) AND LOWER(p2.customer_email) = $${params.length})
+      )`;
+    } else if (name) {
+      params.push(`%${name.trim().toLowerCase()}%`);
+      baseFromWhere += ` AND (
+        LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p_match.customer_name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(r_match.customer_name, '')) LIKE $${params.length}
+      )`;
+    }
 
-    await pool.query(`
-      UPDATE reservations 
-      SET status = 'Completed' 
-      WHERE end_time <= CURRENT_TIMESTAMP AND status IN ('Confirmed', 'Checked In')
-    `);
+    if (search) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseFromWhere += ` AND (
+        LOWER(vh.vehicle_number) LIKE $${params.length}
+        OR LOWER(vh.slot_number) LIKE $${params.length}
+        OR LOWER(COALESCE(p_match.transaction_id, '')) LIKE $${params.length}
+      )`;
+    }
 
-    await pool.query(`
-      UPDATE vehicle_history vh
-      SET exit_time = p.exit_time,
-          duration = COALESCE(p.duration, vh.duration, '1h 00m'),
-          fee = COALESCE(vh.fee, '₹' || CAST(p.amount AS numeric(10,2))),
-          status = 'Completed'
-      FROM payments p
-      WHERE vh.vehicle_number = p.vehicle_number
-        AND vh.exit_time IS NULL
-        AND p.payment_status = 'Completed'
-        AND p.exit_time <= CURRENT_TIMESTAMP
-        AND ABS(EXTRACT(EPOCH FROM (vh.entry_time - p.entry_time))) < 7200
-    `);
+    if (status && status !== "ALL") {
+      params.push(status.trim().toLowerCase());
+      baseFromWhere += ` AND LOWER(vh.status) = $${params.length}`;
+    }
 
-    await pool.query(`
-      UPDATE vehicle_history vh
-      SET exit_time = r.end_time,
-          duration = COALESCE(vh.duration, r.duration_hours || 'h 00m'),
-          fee = COALESCE(vh.fee, '₹' || CAST(r.total_amount AS numeric(10,2))),
-          status = 'Completed'
-      FROM reservations r
-      WHERE vh.vehicle_number = r.vehicle_number
-        AND (vh.slot_number = r.slot_number OR vh.slot_number IS NULL)
-        AND vh.exit_time IS NULL
-        AND r.end_time <= CURRENT_TIMESTAMP
-        AND r.status = 'Completed'
-        AND ABS(EXTRACT(EPOCH FROM (vh.entry_time - COALESCE(r.validated_at, r.start_time)))) < 7200
-    `);
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseFromWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
 
-    let query = `
+    const selectCols = `
       SELECT 
         vh.id,
         vh.vehicle_number,
@@ -2831,49 +3458,68 @@ app.get("/api/customer/parking-history", async (req, res) => {
         vh.created_at,
         COALESCE(v.vehicle_type, 'Car') as vehicle_type,
         COALESCE(v.model, 'Standard') as model,
-        COALESCE(v.owner_name, p_match.customer_name, 'Customer') as owner_name,
-        COALESCE(v.owner_email, p_match.customer_email, '') as owner_email,
+        COALESCE(v.owner_name, p_match.customer_name, r_match.customer_name, 'Customer') as owner_name,
+        COALESCE(v.owner_email, p_match.customer_email, r_match.customer_email, '') as owner_email,
         COALESCE(ps.zone, 'Zone A') as zone,
         COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
-        p_match.transaction_id,
-        p_match.payment_method
-      FROM vehicle_history vh
-      LEFT JOIN vehicles v ON vh.vehicle_number = v.vehicle_number
-      LEFT JOIN parking_slots ps ON vh.slot_number = ps.slot_number
-      LEFT JOIN LATERAL (
-        SELECT p.transaction_id, p.payment_method, p.customer_name, p.customer_email
-        FROM payments p
-        WHERE p.vehicle_number = vh.vehicle_number
-        ORDER BY ABS(EXTRACT(EPOCH FROM (p.entry_time - vh.entry_time))) ASC
-        LIMIT 1
-      ) p_match ON true
-      WHERE (vh.fee IS NOT NULL OR vh.duration IS NOT NULL OR vh.exit_time IS NOT NULL)
+        COALESCE(p_match.transaction_id, r_match.booking_id) as transaction_id,
+        COALESCE(p_match.payment_method, 'UPI') as payment_method
     `;
-    const params = [];
 
-    if (email) {
-      params.push(email.toLowerCase());
-      query += ` AND (LOWER(COALESCE(v.owner_email, '')) = $${params.length} OR LOWER(COALESCE(p_match.customer_email, '')) = $${params.length})`;
-    } else if (name) {
-      params.push(`%${name.toLowerCase()}%`);
-      query += ` AND (LOWER(COALESCE(v.owner_name, '')) LIKE $${params.length} OR LOWER(COALESCE(p_match.customer_name, '')) LIKE $${params.length})`;
+    let histRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      histRes = await pool.query(
+        `${selectCols} ${baseFromWhere} ORDER BY vh.entry_time DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      histRes = await pool.query(`${selectCols} ${baseFromWhere} ORDER BY vh.entry_time DESC`, params);
     }
 
-    query += " ORDER BY vh.entry_time DESC";
-
-    const histRes = await pool.query(query, params);
-    const rows = histRes.rows;
-
-    const uniqueRows = [];
-    const seenIds = new Set();
-    rows.forEach((r) => {
-      if (!seenIds.has(r.id)) {
-        seenIds.add(r.id);
-        uniqueRows.push(r);
+    const now = new Date();
+    const formattedRows = histRes.rows.map(r => {
+      const isParked = (r.status || "").toLowerCase() === "parked" || !r.exit_time;
+      let duration = r.duration;
+      let fee = r.fee;
+      if (isParked && r.entry_time) {
+        const entryDate = new Date(r.entry_time);
+        const diffMs = Math.max(0, now.getTime() - entryDate.getTime());
+        const diffMins = Math.floor(diffMs / 60000);
+        const hrs = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        duration = hrs > 0 ? `${hrs}h ${mins}m (Ongoing)` : `${mins}m (Ongoing)`;
+        const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+        const rate = parseFloat(r.hourly_rate) || 50;
+        fee = `₹${(billedHours * rate).toFixed(2)}`;
       }
+      return {
+        ...r,
+        duration: duration || "1h 00m",
+        fee: fee || "₹50.00",
+        status: isParked ? "Parked" : "Completed"
+      };
     });
 
-    res.json({ success: true, count: uniqueRows.length, history: uniqueRows });
+    res.json({
+      success: true,
+      count: formattedRows.length,
+      history: formattedRows,
+      data: formattedRows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching customer parking history" });
@@ -2881,28 +3527,45 @@ app.get("/api/customer/parking-history", async (req, res) => {
 });
 
 app.get("/api/bookings", async (req, res) => {
-  const { search, status } = req.query;
+  const { search, status, page, limit } = req.query;
   try {
-    let query = "SELECT * FROM reservations WHERE 1=1";
+    let baseWhere = "FROM reservations WHERE 1=1";
     const params = [];
 
-    if (search) {
+    if (search && search.trim()) {
       params.push(`%${search.toLowerCase().trim()}%`);
-      query += ` AND (LOWER(booking_id) LIKE $${params.length} OR LOWER(customer_name) LIKE $${params.length} OR LOWER(vehicle_number) LIKE $${params.length} OR LOWER(slot_number) LIKE $${params.length} OR LOWER(validation_code) LIKE $${params.length})`;
+      baseWhere += ` AND (LOWER(booking_id) LIKE $${params.length} OR LOWER(customer_name) LIKE $${params.length} OR LOWER(vehicle_number) LIKE $${params.length} OR LOWER(slot_number) LIKE $${params.length} OR LOWER(validation_code) LIKE $${params.length})`;
     }
 
     if (status && status !== "ALL") {
       params.push(status);
-      query += ` AND LOWER(status) = LOWER($${params.length})`;
+      baseWhere += ` AND LOWER(status) = LOWER($${params.length})`;
     }
 
-    query += " ORDER BY id DESC";
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
 
-    const result = await pool.query(query, params);
+    let result;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      result = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      result = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
+    }
+
     const allRes = await pool.query("SELECT * FROM reservations");
     const allRows = allRes.rows;
 
-    const total = allRows.length;
+    const allTotal = allRows.length;
     const confirmed = allRows.filter((r) => (r.status || "").toLowerCase() === "confirmed").length;
     const pending = allRows.filter((r) => (r.status || "").toLowerCase() === "pending").length;
     const checkedIn = allRows.filter((r) => (r.status || "").toLowerCase().includes("check") || (r.status || "").toLowerCase() === "validated").length;
@@ -2912,8 +3575,16 @@ app.get("/api/bookings", async (req, res) => {
       success: true,
       count: result.rows.length,
       bookings: result.rows,
-      stats: {
+      data: result.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
         total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      },
+      stats: {
+        total: allTotal,
         confirmed,
         pending,
         checkedIn,
@@ -2928,28 +3599,79 @@ app.get("/api/bookings", async (req, res) => {
 });
 
 app.get("/api/customer/reservations", async (req, res) => {
-  const { email, name } = req.query;
+  const { email, name, search, status, page, limit } = req.query;
   try {
-    let query = "SELECT * FROM reservations WHERE 1=1";
+    let baseWhere = "FROM reservations WHERE 1=1";
     const params = [];
 
     if (email) {
       params.push(email.toLowerCase().trim());
-      query += ` AND (LOWER(COALESCE(customer_email, '')) = $${params.length} OR LOWER(COALESCE(customer_name, '')) = $${params.length})`;
+      baseWhere += ` AND (LOWER(COALESCE(customer_email, '')) = $${params.length} OR LOWER(COALESCE(customer_name, '')) = $${params.length})`;
     } else if (name) {
       params.push(`%${name.toLowerCase().trim()}%`);
-      query += ` AND LOWER(COALESCE(customer_name, '')) LIKE $${params.length}`;
+      baseWhere += ` AND LOWER(COALESCE(customer_name, '')) LIKE $${params.length}`;
     }
 
-    query += " ORDER BY id DESC";
-    const result = await pool.query(query, params);
-
-    if (result.rowCount === 0 && (email || name)) {
-      const allRes = await pool.query("SELECT * FROM reservations ORDER BY id DESC LIMIT 10");
-      return res.json({ success: true, count: allRes.rows.length, reservations: allRes.rows });
+    if (search && search.trim()) {
+      params.push(`%${search.toLowerCase().trim()}%`);
+      baseWhere += ` AND (LOWER(booking_id) LIKE $${params.length} OR LOWER(vehicle_number) LIKE $${params.length} OR LOWER(slot_number) LIKE $${params.length} OR LOWER(validation_code) LIKE $${params.length})`;
     }
 
-    res.json({ success: true, count: result.rows.length, reservations: result.rows });
+    if (status && status !== "ALL") {
+      params.push(status);
+      baseWhere += ` AND LOWER(status) = LOWER($${params.length})`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    let total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let result;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      result = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      result = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
+    }
+
+    if (result.rowCount === 0 && (email || name) && !search && (!status || status === "ALL")) {
+      const allRes = await pool.query("SELECT * FROM reservations ORDER BY id DESC LIMIT 5");
+      return res.json({
+        success: true,
+        count: allRes.rows.length,
+        reservations: allRes.rows,
+        data: allRes.rows,
+        total: allRes.rows.length,
+        pagination: {
+          page: 1,
+          limit: 5,
+          total: allRes.rows.length,
+          totalPages: 1
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      reservations: result.rows,
+      data: result.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching customer reservations" });
@@ -2991,8 +3713,23 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
   const createdAtStr = getLocalTimestamp(now);
   const amountNum = parseFloat(total_amount) || (durHours * 50);
 
+  const client = await pool.connect();
   try {
-    const insertRes = await pool.query(
+    await client.query("BEGIN");
+
+    const slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [slot_number]);
+    if (slotCheck.rowCount === 0) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(400).json({ error: `Slot ${slot_number} does not exist` });
+    }
+    if (slotCheck.rows[0].status === "occupied" || slotCheck.rows[0].status === "reserved" || !slotCheck.rows[0].is_available) {
+      await client.query("ROLLBACK");
+      client.release();
+      return res.status(400).json({ error: `Slot ${slot_number} is already occupied or reserved` });
+    }
+
+    const insertRes = await client.query(
       `INSERT INTO reservations (
         booking_id, customer_name, customer_email, customer_phone, vehicle_number,
         vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
@@ -3007,7 +3744,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         vType,
         vModel,
         slot_number,
-        zone || "Zone A",
+        zone || slotCheck.rows[0].zone || "Zone A",
         sTimeStr,
         eTimeStr,
         durHours,
@@ -3019,22 +3756,29 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       ]
     );
 
-    await pool.query(
+    await client.query(
       "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
       [slot_number]
     );
 
-    const existVeh = await pool.query("SELECT * FROM vehicles WHERE vehicle_number = $1", [vPlate]);
-    if (existVeh.rowCount === 0) {
-      await pool.query(
-        "INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot) VALUES ($1, $2, $3, $4, $5, $6, 'Reserved', $7)",
-        [vPlate, vType, vModel, customer_name, customer_email || "", customer_phone || "", slot_number]
-      );
-    }
+    await client.query(
+      `INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Reserved', $7)
+       ON CONFLICT (vehicle_number)
+       DO UPDATE SET
+         status = 'Reserved',
+         current_slot = EXCLUDED.current_slot,
+         owner_name = COALESCE(NULLIF(EXCLUDED.owner_name, ''), vehicles.owner_name),
+         owner_email = COALESCE(NULLIF(EXCLUDED.owner_email, ''), vehicles.owner_email),
+         owner_phone = COALESCE(NULLIF(EXCLUDED.owner_phone, ''), vehicles.owner_phone),
+         vehicle_type = COALESCE(NULLIF(EXCLUDED.vehicle_type, ''), vehicles.vehicle_type),
+         model = COALESCE(NULLIF(EXCLUDED.model, ''), vehicles.model)`,
+      [vPlate, vType, vModel, customer_name, customer_email || "", customer_phone || "", slot_number]
+    );
 
     const payTxnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
     const payMethod = req.body.payment_method || "UPI";
-    await pool.query(
+    await client.query(
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
         slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
@@ -3055,6 +3799,15 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         createdAtStr
       ]
     );
+
+    const logCode3 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
+    await client.query(
+      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Customer', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
+      [logCode3, customer_name, `Reservation Created: ${bookingId}`, `Slot ${slot_number} reserved for vehicle ${vPlate}`]
+    );
+
+    await client.query("COMMIT");
+    client.release();
 
     const custEmail = customer_email || "";
     if (custEmail) {
@@ -3101,6 +3854,8 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       booking: insertRes.rows[0]
     });
   } catch (err) {
+    await client.query("ROLLBACK");
+    client.release();
     console.error(err);
     res.status(500).json({ error: "Server error creating reservation" });
   }
@@ -3114,7 +3869,10 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
     return res.status(400).json({ error: "Booking ID, validation code, or vehicle plate is required" });
   }
 
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
+
     let query = "SELECT * FROM reservations WHERE 1=1";
     const params = [];
 
@@ -3129,16 +3887,20 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
       query += ` AND LOWER(vehicle_number) = LOWER($${params.length}) AND LOWER(status) != 'cancelled'`;
     }
 
-    query += " ORDER BY id DESC LIMIT 1";
+    query += " ORDER BY id DESC LIMIT 1 FOR UPDATE";
 
-    const findRes = await pool.query(query, params);
+    const findRes = await client.query(query, params);
     if (findRes.rowCount === 0) {
+      await client.query("ROLLBACK");
+      client.release();
       return res.status(404).json({ error: "Reservation not found or invalid validation credentials" });
     }
 
     const booking = findRes.rows[0];
 
     if ((booking.status || "").toLowerCase() === "checked in") {
+      await client.query("ROLLBACK");
+      client.release();
       return res.json({
         success: true,
         alreadyValidated: true,
@@ -3149,30 +3911,47 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
 
     const now = new Date();
     const nowStr = getLocalTimestamp(now);
-    const updatedRes = await pool.query(
+    const updatedRes = await client.query(
       `UPDATE reservations 
        SET status = 'Checked In', validated_at = $1, validated_by = $2 
        WHERE id = $3 RETURNING *`,
       [nowStr, validated_by || "Staff Operator", booking.id]
     );
 
-    await pool.query(
+    await client.query(
       "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
       [booking.slot_number]
     );
 
-    await pool.query(
-      `UPDATE vehicles 
-       SET status = 'Parked', current_slot = $1, owner_name = $2, owner_email = $3, owner_phone = $4, vehicle_type = $5 
-       WHERE vehicle_number = $6`,
-      [booking.slot_number, booking.customer_name, booking.customer_email, booking.customer_phone, booking.vehicle_type, booking.vehicle_number]
+    await client.query(
+      `INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot)
+       VALUES ($1, $2, COALESCE($3, 'Standard'), $4, $5, $6, 'Parked', $7)
+       ON CONFLICT (vehicle_number)
+       DO UPDATE SET
+         status = 'Parked',
+         current_slot = EXCLUDED.current_slot,
+         owner_name = COALESCE(NULLIF(EXCLUDED.owner_name, ''), vehicles.owner_name),
+         owner_email = COALESCE(NULLIF(EXCLUDED.owner_email, ''), vehicles.owner_email),
+         owner_phone = COALESCE(NULLIF(EXCLUDED.owner_phone, ''), vehicles.owner_phone),
+         vehicle_type = COALESCE(NULLIF(EXCLUDED.vehicle_type, ''), vehicles.vehicle_type),
+         model = COALESCE(NULLIF(EXCLUDED.model, ''), vehicles.model)`,
+      [booking.vehicle_number, booking.vehicle_type || "Car", booking.model || "Standard", booking.customer_name, booking.customer_email, booking.customer_phone, booking.slot_number]
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, exit_time, duration, fee, status)
        VALUES ($1, $2, $3, NULL, 'Ongoing', $4, 'Parked')`,
       [booking.vehicle_number, booking.slot_number, nowStr, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
     );
+
+    const logCode4 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
+    await client.query(
+      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Staff', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
+      [logCode4, validated_by || "Staff Operator", `Reservation Validated: ${booking.booking_id}`, `Vehicle ${booking.vehicle_number} checked in to slot ${booking.slot_number}`]
+    );
+
+    await client.query("COMMIT");
+    client.release();
 
     if (booking.customer_email) {
       await notifyUser(booking.customer_email, {
@@ -3233,6 +4012,8 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
       validatedBooking: updatedRes.rows[0]
     });
   } catch (err) {
+    await client.query("ROLLBACK");
+    client.release();
     console.error(err);
     res.status(500).json({ error: "Server error validating reservation" });
   }
@@ -3262,6 +4043,10 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
       await pool.query(
         "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
         [updatedBooking.slot_number]
+      );
+      await pool.query(
+        "UPDATE vehicles SET status = 'Registered', current_slot = NULL WHERE vehicle_number = $1 AND status = 'Reserved'",
+        [updatedBooking.vehicle_number]
       );
       if (updatedBooking.customer_email) {
         await notifyUser(updatedBooking.customer_email, {
@@ -3383,34 +4168,51 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
 
 
 app.get("/api/pricing-plans", async (req, res) => {
-  const { active, vehicle_type, billing_type, search } = req.query;
+  const { active, vehicle_type, billing_type, search, page, limit } = req.query;
   try {
-    let query = "SELECT * FROM pricing_plans WHERE 1=1";
+    let baseWhere = "FROM pricing_plans WHERE 1=1";
     const params = [];
 
     if (active === "true") {
-      query += " AND is_active = true";
+      baseWhere += " AND is_active = true";
     } else if (active === "false") {
-      query += " AND is_active = false";
+      baseWhere += " AND is_active = false";
     }
 
     if (vehicle_type && vehicle_type !== "All") {
       params.push(vehicle_type);
-      query += ` AND (LOWER(vehicle_type) = LOWER($${params.length}) OR LOWER(vehicle_type) = 'all')`;
+      baseWhere += ` AND (LOWER(vehicle_type) = LOWER($${params.length}) OR LOWER(vehicle_type) = 'all')`;
     }
 
     if (billing_type && billing_type !== "All") {
       params.push(billing_type);
-      query += ` AND LOWER(billing_type) = LOWER($${params.length})`;
+      baseWhere += ` AND LOWER(billing_type) = LOWER($${params.length})`;
     }
 
-    if (search) {
+    if (search && search.trim()) {
       params.push(`%${search.trim()}%`);
-      query += ` AND (plan_name ILIKE $${params.length} OR plan_code ILIKE $${params.length} OR description ILIKE $${params.length})`;
+      baseWhere += ` AND (plan_name ILIKE $${params.length} OR plan_code ILIKE $${params.length} OR description ILIKE $${params.length})`;
     }
 
-    query += " ORDER BY id ASC";
-    const plansRes = await pool.query(query, params);
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let plansRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      plansRes = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id ASC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      plansRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id ASC`, params);
+    }
 
     const statsRes = await pool.query(`
       SELECT 
@@ -3428,6 +4230,14 @@ app.get("/api/pricing-plans", async (req, res) => {
       success: true,
       count: plansRes.rowCount,
       plans: plansRes.rows,
+      data: plansRes.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      },
       stats: {
         total: parseInt(stats.total) || 0,
         active: parseInt(stats.active) || 0,
@@ -3696,17 +4506,68 @@ app.delete("/api/pricing-plans/:id", async (req, res) => {
 
 
 app.get("/api/support-tickets", async (req, res) => {
-  const { email } = req.query;
+  const { email, search, status, priority, category, page, limit } = req.query;
   try {
-    let query = "SELECT * FROM support_tickets";
+    let baseWhere = "FROM support_tickets WHERE 1=1";
     const params = [];
+
     if (email) {
       params.push(email.toLowerCase());
-      query += " WHERE LOWER(customer_email) = $1";
+      baseWhere += ` AND LOWER(customer_email) = $${params.length}`;
     }
-    query += " ORDER BY created_at DESC";
-    const result = await pool.query(query, params);
-    res.json({ success: true, tickets: result.rows });
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseWhere += ` AND (LOWER(ticket_code) LIKE $${params.length} OR LOWER(subject) LIKE $${params.length} OR LOWER(customer_name) LIKE $${params.length} OR LOWER(COALESCE(description, '')) LIKE $${params.length})`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseWhere += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    if (priority && priority !== "ALL") {
+      params.push(priority.toLowerCase());
+      baseWhere += ` AND LOWER(priority) = $${params.length}`;
+    }
+
+    if (category && category !== "ALL") {
+      params.push(category.toLowerCase());
+      baseWhere += ` AND LOWER(category) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let result;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      result = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY created_at DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      result = await pool.query(`SELECT * ${baseWhere} ORDER BY created_at DESC`, params);
+    }
+
+    res.json({
+      success: true,
+      tickets: result.rows,
+      data: result.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching support tickets" });
@@ -4021,9 +4882,53 @@ app.post("/api/customer/activate-premium", async (req, res) => {
 });
 
 app.get("/api/parking-locations", async (req, res) => {
+  const { page, limit, search, status } = req.query;
   try {
-    const locationsRes = await pool.query("SELECT * FROM parking_locations ORDER BY id ASC");
-    res.json({ success: true, locations: locationsRes.rows });
+    let baseWhere = "FROM parking_locations WHERE 1=1";
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseWhere += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(address) LIKE $${params.length} OR LOWER(code) LIKE $${params.length})`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseWhere += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let locationsRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      locationsRes = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id ASC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      locationsRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id ASC`, params);
+    }
+
+    res.json({
+      success: true,
+      locations: locationsRes.rows,
+      data: locationsRes.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching parking locations" });
@@ -4139,9 +5044,63 @@ app.put("/api/system-settings", async (req, res) => {
 });
 
 app.get("/api/admin/audit-logs", async (req, res) => {
+  const { page, limit, search, role, severity, action } = req.query;
   try {
-    const logsRes = await pool.query("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 50");
-    res.json({ success: true, logs: logsRes.rows });
+    let baseWhere = "FROM audit_logs WHERE 1=1";
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseWhere += ` AND (LOWER(log_code) LIKE $${params.length} OR LOWER(actor) LIKE $${params.length} OR LOWER(action) LIKE $${params.length} OR LOWER(COALESCE(target, '')) LIKE $${params.length})`;
+    }
+
+    if (role && role !== "ALL") {
+      params.push(role.toLowerCase());
+      baseWhere += ` AND LOWER(role) = $${params.length}`;
+    }
+
+    if (severity && severity !== "ALL") {
+      params.push(severity.toLowerCase());
+      baseWhere += ` AND LOWER(severity) = $${params.length}`;
+    }
+
+    if (action && action !== "ALL") {
+      params.push(action.toLowerCase());
+      baseWhere += ` AND LOWER(action) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let logsRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      logsRes = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      logsRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC LIMIT 50`, params);
+    }
+
+    res.json({
+      success: true,
+      logs: logsRes.rows,
+      data: logsRes.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching audit logs" });
@@ -4149,9 +5108,58 @@ app.get("/api/admin/audit-logs", async (req, res) => {
 });
 
 app.get("/api/staff/incidents", async (req, res) => {
+  const { page, limit, search, severity, status } = req.query;
   try {
-    const incRes = await pool.query("SELECT * FROM staff_incidents ORDER BY id DESC");
-    res.json({ success: true, incidents: incRes.rows });
+    let baseWhere = "FROM staff_incidents WHERE 1=1";
+    const params = [];
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseWhere += ` AND (LOWER(incident_code) LIKE $${params.length} OR LOWER(reporter) LIKE $${params.length} OR LOWER(incident_type) LIKE $${params.length} OR LOWER(COALESCE(notes, '')) LIKE $${params.length} OR LOWER(COALESCE(plate, '')) LIKE $${params.length})`;
+    }
+
+    if (severity && severity !== "ALL") {
+      params.push(severity.toLowerCase());
+      baseWhere += ` AND LOWER(severity) = $${params.length}`;
+    }
+
+    if (status && status !== "ALL") {
+      params.push(status.toLowerCase());
+      baseWhere += ` AND LOWER(status) = $${params.length}`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let incRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      incRes = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      incRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
+    }
+
+    res.json({
+      success: true,
+      incidents: incRes.rows,
+      data: incRes.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching staff incidents" });
@@ -4195,15 +5203,17 @@ app.put("/api/staff/incidents/:id/status", async (req, res) => {
 app.get("/api/staff/dashboard-overview", async (req, res) => {
   try {
     const slotsRes = await pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC");
-    const todayResCount = await pool.query("SELECT COUNT(*) FROM reservations WHERE DATE(created_at) = CURRENT_DATE");
-    const totalResCount = await pool.query("SELECT COUNT(*) FROM reservations");
-    const todayPaySum = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE DATE(created_at) = CURRENT_DATE");
-    const totalPaySum = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments");
-    const parkedVehicles = await pool.query("SELECT COUNT(*) FROM vehicles WHERE status = 'Parked'");
+    const todayResCount = await pool.query(
+      "SELECT COUNT(*) FROM reservations WHERE LOWER(status) != 'cancelled' AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR DATE(start_time) = CURRENT_DATE OR DATE(start_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"
+    );
+    const todayPaySum = await pool.query(
+      "SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"
+    );
+    const parkedVehicles = await pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'");
 
     const slots = slotsRes.rows;
     const totalSlots = slots.length;
-    const availableSlots = slots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved")).length;
+    const availableSlots = slots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved" && s.status !== "occupied")).length;
     const occupiedSlots = slots.filter(s => s.status === "occupied" || (!s.is_available && s.status !== "reserved")).length;
     const reservedSlots = slots.filter(s => s.status === "reserved").length;
     const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalSlots) * 100) : 0;
@@ -4294,34 +5304,72 @@ app.post("/api/staff/close-shift", async (req, res) => {
 app.get("/api/admin/reports-analytics", async (req, res) => {
   const { range } = req.query;
   try {
-    const payRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS total_revenue, COUNT(*) AS total_payments FROM payments");
-    const bookRes = await pool.query("SELECT COUNT(*) AS total_bookings FROM reservations");
-    const vehTypeRes = await pool.query("SELECT vehicle_type, COUNT(*) AS count FROM vehicles GROUP BY vehicle_type");
-    const payMethodRes = await pool.query("SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments GROUP BY payment_method");
-    const slotsRes = await pool.query("SELECT zone, COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' OR is_available = false THEN 1 ELSE 0 END) AS occupied FROM parking_slots GROUP BY zone ORDER BY zone ASC");
+    let dateFilter = "";
+    const selectedRange = (range || "today").toLowerCase();
+    if (selectedRange === "today") {
+      dateFilter = "WHERE (created_at >= CURRENT_DATE OR DATE(created_at) = CURRENT_DATE)";
+    } else if (selectedRange === "7days" || selectedRange === "week") {
+      dateFilter = "WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'";
+    } else if (selectedRange === "30days" || selectedRange === "month") {
+      dateFilter = "WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'";
+    } else if (selectedRange === "year") {
+      dateFilter = "WHERE created_at >= CURRENT_DATE - INTERVAL '1 year'";
+    }
+
+    const payQuery = dateFilter
+      ? `SELECT COALESCE(SUM(amount), 0) AS total_revenue, COUNT(*) AS total_payments FROM payments ${dateFilter}`
+      : "SELECT COALESCE(SUM(amount), 0) AS total_revenue, COUNT(*) AS total_payments FROM payments";
+    const bookQuery = dateFilter
+      ? `SELECT COUNT(*) AS total_bookings FROM reservations ${dateFilter}`
+      : "SELECT COUNT(*) AS total_bookings FROM reservations";
+    const payMethodQuery = dateFilter
+      ? `SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments ${dateFilter} GROUP BY payment_method`
+      : "SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments GROUP BY payment_method";
+
+    const [payRes, bookRes, vehTypeRes, payMethodRes, slotsRes] = await Promise.all([
+      pool.query(payQuery),
+      pool.query(bookQuery),
+      pool.query("SELECT vehicle_type, COUNT(*) AS count FROM vehicles GROUP BY vehicle_type"),
+      pool.query(payMethodQuery),
+      pool.query("SELECT zone, COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' OR is_available = false THEN 1 ELSE 0 END) AS occupied FROM parking_slots GROUP BY zone ORDER BY zone ASC")
+    ]);
 
     const totalRevenue = parseFloat(payRes.rows[0]?.total_revenue || 0);
     const totalBookings = parseInt(bookRes.rows[0]?.total_bookings || 0, 10);
     const totalPayments = parseInt(payRes.rows[0]?.total_payments || 0, 10);
 
     const vehicleBreakdown = vehTypeRes.rows.map(r => ({
-      type: r.vehicle_type,
-      count: parseInt(r.count, 10)
+      type: r.vehicle_type || "Car",
+      count: parseInt(r.count, 10) || 0
     }));
 
     const paymentBreakdown = payMethodRes.rows.map(r => ({
-      method: r.payment_method,
-      count: parseInt(r.count, 10),
-      amount: parseFloat(r.amount)
+      method: r.payment_method || "UPI",
+      count: parseInt(r.count, 10) || 0,
+      amount: parseFloat(r.amount) || 0
     }));
 
+    const zoneStats = slotsRes.rows.map(r => {
+      const total = parseInt(r.total, 10) || 0;
+      const occupied = parseInt(r.occupied, 10) || 0;
+      const rate = total > 0 ? Math.round((occupied / total) * 100) : 0;
+      return {
+        zone: r.zone || "Zone A",
+        total,
+        occupied,
+        available: Math.max(0, total - occupied),
+        rate
+      };
+    });
+
+    const hourlyEntryFilter = dateFilter ? `AND (entry_time >= CURRENT_DATE OR DATE(entry_time) = CURRENT_DATE)` : "";
     const hourlyRes = await pool.query(`
       SELECT 
         TO_CHAR(entry_time, 'HH12 AM') as hour_label,
         EXTRACT(HOUR FROM entry_time) as hr,
         COUNT(*) as vehicle_count
       FROM vehicle_history
-      WHERE entry_time IS NOT NULL
+      WHERE entry_time IS NOT NULL ${hourlyEntryFilter}
       GROUP BY TO_CHAR(entry_time, 'HH12 AM'), EXTRACT(HOUR FROM entry_time)
       ORDER BY hr ASC
     `);
@@ -4339,7 +5387,7 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
     ];
 
     hourlyRes.rows.forEach(r => {
-      const match = hourlyTrends.find(h => (h.hour || '').trim() === (r.hour_label || '').trim());
+      const match = hourlyTrends.find(h => (h.hour || "").trim() === (r.hour_label || "").trim());
       if (match) {
         match.vehicles = parseInt(r.vehicle_count, 10);
         match.revenue = match.vehicles * 60;
@@ -4348,7 +5396,7 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
 
     res.json({
       success: true,
-      range: range || "today",
+      range: selectedRange,
       summary: {
         totalRevenue,
         totalBookings: totalBookings + totalPayments,
@@ -4367,17 +5415,53 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
 });
 
 app.get("/api/customer/vehicles", async (req, res) => {
-  const { email } = req.query;
+  const { email, search, page, limit } = req.query;
   try {
-    let query = "SELECT * FROM vehicles";
+    let baseWhere = "FROM vehicles WHERE 1=1";
     const params = [];
+
     if (email && email.trim()) {
-      query += " WHERE LOWER(owner_email) = LOWER($1)";
-      params.push(email.trim());
+      params.push(email.trim().toLowerCase());
+      baseWhere += ` AND LOWER(owner_email) = $${params.length}`;
     }
-    query += " ORDER BY id DESC";
-    const vehRes = await pool.query(query, params);
-    res.json({ success: true, vehicles: vehRes.rows });
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      baseWhere += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(model) LIKE $${params.length} OR LOWER(vehicle_type) LIKE $${params.length})`;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
+    const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    let vehRes;
+    let pageNum = 1;
+    let limitNum = total || 5;
+
+    if (page || limit) {
+      pageNum = Math.max(1, parseInt(page, 10) || 1);
+      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+      const offset = (pageNum - 1) * limitNum;
+      const dataParams = [...params, limitNum, offset];
+      vehRes = await pool.query(
+        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      );
+    } else {
+      vehRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
+    }
+
+    res.json({
+      success: true,
+      vehicles: vehRes.rows,
+      data: vehRes.rows,
+      total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching customer vehicles" });
@@ -4389,15 +5473,32 @@ app.post("/api/customer/vehicles", async (req, res) => {
   if (!vehicle_number) {
     return res.status(400).json({ error: "Vehicle plate number is required" });
   }
+  const cleanPlate = vehicle_number.trim().toUpperCase();
+  const cleanEmail = (owner_email || "").trim().toLowerCase();
   try {
-    const existCheck = await pool.query("SELECT * FROM vehicles WHERE UPPER(vehicle_number) = UPPER($1)", [vehicle_number.trim()]);
+    const existCheck = await pool.query("SELECT * FROM vehicles WHERE UPPER(vehicle_number) = UPPER($1)", [cleanPlate]);
     if (existCheck.rowCount > 0) {
-      return res.status(400).json({ error: "Vehicle with this registration number already exists" });
+      const existing = existCheck.rows[0];
+      const existingEmail = (existing.owner_email || "").trim().toLowerCase();
+      if (!existingEmail || existingEmail === cleanEmail) {
+        const updateRes = await pool.query(
+          `UPDATE vehicles 
+           SET owner_name = COALESCE(NULLIF($1, ''), owner_name),
+               owner_email = COALESCE(NULLIF($2, ''), owner_email),
+               owner_phone = COALESCE(NULLIF($3, ''), owner_phone),
+               vehicle_type = COALESCE(NULLIF($4, ''), vehicle_type),
+               model = COALESCE(NULLIF($5, ''), model)
+           WHERE UPPER(vehicle_number) = UPPER($6) RETURNING *`,
+          [owner_name || null, cleanEmail || null, owner_phone || null, vehicle_type || null, model || null, cleanPlate]
+        );
+        return res.status(200).json({ success: true, vehicle: updateRes.rows[0], message: "Vehicle linked and updated successfully" });
+      }
+      return res.status(400).json({ error: "Vehicle with this registration number is registered under another owner" });
     }
     const insertRes = await pool.query(
       `INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot)
        VALUES ($1, $2, $3, $4, $5, $6, 'Registered', 'None') RETURNING *`,
-      [vehicle_number.trim().toUpperCase(), vehicle_type || 'Car', model || 'Standard', owner_name || 'Customer', owner_email || '', owner_phone || '']
+      [cleanPlate, vehicle_type || 'Car', model || 'Standard', owner_name || 'Customer', cleanEmail, owner_phone || '']
     );
     res.status(201).json({ success: true, vehicle: insertRes.rows[0], message: "Vehicle registered successfully" });
   } catch (err) {

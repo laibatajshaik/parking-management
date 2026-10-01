@@ -1,9 +1,13 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, LogIn, Search, CheckCircle2, X, Printer, Download, Layers, RefreshCw, Phone, ShieldCheck, CheckCircle } from "lucide-react";
 
-export default function VehicleEntry({ setStatusActionMessage }) {
+export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess }) {
   const [entries, setEntries] = useState([]);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [allSlots, setAllSlots] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,17 +39,10 @@ export default function VehicleEntry({ setStatusActionMessage }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
 
-  const fetchSlotsAndEntries = async () => {
-    setIsLoading(true);
+  const fetchSlots = async () => {
     try {
-      const [slotsRes, entriesRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/parking-slots`),
-        fetch(`${API_BASE_URL}/api/staff/vehicle-entries`)
-      ]);
-
-      const slotsData = await slotsRes.json();
-      const entriesData = await entriesRes.json();
-
+      const res = await fetch(`${API_BASE_URL}/api/parking-slots`);
+      const slotsData = await res.json();
       if (slotsData.success && slotsData.slots) {
         setAllSlots(slotsData.slots);
         const free = slotsData.slots.filter(
@@ -57,18 +54,43 @@ export default function VehicleEntry({ setStatusActionMessage }) {
           setFormData((prev) => ({ ...prev, slot_number: free[0].slot_number }));
         }
       }
+    } catch (err) { void err; }
+  };
 
+  const fetchEntries = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        type: typeFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/staff/vehicle-entries?${params}`);
+      const entriesData = await res.json();
+      setIsLoading(false);
       if (entriesData.success && entriesData.entries) {
         setEntries(entriesData.entries);
+        setTotalEntries(entriesData.total !== undefined ? entriesData.total : entriesData.entries.length);
       }
-    } catch (err) { void err; } finally {
+    } catch (err) {
       setIsLoading(false);
+      void err;
     }
+  }, [page, limit, searchQuery, typeFilter]);
+
+  const fetchSlotsAndEntries = () => {
+    fetchSlots();
+    fetchEntries();
   };
 
   useEffect(() => {
-    fetchSlotsAndEntries();
+    fetchSlots();
   }, []);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   const handleTypeChange = (newType) => {
     let defaultModel = "Hyundai Creta";
@@ -154,6 +176,11 @@ export default function VehicleEntry({ setStatusActionMessage }) {
           rate: (allSlots.find((s) => s.slot_number === formData.slot_number)?.hourly_rate) || 50
         };
 
+        if (onEntrySuccess) {
+          onEntrySuccess({ plate: formData.vehicle_number, slot: formData.slot_number });
+        }
+        window.dispatchEvent(new Event("shnoor_activity_updated"));
+
         setSelectedPassModal(passData);
 
         setFormData((prev) => ({
@@ -181,21 +208,7 @@ export default function VehicleEntry({ setStatusActionMessage }) {
     }
   };
 
-  const filteredEntries = entries.filter((item) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      item.vehicle_number.toLowerCase().includes(q) ||
-      (item.owner_name && item.owner_name.toLowerCase().includes(q)) ||
-      (item.owner_phone && item.owner_phone.includes(q)) ||
-      (item.slot_number && item.slot_number.toLowerCase().includes(q));
-
-    const matchesType =
-      typeFilter === "ALL" ||
-      (item.vehicle_type || "").toLowerCase() === typeFilter.toLowerCase();
-
-    return matchesSearch && matchesType;
-  });
+  const filteredEntries = entries;
 
   const formatDateString = (dStr) => {
     if (!dStr) return "Just Now";
@@ -659,14 +672,20 @@ export default function VehicleEntry({ setStatusActionMessage }) {
             type="text"
             placeholder="Search checked-in plate, owner name, phone, or bay..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             className="pw-user-search-input"
           />
           {searchQuery && (
             <button
               type="button"
               className="pw-clear-search-btn"
-              onClick={() => setSearchQuery("")}
+              onClick={() => {
+                setSearchQuery("");
+                setPage(1);
+              }}
             >
               <X size={14} />
             </button>
@@ -678,7 +697,10 @@ export default function VehicleEntry({ setStatusActionMessage }) {
             <span className="pw-filter-icon">Type:</span>
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-custom-select"
             >
               <option value="ALL">All Vehicle Types</option>
@@ -829,9 +851,17 @@ export default function VehicleEntry({ setStatusActionMessage }) {
         </div>
       </div>
 
-      <div className="pw-users-table-footer">
-        <span>Showing {filteredEntries.length} of {entries.length} total recorded entries</span>
-      </div>
+      <Pagination
+        currentPage={page}
+        totalItems={totalEntries}
+        itemsPerPage={limit}
+        onPageChange={setPage}
+        onLimitChange={(newLimit) => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        itemLabel="recorded entries"
+      />
 
       {selectedPassModal && (
         <div className="pw-modal-backdrop" onClick={() => setSelectedPassModal(null)}>

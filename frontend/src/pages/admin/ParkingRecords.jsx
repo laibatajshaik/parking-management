@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, CalendarCheck, Eye, Printer, Download, X, Zap } from "lucide-react";
 
 export default function ParkingRecords() {
@@ -9,26 +10,37 @@ export default function ParkingRecords() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [selectedRecordModal, setSelectedRecordModal] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/parking-records`);
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        search: searchQuery || "",
+        status: statusFilter,
+        type: typeFilter
+      });
+      const res = await fetch(`${API_BASE_URL}/api/admin/parking-records?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.records)) {
         setRecords(data.records);
+        setTotalRecords(data.total !== undefined ? data.total : data.records.length);
       }
     } catch {
       setIsLoading(false);
     }
-  };
+  }, [page, limit, searchQuery, statusFilter, typeFilter]);
 
   useEffect(() => {
     fetchRecords();
     const interval = setInterval(fetchRecords, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchRecords]);
 
   const formatDate = (isoStr) => {
     if (!isoStr || isoStr === "Ongoing") return "Ongoing";
@@ -59,39 +71,8 @@ export default function ParkingRecords() {
     }
   };
 
-  const validRecords = records.filter(
-    (r) =>
-      r.vehicle_number &&
-      r.vehicle_number.trim() !== "" &&
-      r.vehicle_number !== "—" &&
-      (r.slot_number || r.slot) &&
-      r.slot_number !== "—" &&
-      r.slot !== "—"
-  );
-
-  const filteredRecords = validRecords.filter((r) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (r.vehicle_number && r.vehicle_number.toLowerCase().includes(q)) ||
-      (r.customer_name && r.customer_name.toLowerCase().includes(q)) ||
-      (r.customer_email && r.customer_email.toLowerCase().includes(q)) ||
-      (r.customer_phone && r.customer_phone.includes(q)) ||
-      (r.slot_number && r.slot_number.toLowerCase().includes(q)) ||
-      (r.transaction_id && r.transaction_id.toLowerCase().includes(q));
-
-    const recStatus = (r.status || "").toLowerCase();
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (statusFilter === "Parked" && recStatus === "parked") ||
-      (statusFilter === "Completed" && recStatus === "completed");
-
-    const recType = (r.vehicle_type || "Car").toLowerCase();
-    const matchesType =
-      typeFilter === "ALL" || recType === typeFilter.toLowerCase();
-
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const validRecords = records;
+  const filteredRecords = records;
 
   const activeCount = validRecords.filter((r) => (r.status || "").toLowerCase() === "parked").length;
   const completedCount = validRecords.filter((r) => (r.status || "").toLowerCase() === "completed").length;
@@ -302,7 +283,10 @@ export default function ParkingRecords() {
               type="text"
               placeholder="Search vehicle plate, customer, bay, or txn ID..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -311,7 +295,10 @@ export default function ParkingRecords() {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Statuses</option>
@@ -323,7 +310,10 @@ export default function ParkingRecords() {
             <div className="pw-filter-dropdown-wrap">
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="pw-custom-select"
               >
                 <option value="ALL">All Vehicle Types</option>
@@ -465,9 +455,17 @@ export default function ParkingRecords() {
           </div>
         </div>
 
-        <div className="pw-users-table-footer">
-          <span>Showing {filteredRecords.length} of {validRecords.length} total parking records</span>
-        </div>
+        <Pagination
+          page={page}
+          limit={limit}
+          total={totalRecords}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          limitOptions={[5, 10, 25, 50]}
+        />
       </div>
 
       {selectedRecordModal && (

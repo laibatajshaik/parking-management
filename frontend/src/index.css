@@ -50,6 +50,27 @@ html, body {
   -webkit-font-smoothing: antialiased;
   scroll-behavior: smooth;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+input, select, textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+img, video, canvas, svg {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 ::-webkit-scrollbar {
@@ -1033,12 +1054,14 @@ html, body {
   height: 100vh;
   max-height: 100vh;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   background: #f8fafc;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   color: #0a292f;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .pw-dashboard-sidebar {
@@ -1247,7 +1270,7 @@ html, body {
 }
 
 .pw-dashboard-main {
-  flex: 1;
+  flex: 1 1 0%;
   height: 100vh;
   max-height: 100vh;
   overflow-y: auto;
@@ -1256,7 +1279,9 @@ html, body {
   flex-direction: column;
   background: #f8fafc;
   min-width: 0;
+  max-width: 100%;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .pw-dashboard-topbar {
@@ -1270,6 +1295,10 @@ html, body {
   top: 0;
   z-index: 10;
   flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .pw-topbar-left {
@@ -1691,6 +1720,7 @@ html, body {
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  max-width: 100%;
   flex: 1;
   width: 100%;
   box-sizing: border-box;
@@ -1720,6 +1750,12 @@ html, body {
 .pw-metrics-four-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pw-metrics-five-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1782,6 +1818,9 @@ html, body {
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pw-chart-header {
@@ -1924,9 +1963,16 @@ html, body {
   color: var(--text-primary, #0a292f);
 }
 
+.table-wrapper,
+.pw-table-responsive-wrapper,
 .pw-table-scroll {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .pw-custom-table {
@@ -2027,7 +2073,7 @@ html, body {
   padding: 5px 12px;
   flex: 1;
   max-width: 380px;
-  min-width: 200px;
+  min-width: 0;
   position: relative;
   box-sizing: border-box;
 }
@@ -2127,15 +2173,23 @@ html, body {
 
 .pw-users-table-scroll-container {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 4px;
+  overflow-y: hidden;
+  padding-bottom: 6px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+}
+
+.pw-users-table-scroll-container > * {
+  min-width: 100%;
+  width: max-content;
+  box-sizing: border-box;
 }
 
 .pw-mgmt-grid-row {
@@ -2203,7 +2257,7 @@ html, body {
   flex-direction: column;
   gap: 6px;
   min-width: 100%;
-  width: 100%;
+  width: max-content;
   box-sizing: border-box;
 }
 
@@ -2221,7 +2275,6 @@ html, body {
   position: relative;
   box-sizing: border-box;
   width: 100%;
-  min-width: 100%;
 }
 
 .pw-user-card-box:hover {
@@ -4590,6 +4643,8 @@ html, body {
   flex-direction: column;
   gap: 16px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -4680,11 +4735,21 @@ html, body {
 .pw-parking-records-module,
 .pw-fee-calculation-module,
 .pw-staff-exit-module,
-.pw-customer-history-module {
+.pw-customer-history-module,
+.pw-bookings-reservations-module,
+.pw-staff-validation-module,
+.pw-customer-reserve-module,
+.pw-pricing-plans-module,
+.pw-customer-receipt-module,
+.pw-admin-overview-container,
+.pw-customer-plans-catalog-module,
+.pw-reserve-screen-wrapper {
   display: flex;
   flex-direction: column;
   gap: 16px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -4722,14 +4787,14 @@ html, body {
   grid-template-columns: minmax(130px, 1.3fr) minmax(110px, 1fr) 75px minmax(120px, 1.1fr) minmax(120px, 1.1fr) minmax(95px, 0.9fr) minmax(85px, 0.8fr) minmax(85px, 0.8fr) minmax(110px, auto);
   gap: 8px;
   width: 100%;
-  min-width: 900px;
+  min-width: 1000px;
 }
 
 .pw-customer-history-grid {
   grid-template-columns: minmax(125px, 1.3fr) 80px minmax(115px, 1.1fr) minmax(115px, 1.1fr) minmax(95px, 0.9fr) minmax(85px, 0.8fr) minmax(85px, 0.8fr) minmax(110px, auto);
   gap: 8px;
   width: 100%;
-  min-width: 870px;
+  min-width: 880px;
 }
 
 .pw-btn-action-download {
@@ -4779,6 +4844,7 @@ html, body {
   grid-template-columns: minmax(95px, 0.95fr) minmax(110px, 1.1fr) minmax(110px, 1.1fr) minmax(75px, 0.75fr) minmax(115px, 1.15fr) minmax(80px, 0.8fr) minmax(90px, 100px) minmax(135px, auto);
   gap: 8px;
   width: 100%;
+  min-width: 860px;
   box-sizing: border-box;
 }
 
@@ -5449,8 +5515,8 @@ html, body {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: rgba(15, 23, 42, 0.78);
   backdrop-filter: blur(6px);
   z-index: 9999;
@@ -5459,6 +5525,7 @@ html, body {
   justify-content: center;
   padding: 20px;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .pw-modal-card {
@@ -5475,6 +5542,8 @@ html, body {
   position: relative;
   z-index: 10000;
   animation: pwModalPop 0.2s ease-out;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 @keyframes pwModalPop {
@@ -6262,7 +6331,13 @@ html, body {
 }
 
 .pw-calc-table-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .pw-calc-data-table {
@@ -6370,10 +6445,13 @@ html, body {
 
 .pw-plans-cards-trio-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 18px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   align-items: start;
+  box-sizing: border-box;
 }
 
 .pw-customer-pricing-card {
@@ -6636,7 +6714,12 @@ html, body {
 
 .pw-comparison-matrix-table-wrap {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
 }
 
 .pw-comparison-table {
@@ -9032,13 +9115,16 @@ body.dark-theme .pw-topbar-menu-icon:hover {
   }
 
   .pw-dashboard-main {
-    flex: 1;
+    flex: 1 1 0%;
     width: 100%;
+    max-width: 100%;
     min-width: 0;
     height: 100vh;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
   }
 
   .pw-24-bays-grid {
@@ -9046,6 +9132,7 @@ body.dark-theme .pw-topbar-menu-icon:hover {
   }
 
   .pw-metrics-four-grid,
+  .pw-metrics-five-grid,
   .pw-quick-actions-grid,
   .pw-staff-metrics-grid,
   .pw-revenue-breakdown-strip,
@@ -9236,9 +9323,9 @@ body.dark-theme .pw-topbar-menu-icon:hover {
   .pw-modal-box,
   .pw-receipt-modal-box,
   .pw-modal-backdrop > div {
-    max-width: 95vw !important;
+    max-width: min(calc(100% - 24px), 520px) !important;
     width: 100% !important;
-    margin: 10px !important;
+    margin: 12px auto !important;
     padding: 16px !important;
     max-height: 92vh !important;
     overflow-y: auto !important;
@@ -9249,10 +9336,17 @@ body.dark-theme .pw-topbar-menu-icon:hover {
   .pw-comparison-matrix-table-wrap,
   .pw-records-table-container,
   .pw-table-responsive,
-  .pw-table-scroll-wrap {
+  .pw-table-scroll-wrap,
+  .pw-calc-table-container,
+  .pw-table-scroll,
+  .table-wrapper {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
   }
 }
 
@@ -9275,6 +9369,7 @@ body.dark-theme .pw-topbar-menu-icon:hover {
   }
 
   .pw-metrics-four-grid,
+  .pw-metrics-five-grid,
   .pw-quick-actions-grid,
   .pw-staff-metrics-grid,
   .pw-revenue-breakdown-strip,
@@ -9321,6 +9416,7 @@ body.dark-theme .pw-topbar-menu-icon:hover {
 .pw-dashboard-body,
 .pw-dashboard-main {
   min-width: 0;
+  max-width: 100%;
   width: 100%;
   box-sizing: border-box;
 }
@@ -9330,8 +9426,11 @@ body.dark-theme .pw-topbar-menu-icon:hover {
 .pw-metric-card,
 .pw-action-card,
 .pw-white-card,
-.pw-card {
+.pw-card,
+.pw-panel,
+.pw-pagination-container {
   min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -10093,8 +10192,8 @@ body.dark-theme .pw-assigned-slot-preview {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   user-select: none;
   overflow: hidden;
@@ -10110,8 +10209,8 @@ body.dark-theme .pw-assigned-slot-preview {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

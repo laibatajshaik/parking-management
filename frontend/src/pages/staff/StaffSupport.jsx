@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ShieldAlert, PhoneCall, CheckCircle2, Lock, Unlock, Plus, X } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function StaffSupport() {
   const [barrierState, setBarrierState] = useState({
@@ -11,6 +12,9 @@ export default function StaffSupport() {
   const [actionAlert, setActionAlert] = useState("");
   const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
   const [incidents, setIncidents] = useState([]);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [totalIncidents, setTotalIncidents] = useState(0);
 
   const normalizeIncident = (inc) => ({
     id: inc.incident_code || `INC-${inc.id}`,
@@ -30,20 +34,25 @@ export default function StaffSupport() {
     severity: inc.severity || "Normal"
   });
 
-  const fetchIncidents = () => {
-    fetch(`${API_BASE_URL}/api/staff/incidents`)
+  const fetchIncidents = useCallback(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit)
+    });
+    fetch(`${API_BASE_URL}/api/staff/incidents?${params}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.incidents) {
           setIncidents(data.incidents.map(normalizeIncident));
+          setTotalIncidents(data.total !== undefined ? data.total : data.incidents.length);
         }
       })
       .catch(() => {});
-  };
+  }, [page, limit]);
 
   useEffect(() => {
     fetchIncidents();
-  }, []);
+  }, [fetchIncidents]);
 
   const [incidentForm, setIncidentForm] = useState({
     type: "Scanner Misread",
@@ -261,6 +270,17 @@ export default function StaffSupport() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={page}
+          totalItems={totalIncidents}
+          itemsPerPage={limit}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          itemLabel="incident reports"
+        />
       </div>
 
       {isIncidentModalOpen && (

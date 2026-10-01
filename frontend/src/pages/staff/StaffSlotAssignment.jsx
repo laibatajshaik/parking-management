@@ -57,6 +57,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
       .then((res) => res.json())
       .then(() => {
         fetchBays();
+        window.dispatchEvent(new Event("shnoor_activity_updated"));
         setStatusActionMsg(`Bay ${slotNumber} updated to ${newStatus.toUpperCase()}`);
         setTimeout(() => setStatusActionMsg(""), 3000);
         if (selectedBay && selectedBay.slot === slotNumber) {
@@ -125,7 +126,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
 
       <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {["Zone A", "Zone B", "Zone C", "Zone D"].map((z) => (
+          {["Zone A", "Zone B", "Zone C", "Zone D", "Zone E"].map((z) => (
             <button
               key={z}
               type="button"
