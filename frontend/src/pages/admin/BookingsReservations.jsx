@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { CalendarCheck, Search, RefreshCw, CheckCircle2, Clock, Layers, Download, X, TrendingUp, Tag, CheckCircle, XCircle } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function BookingsReservations({ setStatusActionMessage }) {
   const [bookings, setBookings] = useState([]);
@@ -390,6 +391,25 @@ export default function BookingsReservations({ setStatusActionMessage }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const handleExportCsv = () => {
+    const headers = ["Booking ID", "Validation Code", "Customer Name", "Phone", "Vehicle Number", "Model", "Bay Slot", "Start Time", "End Time", "Duration (Hours)", "Tariff (INR)", "Status"];
+    const rows = bookings.map((b) => [
+      b.booking_id,
+      b.validation_code || "",
+      b.customer_name,
+      b.customer_phone || "",
+      b.vehicle_number,
+      b.model || "",
+      b.slot_number,
+      b.start_time,
+      b.end_time,
+      b.duration_hours,
+      b.total_amount,
+      b.status
+    ]);
+    exportToCsv("bookings_reservations.csv", headers, rows);
+  };
+
   const filteredBookings = bookings;
 
   const getStatusBadge = (st) => {
@@ -523,6 +543,17 @@ export default function BookingsReservations({ setStatusActionMessage }) {
             >
               <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleExportCsv}
+              title="Export Bookings CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>

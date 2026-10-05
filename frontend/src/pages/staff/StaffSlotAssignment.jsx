@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { CheckCircle2, Search, ArrowRight } from "lucide-react";
+import { CheckCircle2, Search, ArrowRight, RefreshCw, Download } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function StaffSlotAssignment({ onNavigateToEntry }) {
   const [selectedZone, setSelectedZone] = useState("Zone A");
@@ -8,6 +9,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
   const [selectedBay, setSelectedBay] = useState(null);
   const [statusActionMsg, setStatusActionMsg] = useState("");
   const [bays, setBays] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchBays = () => {
     Promise.all([
@@ -47,6 +49,26 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
   useEffect(() => {
     fetchBays();
   }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchBays();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Slot Bay", "Zone", "Slot Type", "Status", "Vehicle Number", "Parked Since", "Customer / User"];
+    const rows = filteredBays.map((b) => [
+      b.slot,
+      b.zone,
+      b.type,
+      b.status,
+      b.vehicle || "None",
+      b.parkedSince || "None",
+      b.user || "None"
+    ]);
+    exportToCsv(`staff_slots_${selectedZone.replace(/\s+/g, "_")}.csv`, headers, rows);
+  };
 
   const handleToggleStatus = (slotNumber, newStatus) => {
     fetch(`${API_BASE_URL}/api/parking-slots/${encodeURIComponent(slotNumber)}/status`, {
@@ -151,15 +173,39 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
           ))}
         </div>
 
-        <div className="pw-search-box-pill">
-          <Search size={14} className="pw-search-icon" />
-          <input
-            type="text"
-            placeholder="Search bay, plate or user..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pw-pill-input"
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div className="pw-search-box-pill">
+            <Search size={14} className="pw-search-icon" />
+            <input
+              type="text"
+              placeholder="Search bay, plate or user..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pw-pill-input"
+            />
+          </div>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleRefresh}
+            title="Refresh slot grid"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleExportCsv}
+            title="Export Zone Bays CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 

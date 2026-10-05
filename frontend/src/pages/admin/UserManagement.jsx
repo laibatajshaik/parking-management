@@ -13,8 +13,11 @@ import {
   AlertTriangle,
   X,
   CheckCircle,
-  XCircle
+  XCircle,
+  RefreshCw,
+  Download
 } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function UserManagement({
   usersList,
@@ -81,6 +84,32 @@ export default function UserManagement({
   }, [loadUsers]);
 
   const filteredUsers = usersList;
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      if (fetchUsers) await fetchUsers();
+      await loadUsers();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Name", "Email", "Phone", "Role", "Status", "Registered On"];
+    const rows = (filteredUsers || []).map((u) => [
+      u.name || "",
+      u.email || "",
+      u.phone || "",
+      u.role || "customer",
+      u.status || "Active",
+      formatDate ? formatDate(u.created_at) : (u.created_at || "")
+    ]);
+    exportToCsv("Users_List", headers, rows);
+  };
 
   const openEditModal = (user) => {
     setEditingUser(user);
@@ -339,6 +368,29 @@ export default function UserManagement({
               <option value="Inactive">Inactive</option>
             </select>
           </div>
+
+          <button
+            type="button"
+            className="pw-btn-action-refresh"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh Users List"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: isRefreshing ? "not-allowed" : "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-btn-action-download"
+            onClick={handleExportCsv}
+            title="Download Users as CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
 
           <button
             type="button"

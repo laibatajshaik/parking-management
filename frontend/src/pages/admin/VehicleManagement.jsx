@@ -13,8 +13,11 @@ import {
   CheckCircle,
   Mail,
   Phone,
-  History
+  History,
+  RefreshCw,
+  Download
 } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function VehicleManagement({
   vehiclesList,
@@ -89,6 +92,35 @@ export default function VehicleManagement({
   }, [loadVehicles]);
 
   const filteredVehicles = localVehicles;
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      if (fetchVehicles) await fetchVehicles();
+      await loadVehicles();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Vehicle Plate", "Type", "Model", "Owner Name", "Email", "Phone", "Slot", "Status", "Registered At"];
+    const rows = (filteredVehicles || []).map((v) => [
+      v.vehicle_number || "",
+      v.vehicle_type || "Car",
+      v.model || "Standard",
+      v.owner_name || "",
+      v.owner_email || "",
+      v.owner_phone || "",
+      v.current_slot || "None",
+      v.status || "Parked",
+      formatDate ? formatDate(v.created_at) : (v.created_at || "")
+    ]);
+    exportToCsv("Vehicles_List", headers, rows);
+  };
 
   const fetchVehicleHistory = (vehicle) => {
     setVehicleForHistory(vehicle);
@@ -322,6 +354,29 @@ export default function VehicleManagement({
               <option value="Checked Out">Checked Out</option>
             </select>
           </div>
+
+          <button
+            type="button"
+            className="pw-btn-action-refresh"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh Vehicles List"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: isRefreshing ? "not-allowed" : "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-btn-action-download"
+            onClick={handleExportCsv}
+            title="Download Vehicles as CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
 
           <button
             type="button"

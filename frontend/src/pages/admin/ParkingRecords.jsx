@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, CalendarCheck, Eye, Printer, Download, X, Zap } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ParkingRecords() {
   const [records, setRecords] = useState([]);
@@ -80,6 +81,24 @@ export default function ParkingRecords() {
     const num = parseFloat((r.fee || "0").replace(/[^0-9.]/g, "")) || 0;
     return acc + num;
   }, 0);
+
+  const handleExportCsv = () => {
+    const headers = ["Vehicle Plate", "Model", "Vehicle Type", "Customer Name", "Phone", "Slot Bay", "Entry Time", "Exit Time", "Duration", "Fee", "Status"];
+    const rows = filteredRecords.map((r) => [
+      r.vehicle_number,
+      r.model,
+      r.vehicle_type,
+      r.customer_name,
+      r.customer_phone || "",
+      r.slot_number,
+      r.entry_time,
+      r.exit_time || "",
+      r.duration || "",
+      r.fee || "",
+      r.status
+    ]);
+    exportToCsv("parking_records.csv", headers, rows);
+  };
 
   const handleDownloadSlip = (rec) => {
     const target = rec || selectedRecordModal;
@@ -332,6 +351,17 @@ export default function ParkingRecords() {
             >
               <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleExportCsv}
+              title="Export Records CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>

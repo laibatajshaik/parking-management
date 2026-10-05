@@ -1,7 +1,8 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers } from "lucide-react";
+import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function TodaysRevenue() {
   const [revenueData, setRevenueData] = useState({
@@ -126,6 +127,22 @@ export default function TodaysRevenue() {
   };
 
   const filteredPayments = paymentsList;
+
+  const handleExportCsv = () => {
+    const headers = ["Transaction ID", "Vehicle Plate", "Customer Name", "Bay Slot", "Duration", "Payment Method", "Amount", "Status", "Date"];
+    const rows = (filteredPayments || []).map((p) => [
+      p.transaction_id || `TXN-${p.id}`,
+      p.vehicle_number || "",
+      p.customer_name || "",
+      p.slot_number || "",
+      p.duration || "",
+      p.payment_method || "UPI",
+      `₹${parseFloat(p.amount || 0).toFixed(2)}`,
+      p.payment_status || "Completed",
+      formatDate(p.created_at)
+    ]);
+    exportToCsv("Revenue_Payments_Report", headers, rows);
+  };
   const summary = revenueData.summary || {};
   const totalRevFormatted = summary.totalRevenue || "₹0.00";
   const completedCountVal = summary.completedCount || 0;
@@ -251,10 +268,23 @@ export default function TodaysRevenue() {
               type="button"
               className="pw-btn-action-refresh"
               onClick={refreshAll}
+              disabled={isLoading}
               title="Refresh revenue data"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: isLoading ? "not-allowed" : "pointer", fontSize: "0.84rem", fontWeight: 600 }}
             >
-              <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
-              <span>Refresh</span>
+              <RefreshCw size={14} className={isLoading ? "pw-spin-icon" : ""} />
+              <span>{isLoading ? "Refreshing..." : "Refresh"}</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-btn-action-download"
+              onClick={handleExportCsv}
+              title="Download revenue payments as CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>

@@ -17,7 +17,8 @@ import {
   Menu,
   X,
   CheckCircle,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from "lucide-react";
 import StaffOverview from "./StaffOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -352,6 +353,19 @@ export default function StaffDashboard({ setView }) {
                 </p>
               )}
             </div>
+
+            {activeTab === "dashboard" && (
+              <button
+                type="button"
+                className="pw-export-btn"
+                onClick={fetchStaffDashboard}
+                title="Refresh staff dashboard metrics"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+              >
+                <RefreshCw size={14} />
+                <span>Refresh</span>
+              </button>
+            )}
 
             {activeTab === "fee-calculation" && (
               <div className="pw-date-time-box" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>

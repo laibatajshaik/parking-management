@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCard, Zap, QrCode, Crown, Sparkles, Award, KeyRound } from "lucide-react";
+import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCard, Zap, QrCode, Crown, Sparkles, Award, KeyRound, RefreshCw } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 import { API_BASE_URL } from "../../config/api.js";
 
-export default function CustomerOverview({ recentParkings = [], activeSession = null, onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser, totalVisits, totalSpent }) {
+export default function CustomerOverview({ recentParkings = [], activeSession = null, onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser, totalVisits, totalSpent, onRefresh, isRefreshing }) {
   const navigateTab = onNavigate || setActiveTab;
   const user = currentUser || loggedInUser;
   const userEmail = user?.email || "";
@@ -280,14 +280,26 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
               </div>
               <h2 className="pw-table-title">Recent History</h2>
             </div>
-            <button
-              type="button"
-              className="pw-view-all-link"
-              onClick={() => navigateTab && navigateTab("parking-history")}
-            >
-              <span>View all</span>
-              <ChevronRight size={14} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {onRefresh && (
+                <button
+                  type="button"
+                  className="pw-btn-action-refresh"
+                  onClick={onRefresh}
+                  title="Refresh Dashboard History"
+                >
+                  <RefreshCw size={13} className={isRefreshing ? "pw-spin" : ""} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="pw-view-all-link"
+                onClick={() => navigateTab && navigateTab("parking-history")}
+              >
+                <span>View all</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="pw-user-recent-list">

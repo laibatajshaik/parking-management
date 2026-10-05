@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Printer, CheckCircle2, CreditCard, Smartphone, Layers } from "lucide-react";
+import { Printer, CheckCircle2, CreditCard, Smartphone, Layers, RefreshCw, Download } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function StaffShiftReports() {
   const [isClosingShift, setIsClosingShift] = useState(false);
@@ -22,8 +23,10 @@ export default function StaffShiftReports() {
     rawTotal: 0
   });
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const fetchShiftReport = () => {
-    fetch(`${API_BASE_URL}/api/staff/shift-report`)
+    return fetch(`${API_BASE_URL}/api/staff/shift-report`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.shiftData) {
@@ -54,6 +57,31 @@ export default function StaffShiftReports() {
     fetchShiftReport();
   }, []);
 
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchShiftReport().finally(() => {
+      setTimeout(() => setIsRefreshing(false), 500);
+    });
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Metric / Field", "Value"];
+    const rows = [
+      ["Staff Operator", `${shiftInfo.operator} (${shiftInfo.staffId})`],
+      ["Terminal Gate", shiftInfo.terminal],
+      ["Shift Date & Slot", `${shiftInfo.shiftDate} (${shiftInfo.shiftTime})`],
+      ["Opening Float Balance", shiftInfo.openingDrawerBalance],
+      ["Closing Drawer Cash", shiftInfo.closingDrawerCash],
+      ["Total Entries", `${shiftInfo.totalEntries} Vehicles`],
+      ["Total Exits", `${shiftInfo.totalExits} Vehicles`],
+      ["Total Revenue", shiftInfo.totalRevenue],
+      ["Cash Collected", shiftInfo.cashCollected],
+      ["UPI / Fastag Collected", shiftInfo.upiFastag],
+      ["Card Swipes Collected", shiftInfo.cardSwipes]
+    ];
+    exportToCsv(`shift_report_${shiftInfo.staffId}.csv`, headers, rows);
+  };
+
   const handleCloseShift = () => {
     setIsClosingShift(true);
     fetch(`${API_BASE_URL}/api/staff/close-shift`, {
@@ -80,6 +108,36 @@ export default function StaffShiftReports() {
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+        <div>
+          <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Staff Shift & Cash Handover</h3>
+          <span style={{ fontSize: "0.76rem", color: "var(--text-secondary, #94a3b8)" }}>Live counter reconciliation and gate activity metrics</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleRefresh}
+            title="Refresh shift report"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleExportCsv}
+            title="Export Shift Report CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
       <div className="pw-metrics-four-grid">
         <div className="pw-metric-card">
           <span className="pw-metric-label">Shift Revenue Total</span>

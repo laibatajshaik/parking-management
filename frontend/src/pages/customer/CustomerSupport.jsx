@@ -10,8 +10,10 @@ import {
   Plus,
   X,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Download
 } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function CustomerSupport({ currentUser, isPremiumActive }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -82,6 +84,19 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
       setIsLoadingTickets(false);
     }
   }, [userEmail, ticketPage, ticketLimit]);
+
+  const handleExportCsv = () => {
+    if (!myTickets.length) return;
+    const exportData = myTickets.map((t) => ({
+      "Ticket Code": t.ticket_code || t.id || "",
+      "Subject": t.subject || "",
+      "Category": t.category || "",
+      "Priority": t.priority || "Normal",
+      "Status": t.status || "Open",
+      "Created At": t.created_at ? new Date(t.created_at).toLocaleString("en-IN") : ""
+    }));
+    exportToCsv("customer_support_tickets.csv", exportData);
+  };
 
   useEffect(() => {
     fetchMyTickets();
@@ -280,9 +295,27 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
           </div>
 
           <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
               <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>My Active Inquiries ({totalTickets})</h4>
-              <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>Status Overview</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  className="pw-btn-action-refresh"
+                  onClick={fetchMyTickets}
+                  title="Refresh Inquiries"
+                >
+                  <RefreshCw size={13} className={isLoadingTickets ? "pw-spin" : ""} />
+                </button>
+                <button
+                  type="button"
+                  className="pw-btn-action-refresh"
+                  onClick={handleExportCsv}
+                  disabled={myTickets.length === 0}
+                  title="Export Inquiries CSV"
+                >
+                  <Download size={13} />
+                </button>
+              </div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "320px", overflowY: "auto" }}>

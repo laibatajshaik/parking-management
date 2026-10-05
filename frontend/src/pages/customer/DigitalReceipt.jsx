@@ -1,6 +1,8 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import { Printer, Download, Receipt, ShieldCheck, Calendar, Search, RefreshCw, BookmarkPlus } from "lucide-react";
+import Pagination from "../../components/Pagination.jsx";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function DigitalReceipt({ receiptData, selectedPayment, currentUser, loggedInUser, onNavigate }) {
   const initialData = receiptData || selectedPayment || null;
@@ -8,6 +10,8 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
   const [activeReceipt, setActiveReceipt] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
 
   const resolveEmail = useCallback(() => {
     const user = currentUser || loggedInUser;
@@ -352,6 +356,21 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     window.print();
   };
 
+  const handleExportCsv = () => {
+    if (!filteredList.length) return;
+    const exportData = filteredList.map((p) => ({
+      "Receipt / Transaction ID": p.transaction_id || p.booking_id || p.id || "",
+      "Vehicle": p.vehicle_number || "",
+      "Bay / Slot": p.slot_number || "",
+      "Plan / Type": p.plan_name || "Standard",
+      "Amount (₹)": parseFloat(p.amount || 0).toFixed(2),
+      "Payment Method": p.payment_method || "Online",
+      "Status": p.payment_status || "Paid",
+      "Date": formatDate(p.receipt_date || p.created_at || p.exit_time)
+    }));
+    exportToCsv("customer_receipts.csv", exportData);
+  };
+
   const filteredList = paymentsList.filter((p) => {
     if (!searchFilter) return true;
     const q = searchFilter.toLowerCase();
@@ -364,6 +383,8 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     );
   });
 
+  const paginatedList = filteredList.slice((page - 1) * limit, page * limit);
+
   return (
     <div className="pw-customer-receipt-split">
       <div className="pw-receipt-list-col">
@@ -372,14 +393,25 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
             <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", margin: 0 }}>
               My Receipts & Invoices
             </h3>
-            <button
-              type="button"
-              className="pw-btn-action-refresh"
-              onClick={fetchPayments}
-              title="Refresh receipts"
-            >
-              <RefreshCw size={13} className={isLoading ? "pw-spin" : ""} />
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                className="pw-btn-action-refresh"
+                onClick={fetchPayments}
+                title="Refresh receipts"
+              >
+                <RefreshCw size={13} className={isLoading ? "pw-spin" : ""} />
+              </button>
+              <button
+                type="button"
+                className="pw-btn-action-refresh"
+                onClick={handleExportCsv}
+                disabled={filteredList.length === 0}
+                title="Export Receipts CSV"
+              >
+                <Download size={13} />
+              </button>
+            </div>
           </div>
 
           <div className="pw-search-box-pill" style={{ width: "100%", boxSizing: "border-box" }}>
@@ -388,14 +420,17 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
               type="text"
               placeholder="Search receipt ID, vehicle, or bay..."
               value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
+              onChange={(e) => {
+                setSearchFilter(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "560px", overflowY: "auto" }}>
-            {filteredList.length > 0 ? (
-              filteredList.map((p) => {
+            {paginatedList.length > 0 ? (
+              paginatedList.map((p) => {
                 const isSelected = activeReceipt && (activeReceipt.id === p.id || activeReceipt.transaction_id === p.transaction_id);
                 return (
                   <div
@@ -440,6 +475,20 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
               </div>
             )}
           </div>
+          {filteredList.length > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              <Pagination
+                currentPage={page}
+                totalItems={filteredList.length}
+                pageSize={limit}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setLimit(newSize);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 

@@ -15,7 +15,8 @@ import {
   Search,
   Menu,
   X,
-  CheckCircle
+  CheckCircle,
+  RefreshCw
 } from "lucide-react";
 import AdminOverview from "./AdminOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -452,6 +453,19 @@ export default function AdminDashboard({ setView }) {
                 </p>
               )}
             </div>
+
+            {activeTab === "dashboard" && (
+              <button
+                type="button"
+                className="pw-export-btn"
+                onClick={fetchDashboardData}
+                title="Refresh dashboard metrics"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+              >
+                <RefreshCw size={14} className={isOverviewLoading ? "pw-spin-icon" : ""} />
+                <span>Refresh</span>
+              </button>
+            )}
           </div>
 
           {statusActionMessage && (

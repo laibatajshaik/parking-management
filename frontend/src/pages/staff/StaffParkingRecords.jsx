@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, Printer, X } from "lucide-react";
+import { Search, Printer, X, RefreshCw, Download } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function StaffParkingRecords() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -9,6 +10,7 @@ export default function StaffParkingRecords() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [records, setRecords] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(5);
   const [totalCount, setTotalCount] = useState(0);
@@ -96,6 +98,29 @@ export default function StaffParkingRecords() {
     };
   }, [fetchRecords]);
 
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchRecords();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Ticket ID", "License Plate", "Vehicle Type", "Bay Slot", "Entry Time", "Exit Time", "Duration", "Amount", "Status", "Payment Method"];
+    const rows = filteredRecords.map((r) => [
+      r.ticketNumber,
+      r.plateNumber,
+      r.vehicleType,
+      r.slot,
+      r.entryTime,
+      r.exitTime,
+      r.duration,
+      r.amount,
+      r.status,
+      r.paymentMethod
+    ]);
+    exportToCsv("staff_parking_records.csv", headers, rows);
+  };
+
   const filteredRecords = records;
 
   const handlePrintReceipt = (rec) => {
@@ -182,6 +207,30 @@ export default function StaffParkingRecords() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleRefresh}
+            title="Refresh records"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleExportCsv}
+            title="Export Records CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 

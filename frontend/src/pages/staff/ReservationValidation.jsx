@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Search, CheckCircle2, CalendarCheck, Clock, Car, Download, Printer, RefreshCw } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ReservationValidation({ setStatusActionMessage }) {
   const [reservations, setReservations] = useState([]);
@@ -43,6 +44,25 @@ export default function ReservationValidation({ setStatusActionMessage }) {
   useEffect(() => {
     fetchReservations();
   }, [fetchReservations]);
+
+  const handleExportCsv = () => {
+    const headers = ["Booking ID", "Validation Code", "Customer Name", "Phone", "Vehicle Number", "Model", "Bay Slot", "Start Time", "End Time", "Duration (Hours)", "Tariff (INR)", "Status"];
+    const rows = reservations.map((b) => [
+      b.booking_id,
+      b.validation_code || "",
+      b.customer_name,
+      b.customer_phone || "",
+      b.vehicle_number,
+      b.model || "",
+      b.slot_number,
+      b.start_time,
+      b.end_time,
+      b.duration_hours,
+      b.total_amount,
+      b.status
+    ]);
+    exportToCsv("staff_reservations.csv", headers, rows);
+  };
 
   const formatDate = (isoStr) => {
     if (!isoStr) {
@@ -469,15 +489,28 @@ export default function ReservationValidation({ setStatusActionMessage }) {
                 <span className="pw-detail-label" style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>
                   Upcoming Reservations Today ({pendingList.length})
                 </span>
-                <button
-                  type="button"
-                  className="pw-btn-action-refresh"
-                  onClick={fetchReservations}
-                  style={{ padding: "4px 8px", fontSize: "0.74rem" }}
-                >
-                  <RefreshCw size={12} className={isLoading ? "pw-spin" : ""} />
-                  <span>Refresh</span>
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <button
+                    type="button"
+                    className="pw-btn-action-refresh"
+                    onClick={fetchReservations}
+                    style={{ padding: "4px 8px", fontSize: "0.74rem" }}
+                  >
+                    <RefreshCw size={12} className={isLoading ? "pw-spin" : ""} />
+                    <span>Refresh</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="pw-export-btn"
+                    onClick={handleExportCsv}
+                    title="Export Reservations CSV"
+                    style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 8px", fontSize: "0.74rem", borderRadius: "6px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+                  >
+                    <Download size={12} />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
               </div>
 
               <div className="pw-validation-queue-list">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 
 export default function ReportsAnalytics() {
@@ -7,9 +7,10 @@ export default function ReportsAnalytics() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState("");
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/admin/reports-analytics?range=${encodeURIComponent(timeRange)}`)
+  const fetchAnalytics = () => {
+    return fetch(`${API_BASE_URL}/api/admin/reports-analytics?range=${encodeURIComponent(timeRange)}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -17,7 +18,18 @@ export default function ReportsAnalytics() {
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
   }, [timeRange]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchAnalytics().finally(() => {
+      setTimeout(() => setIsRefreshing(false), 500);
+    });
+  };
 
   const summary = analyticsData?.summary || { totalRevenue: 0, totalBookings: 0, avgOccupancy: 0, activeParked: 0 };
   const vehicleBreakdown = analyticsData?.vehicleBreakdown || [];
@@ -212,6 +224,17 @@ export default function ReportsAnalytics() {
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleRefresh}
+            title="Refresh analytics data"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>Refresh</span>
+          </button>
 
           <button
             type="button"

@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, LogIn, Search, CheckCircle2, X, Printer, Download, Layers, RefreshCw, Phone, ShieldCheck, CheckCircle } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess }) {
   const [entries, setEntries] = useState([]);
@@ -82,6 +83,21 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
   const fetchSlotsAndEntries = () => {
     fetchSlots();
     fetchEntries();
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["License Plate", "Model", "Vehicle Type", "Customer Name", "Phone", "Entry Time", "Slot Bay", "Status"];
+    const rows = entries.map((item) => [
+      item.vehicle_number,
+      item.model || "",
+      item.vehicle_type || "Car",
+      item.owner_name || item.customer_name || "",
+      item.owner_phone || item.customer_phone || "",
+      item.entry_time,
+      item.slot_number,
+      item.status || "Parked"
+    ]);
+    exportToCsv("vehicle_entries.csv", headers, rows);
   };
 
   useEffect(() => {
@@ -720,6 +736,17 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
           >
             <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
             <span>Refresh Log</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleExportCsv}
+            title="Export Vehicle Entries CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "0 14px", height: "38px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
           </button>
         </div>
       </div>

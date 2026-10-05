@@ -1,7 +1,8 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, CreditCard, Zap, Eye, X } from "lucide-react";
+import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, CreditCard, Zap, Eye, X, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ActiveParking({ onSelectVehicleForPayment, onCheckout }) {
   const [sessions, setSessions] = useState([]);
@@ -57,6 +58,23 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
     }
   };
 
+  const handleExportCsv = () => {
+    const headers = ["Vehicle Number", "Model", "Type", "Slot Bay", "Owner Name", "Phone", "Entry Time", "Duration", "Fee", "Hourly Rate"];
+    const rows = filteredSessions.map((s) => [
+      s.vehicle_number,
+      s.model || "Standard",
+      s.vehicle_type || "Car",
+      s.current_slot,
+      s.owner_name,
+      s.owner_phone || "",
+      s.entry_time,
+      s.duration,
+      s.calculated_fee,
+      s.hourly_rate
+    ]);
+    exportToCsv("active_parking_sessions.csv", headers, rows);
+  };
+
   const filteredSessions = sessions;
 
   return (
@@ -103,6 +121,17 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
             >
               <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleExportCsv}
+              title="Export Active Sessions CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>

@@ -10,8 +10,11 @@ import {
   Trash2,
   AlertTriangle,
   X,
-  CheckCircle
+  CheckCircle,
+  RefreshCw,
+  Download
 } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ParkingSlotManagement({
   slots,
@@ -80,6 +83,31 @@ export default function ParkingSlotManagement({
   }, [fetchSlots]);
 
   const filteredSlotManagerSlots = paginatedSlots;
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      if (fetchDashboardData) await fetchDashboardData();
+      await fetchSlots();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Bay Slot", "Zone", "Slot Type", "Hourly Rate", "Status"];
+    const rows = (filteredSlotManagerSlots || []).map((s) => [
+      s.slot_number || "",
+      s.zone || "",
+      s.slot_type || "Standard",
+      `₹${parseFloat(s.hourly_rate || 50).toFixed(2)}/hr`,
+      s.status || "available"
+    ]);
+    exportToCsv("Parking_Slots_Inventory", headers, rows);
+  };
 
   const handleAddSlot = async (e) => {
     e.preventDefault();
@@ -306,6 +334,29 @@ export default function ParkingSlotManagement({
               <option value="reserved">Reserved</option>
             </select>
           </div>
+
+          <button
+            type="button"
+            className="pw-btn-action-refresh"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh slots list"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: isRefreshing ? "not-allowed" : "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-btn-action-download"
+            onClick={handleExportCsv}
+            title="Download parking slots as CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
 
           <button
             type="button"

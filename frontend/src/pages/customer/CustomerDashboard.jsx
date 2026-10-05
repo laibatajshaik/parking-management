@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -16,7 +16,8 @@ import {
   X,
   Search,
   ChevronDown,
-  Crown
+  Crown,
+  RefreshCw
 } from "lucide-react";
 import CustomerOverview from "./CustomerOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -223,88 +224,91 @@ export default function CustomerDashboard({ setView }) {
   const [totalVisits, setTotalVisits] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
   const [primaryLocation, setPrimaryLocation] = useState({ name: "Central Parking Garage", available: "Available Bays" });
+  const [isDashboardRefreshing, setIsDashboardRefreshing] = useState(false);
 
-  useEffect(() => {
+  const fetchUserData = useCallback(async () => {
     if (!currentUser?.email) return;
-    const fetchUserData = async () => {
-      try {
-        const histRes = await fetch(`${API_BASE_URL}/api/customer/parking-history?email=${encodeURIComponent(currentUser.email)}`);
-        const histData = await histRes.json();
-        if (histData.success && Array.isArray(histData.history)) {
-          setTotalVisits(histData.total !== undefined ? histData.total : histData.history.length);
-          const mapped = histData.history.slice(0, 5).map((r) => {
-            const isOngoing = ["parked", "active"].includes((r.status || "").toLowerCase()) && !r.exit_time;
-            const dateStr = r.exit_time
-              ? new Date(r.exit_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
-              : r.entry_time
-              ? new Date(r.entry_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
-              : "Recent";
-            const cleanFee = r.fee
-              ? (String(r.fee).startsWith("₹") ? String(r.fee) : `₹${parseFloat(String(r.fee).replace(/[^0-9.]/g, "") || 50).toFixed(2)}`)
-              : (isOngoing ? "Pending" : "₹50.00");
-            return {
-              id: r.id,
-              location: r.zone ? `${r.zone} Garage` : "ParkSafe Facility",
-              slot: r.slot_number || "—",
-              date: dateStr,
-              duration: isOngoing ? (r.duration || "Ongoing") : (r.duration && r.duration !== "Ongoing" ? r.duration : "1 hr"),
-              amount: cleanFee,
-              status: isOngoing ? "Parked" : "Completed",
-              plate: r.vehicle_number || "—"
-            };
-          });
-          setRecentParkings(mapped);
-        } else {
-          setTotalVisits(0);
-          setRecentParkings([]);
-        }
-      } catch {
+    setIsDashboardRefreshing(true);
+    try {
+      const histRes = await fetch(`${API_BASE_URL}/api/customer/parking-history?email=${encodeURIComponent(currentUser.email)}`);
+      const histData = await histRes.json();
+      if (histData.success && Array.isArray(histData.history)) {
+        setTotalVisits(histData.total !== undefined ? histData.total : histData.history.length);
+        const mapped = histData.history.slice(0, 5).map((r) => {
+          const isOngoing = ["parked", "active"].includes((r.status || "").toLowerCase()) && !r.exit_time;
+          const dateStr = r.exit_time
+            ? new Date(r.exit_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
+            : r.entry_time
+            ? new Date(r.entry_time).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })
+            : "Recent";
+          const cleanFee = r.fee
+            ? (String(r.fee).startsWith("₹") ? String(r.fee) : `₹${parseFloat(String(r.fee).replace(/[^0-9.]/g, "") || 50).toFixed(2)}`)
+            : (isOngoing ? "Pending" : "₹50.00");
+          return {
+            id: r.id,
+            location: r.zone ? `${r.zone} Garage` : "ParkSafe Facility",
+            slot: r.slot_number || "—",
+            date: dateStr,
+            duration: isOngoing ? (r.duration || "Ongoing") : (r.duration && r.duration !== "Ongoing" ? r.duration : "1 hr"),
+            amount: cleanFee,
+            status: isOngoing ? "Parked" : "Completed",
+            plate: r.vehicle_number || "—"
+          };
+        });
+        setRecentParkings(mapped);
+      } else {
         setTotalVisits(0);
         setRecentParkings([]);
       }
+    } catch {
+      setTotalVisits(0);
+      setRecentParkings([]);
+    }
 
-      try {
-        const payRes = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(currentUser.email)}`);
-        const payData = await payRes.json();
-        if (payData.success && Array.isArray(payData.payments)) {
-          const sum = payData.payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-          setTotalSpent(sum);
-        } else {
-          setTotalSpent(0);
-        }
-      } catch {
+    try {
+      const payRes = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(currentUser.email)}`);
+      const payData = await payRes.json();
+      if (payData.success && Array.isArray(payData.payments)) {
+        const sum = payData.payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        setTotalSpent(sum);
+      } else {
         setTotalSpent(0);
       }
+    } catch {
+      setTotalSpent(0);
+    }
 
-      try {
-        const sessRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?email=${encodeURIComponent(currentUser.email)}`);
-        const sessData = await sessRes.json();
-        if (sessData.success && sessData.session) {
-          setActiveSession(sessData.session);
-        } else {
-          setActiveSession(null);
-        }
-      } catch {
+    try {
+      const sessRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?email=${encodeURIComponent(currentUser.email)}`);
+      const sessData = await sessRes.json();
+      if (sessData.success && sessData.session) {
+        setActiveSession(sessData.session);
+      } else {
         setActiveSession(null);
       }
-    };
-    fetchUserData();
+    } catch {
+      setActiveSession(null);
+    }
+
+    try {
+      const slotsRes = await fetch(`${API_BASE_URL}/api/parking-slots`);
+      const slotsData = await slotsRes.json();
+      if (slotsData.success && Array.isArray(slotsData.slots)) {
+        const avail = slotsData.slots.filter((s) => s.status === "Available").length;
+        setPrimaryLocation({
+          name: "Central Parking Garage",
+          available: `${avail} Available Bays`
+        });
+      }
+    } catch {
+      void 0;
+    }
+    setIsDashboardRefreshing(false);
   }, [currentUser]);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/parking-slots`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success && Array.isArray(d.slots)) {
-          const avail = d.slots.filter((s) => s.status === "Available").length;
-          setPrimaryLocation({
-            name: "Central Parking Garage",
-            available: `${avail} Available Bays`
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
+    fetchUserData();
+  }, [fetchUserData]);
 
   const handleSignOut = () => {
     try {
@@ -435,7 +439,7 @@ export default function CustomerDashboard({ setView }) {
         </header>
 
         <div className="pw-dashboard-body">
-          <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div className="pw-dashboard-title-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
             <div>
               <h1 className="pw-page-title" style={{ fontSize: "1.45rem", fontWeight: 800, color: isPremiumActive ? "#facc15" : "var(--text-primary, #0f172a)" }}>
                 {getPageTitle()}
@@ -446,6 +450,20 @@ export default function CustomerDashboard({ setView }) {
                 </p>
               )}
             </div>
+
+            {activeTab === "dashboard" && (
+              <button
+                type="button"
+                className="pw-btn-action-refresh"
+                onClick={fetchUserData}
+                disabled={isDashboardRefreshing}
+                title="Refresh customer dashboard metrics"
+                style={{ alignSelf: "center", display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <RefreshCw size={14} className={isDashboardRefreshing ? "pw-spin" : ""} />
+                <span>Refresh Dashboard</span>
+              </button>
+            )}
 
             {(activeTab === "reserve-parking" || activeTab === "find-parking") && (
               <div className="pw-top-location-badge" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg-card, #ffffff)", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
@@ -472,6 +490,8 @@ export default function CustomerDashboard({ setView }) {
                 premiumPlanInfo={premiumPlanInfo}
                 totalVisits={totalVisits}
                 totalSpent={totalSpent}
+                onRefresh={fetchUserData}
+                isRefreshing={isDashboardRefreshing}
               />
             )}
 

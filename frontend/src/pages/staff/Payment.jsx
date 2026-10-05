@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
-import { CreditCard, Smartphone, Banknote, Globe, CheckCircle2, Car, Printer, Download, RotateCcw, CheckCircle } from "lucide-react";
+import { CreditCard, Smartphone, Banknote, Globe, CheckCircle2, Car, Printer, Download, RotateCcw, CheckCircle, RefreshCw } from "lucide-react";
 
 export default function Payment({ preselectedVehicle, selectedVehicle, onPaymentCompleted, onPaymentSuccess, setStatusActionMessage }) {
   const [activeSessions, setActiveSessions] = useState([]);
@@ -10,6 +10,7 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedReceipt, setCompletedReceipt] = useState(null);
   const [customAmount, setCustomAmount] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchActiveSessions = async () => {
     try {
@@ -40,6 +41,13 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
   useEffect(() => {
     fetchActiveSessions();
   }, [preselectedVehicle, selectedVehicle]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchActiveSessions().finally(() => {
+      setTimeout(() => setIsRefreshing(false), 500);
+    });
+  };
 
   const handleVehicleSelect = (plate) => {
     setSelectedVehicleNumber(plate);
@@ -477,8 +485,22 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
         <div className="pw-payment-two-col-grid">
           <div className="pw-payment-session-selection-col">
             <div className="pw-payment-box-card">
-              <h3 className="pw-box-card-title">1. Select Parked Vehicle</h3>
-              <p className="pw-box-card-sub">Choose a vehicle currently parked inside the facility to calculate final fee</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 className="pw-box-card-title">1. Select Parked Vehicle</h3>
+                  <p className="pw-box-card-sub">Choose a vehicle currently parked inside the facility to calculate final fee</p>
+                </div>
+                <button
+                  type="button"
+                  className="pw-btn-action-refresh"
+                  onClick={handleRefresh}
+                  title="Refresh active vehicles queue"
+                  style={{ padding: "4px 8px", fontSize: "0.74rem" }}
+                >
+                  <RefreshCw size={12} className={isRefreshing ? "pw-spin-icon" : ""} />
+                  <span>Refresh</span>
+                </button>
+              </div>
 
               <div className="pw-form-field" style={{ marginTop: "16px" }}>
                 <label className="pw-detail-label" htmlFor="select-vehicle-payment">Parked Vehicles Queue</label>

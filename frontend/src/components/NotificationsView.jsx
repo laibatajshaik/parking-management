@@ -17,9 +17,11 @@ import {
   HelpCircle,
   Search,
   RefreshCw,
-  Filter
+  Filter,
+  Download
 } from "lucide-react";
 import { API_BASE_URL } from "../config/api.js";
+import { exportToCsv } from "../utils/exportCsv.js";
 
 function formatExactTime(dateString) {
   if (!dateString) return "";
@@ -210,6 +212,19 @@ export default function NotificationsView({
     }
   };
 
+  const handleExportCsv = () => {
+    const headers = ["Notification ID", "Title", "Type", "Message", "Created Date", "Read Status"];
+    const rows = filteredNotifications.map((n) => [
+      n.id,
+      n.title,
+      n.type || "system",
+      n.message,
+      n.created_at,
+      n.is_read ? "Read" : "Unread"
+    ]);
+    exportToCsv("notifications.csv", headers, rows);
+  };
+
   const filteredNotifications = notifications;
 
   return (
@@ -296,6 +311,29 @@ export default function NotificationsView({
             >
               <RefreshCw size={14} className={loading ? "pw-spin" : ""} />
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              title="Export notifications CSV"
+              className="pw-export-btn"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "var(--bg-sub, #f8fafc)",
+                border: "1px solid var(--border-color, #e2e8f0)",
+                borderRadius: "8px",
+                padding: "8px 12px",
+                fontSize: "0.80rem",
+                fontWeight: 600,
+                color: "var(--text-primary, #0f172a)",
+                cursor: "pointer"
+              }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
 
             {unreadCount > 0 && (

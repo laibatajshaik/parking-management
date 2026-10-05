@@ -2,6 +2,7 @@ import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, History, Download, Printer, X, Zap, Receipt } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ParkingHistory({ loggedInUser }) {
   const [historyList, setHistoryList] = useState([]);
@@ -248,6 +249,30 @@ export default function ParkingHistory({ loggedInUser }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const handleExportCsv = () => {
+    const headers = ["Vehicle Plate", "Model", "Type", "Assigned Bay", "Entry Time", "Exit Time", "Duration", "Amount Paid", "Status"];
+    const rows = filteredHistory.map((item) => {
+      const isOngoing = isOngoingSession(item);
+      const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "Completed");
+      const displayDuration = isOngoing
+        ? (item.duration || "Ongoing")
+        : (item.duration && item.duration !== "Ongoing" ? item.duration : "1h 00m");
+      const displayFee = item.fee ? item.fee : (isOngoing ? "Pending" : "₹50.00");
+      return [
+        item.vehicle_number,
+        item.model || "Vehicle",
+        item.vehicle_type || "Car",
+        item.slot_number,
+        formatDate(item.entry_time),
+        displayExit,
+        displayDuration,
+        displayFee,
+        isOngoing ? "Active" : "Completed"
+      ];
+    });
+    exportToCsv("customer_parking_history.csv", headers, rows);
+  };
+
   return (
     <div className="pw-customer-history-module">
       <div className="pw-users-panel-card">
@@ -290,6 +315,17 @@ export default function ParkingHistory({ loggedInUser }) {
             >
               <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleExportCsv}
+              title="Export Parking History CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>

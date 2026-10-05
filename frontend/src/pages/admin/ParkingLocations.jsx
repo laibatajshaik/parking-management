@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { MapPin, Search, Plus, Edit2, Trash2, X, Building } from "lucide-react";
+import { MapPin, Search, Plus, Edit2, Trash2, X, Building, RefreshCw, Download } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ParkingLocations() {
   const [locations, setLocations] = useState([]);
@@ -13,6 +14,7 @@ export default function ParkingLocations() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [editingLocation, setEditingLocation] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -59,6 +61,27 @@ export default function ParkingLocations() {
   useEffect(() => {
     fetchLocations();
   }, [fetchLocations]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchLocations();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Location Code", "Name", "Address", "Total Slots", "Occupied Slots", "Opening Hours", "Active Staff", "Status"];
+    const rows = locations.map((loc) => [
+      loc.code,
+      loc.name,
+      loc.address,
+      loc.totalSlots,
+      loc.occupiedSlots,
+      loc.openingHours,
+      loc.activeStaff,
+      loc.status
+    ]);
+    exportToCsv("parking_locations.csv", headers, rows);
+  };
 
   const filteredLocations = locations;
 
@@ -223,15 +246,39 @@ export default function ParkingLocations() {
           </div>
         </div>
 
-        <button
-          type="button"
-          className="pw-calc-btn-submit"
-          onClick={handleOpenCreate}
-          style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 18px", fontSize: "0.84rem" }}
-        >
-          <Plus size={16} />
-          <span>Add New Location</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleRefresh}
+            title="Refresh locations"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <RefreshCw size={15} className={isRefreshing ? "pw-spin-icon" : ""} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-export-btn"
+            onClick={handleExportCsv}
+            title="Export Locations CSV"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", fontSize: "0.84rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+          >
+            <Download size={15} />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            type="button"
+            className="pw-calc-btn-submit"
+            onClick={handleOpenCreate}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 18px", fontSize: "0.84rem" }}
+          >
+            <Plus size={16} />
+            <span>Add New Location</span>
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: "18px", width: "100%", minWidth: 0, boxSizing: "border-box" }}>

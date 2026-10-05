@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { ShieldAlert, PhoneCall, CheckCircle2, Lock, Unlock, Plus, X } from "lucide-react";
+import { ShieldAlert, PhoneCall, CheckCircle2, Lock, Unlock, Plus, X, RefreshCw, Download } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function StaffSupport() {
   const [barrierState, setBarrierState] = useState({
@@ -15,6 +16,7 @@ export default function StaffSupport() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(5);
   const [totalIncidents, setTotalIncidents] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const normalizeIncident = (inc) => ({
     id: inc.incident_code || `INC-${inc.id}`,
@@ -53,6 +55,26 @@ export default function StaffSupport() {
   useEffect(() => {
     fetchIncidents();
   }, [fetchIncidents]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchIncidents();
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Incident ID", "Type", "Location", "Vehicle Plate", "Reported Time", "Severity", "Status"];
+    const rows = incidents.map((inc) => [
+      inc.id,
+      inc.type,
+      inc.location,
+      inc.plate,
+      inc.reportedAt,
+      inc.severity,
+      inc.status
+    ]);
+    exportToCsv("staff_gate_incidents.csv", headers, rows);
+  };
 
   const [incidentForm, setIncidentForm] = useState({
     type: "Scanner Misread",
@@ -233,7 +255,32 @@ export default function StaffSupport() {
       </div>
 
       <div className="pw-support-card">
-        <h4 className="pw-card-title" style={{ fontSize: "1.02rem", fontWeight: 800, margin: "0 0 14px 0" }}>Logged Gate Incidents & Operational Tickets</h4>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+          <h4 className="pw-card-title" style={{ fontSize: "1.02rem", fontWeight: 800, margin: 0 }}>Logged Gate Incidents & Operational Tickets</h4>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleRefresh}
+              title="Refresh incidents"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <RefreshCw size={13} className={isRefreshing ? "pw-spin-icon" : ""} />
+              <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleExportCsv}
+              title="Export Incidents CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <Download size={13} />
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
         <div className="pw-table-scroll">
           <table className="pw-records-table">
             <thead>

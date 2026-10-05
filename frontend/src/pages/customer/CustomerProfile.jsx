@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { User, Car, Bike, Zap, Crown, Plus, Trash2, CheckCircle2, X, Sparkles, ArrowRight } from "lucide-react";
+import { User, Car, Bike, Zap, Crown, Plus, Trash2, CheckCircle2, X, Sparkles, ArrowRight, RefreshCw, Download } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import Pagination from "../../components/Pagination.jsx";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function CustomerProfile({ currentUser, isPremiumActive, premiumPlanInfo, onNavigateToPlans }) {
   const [profile, setProfile] = useState({
@@ -16,6 +18,9 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
   });
 
   const [savedVehicles, setSavedVehicles] = useState([]);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+  const [vehiclePage, setVehiclePage] = useState(1);
+  const [vehicleLimit, setVehicleLimit] = useState(5);
   const [isAddVehicleOpen, setIsAddVehicleOpen] = useState(false);
   const [newVehicle, setNewVehicle] = useState({
     plate: "",
@@ -28,15 +33,30 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
   const fetchVehicles = async () => {
     const email = currentUser?.email || profile.email;
     if (!email) return;
+    setIsLoadingVehicles(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(email)}`);
       const data = await res.json();
+      setIsLoadingVehicles(false);
       if (data.success && Array.isArray(data.vehicles)) {
         setSavedVehicles(data.vehicles);
       }
     } catch {
+      setIsLoadingVehicles(false);
       setSavedVehicles([]);
     }
+  };
+
+  const handleExportVehiclesCsv = () => {
+    if (!savedVehicles.length) return;
+    const exportData = savedVehicles.map((v) => ({
+      "Vehicle Plate": v.plate || v.vehicle_number || "",
+      "Model": v.model || "",
+      "Type": v.type || v.vehicle_type || "Car",
+      "Fastag RFID": v.fastag_id || profile.fastagId || "",
+      "Default Vehicle": v.isDefault ? "Yes" : "No"
+    }));
+    exportToCsv("my_registered_vehicles.csv", exportData);
   };
 
   useEffect(() => {
@@ -287,19 +307,38 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
                 <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Saved Vehicle Garage</h4>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsAddVehicleOpen(true)}
-                style={{ background: isPremiumActive ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #ccfbf1", color: isPremiumActive ? "#713F12" : "#0d9488", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
-              >
-                <Plus size={14} />
-                <span>Add Vehicle</span>
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  className="pw-btn-action-refresh"
+                  onClick={fetchVehicles}
+                  title="Refresh Vehicles"
+                >
+                  <RefreshCw size={13} className={isLoadingVehicles ? "pw-spin" : ""} />
+                </button>
+                <button
+                  type="button"
+                  className="pw-btn-action-refresh"
+                  onClick={handleExportVehiclesCsv}
+                  disabled={savedVehicles.length === 0}
+                  title="Export Vehicles CSV"
+                >
+                  <Download size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddVehicleOpen(true)}
+                  style={{ background: isPremiumActive ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #ccfbf1", color: isPremiumActive ? "#713F12" : "#0d9488", padding: "6px 12px", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                >
+                  <Plus size={14} />
+                  <span>Add Vehicle</span>
+                </button>
+              </div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {savedVehicles.length > 0 ? (
-                savedVehicles.map((veh) => (
+                savedVehicles.slice((vehiclePage - 1) * vehicleLimit, vehiclePage * vehicleLimit).map((veh) => (
                   <div
                     key={veh.id}
                     style={{
@@ -358,6 +397,20 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
                 </div>
               )}
             </div>
+            {savedVehicles.length > 0 && (
+              <div style={{ marginTop: "14px" }}>
+                <Pagination
+                  currentPage={vehiclePage}
+                  totalItems={savedVehicles.length}
+                  pageSize={vehicleLimit}
+                  onPageChange={setVehiclePage}
+                  onPageSizeChange={(newSize) => {
+                    setVehicleLimit(newSize);
+                    setVehiclePage(1);
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: "16px", padding: "12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)", fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)" }}>

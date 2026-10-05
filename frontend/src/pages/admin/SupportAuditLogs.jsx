@@ -425,8 +425,14 @@ export default function SupportAuditLogs() {
           <button
             type="button"
             className="pw-btn-action-refresh"
-            onClick={fetchTickets}
-            title="Refresh Live Tickets"
+            onClick={() => {
+              if (activeSubTab === "tickets") {
+                fetchTickets();
+              } else {
+                fetchAuditLogs();
+              }
+            }}
+            title={activeSubTab === "tickets" ? "Refresh Live Tickets" : "Refresh Audit Logs"}
           >
             <RefreshCw size={14} className={isLoadingTickets ? "pw-spin" : ""} />
             <span>Refresh</span>

@@ -1,7 +1,8 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { CreditCard, Smartphone, Banknote, Globe, Receipt, Search, RefreshCw, CheckCircle2, Calendar, Clock, Layers, ArrowUpRight } from "lucide-react";
+import { CreditCard, Smartphone, Banknote, Globe, Receipt, Search, RefreshCw, CheckCircle2, Calendar, Clock, Layers, ArrowUpRight, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function Payments({ loggedInUser, onViewReceipt }) {
   const [payments, setPayments] = useState([]);
@@ -66,6 +67,21 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
+
+  const handleExportCsv = () => {
+    const headers = ["Transaction ID", "Vehicle Plate", "Bay Slot", "Payment Method", "Date", "Time", "Amount (INR)", "Status"];
+    const rows = payments.map((p) => [
+      p.transaction_id || `TXN-${p.id}`,
+      p.vehicle_number,
+      p.slot_number,
+      p.payment_method,
+      formatDateOnly(p.created_at || p.exit_time),
+      formatTimeOnly(p.created_at || p.exit_time),
+      p.amount,
+      p.payment_status || "Completed"
+    ]);
+    exportToCsv("customer_payments.csv", headers, rows);
+  };
 
   
   const formatDateOnly = (isoStr) => {
@@ -198,6 +214,17 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
             >
               <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-export-btn"
+              onClick={handleExportCsv}
+              title="Export Payments CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", fontSize: "0.82rem", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", cursor: "pointer", color: "var(--text-primary, #0f172a)", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>

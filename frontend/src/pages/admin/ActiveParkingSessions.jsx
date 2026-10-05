@@ -1,7 +1,8 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, Mail, Zap } from "lucide-react";
+import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, Mail, Zap, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ActiveParkingSessions() {
   const [sessions, setSessions] = useState([]);
@@ -66,6 +67,25 @@ export default function ActiveParkingSessions() {
   const bikesCount = validSessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "bike").length;
   const evCount = validSessions.filter((s) => (s.vehicle_type || "").toLowerCase() === "ev").length;
   const totalAccruedFee = validSessions.reduce((sum, s) => sum + (parseFloat(s.fee_numeric) || 0), 0);
+
+  const handleExportCsv = () => {
+    const headers = ["Vehicle Plate", "Type", "Model", "Slot", "Zone", "Owner Name", "Email", "Phone", "Entry Time", "Duration", "Accrued Fee", "Status"];
+    const rows = (filteredSessions || []).map((s) => [
+      s.vehicle_number || "",
+      s.vehicle_type || "Car",
+      s.model || "Standard",
+      s.current_slot || "",
+      s.zone || "",
+      s.owner_name || "",
+      s.owner_email || "",
+      s.owner_phone || "",
+      formatDate(s.entry_time),
+      s.duration || "",
+      s.calculated_fee || `₹${s.fee_numeric || 0}`,
+      s.status || "Parked"
+    ]);
+    exportToCsv("Active_Parking_Sessions", headers, rows);
+  };
 
   return (
     <div className="pw-active-sessions-module">
@@ -158,10 +178,23 @@ export default function ActiveParkingSessions() {
               type="button"
               className="pw-btn-action-refresh"
               onClick={fetchSessions}
+              disabled={isLoading}
               title="Refresh active sessions"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: isLoading ? "not-allowed" : "pointer", fontSize: "0.84rem", fontWeight: 600 }}
             >
-              <RefreshCw size={14} className={isLoading ? "pw-spin" : ""} />
-              <span>Refresh</span>
+              <RefreshCw size={14} className={isLoading ? "pw-spin-icon" : ""} />
+              <span>{isLoading ? "Refreshing..." : "Refresh"}</span>
+            </button>
+
+            <button
+              type="button"
+              className="pw-btn-action-download"
+              onClick={handleExportCsv}
+              title="Download active sessions as CSV"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: "pointer", fontSize: "0.84rem", fontWeight: 600 }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>
