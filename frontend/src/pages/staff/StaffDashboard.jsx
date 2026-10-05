@@ -78,6 +78,52 @@ export default function StaffDashboard({ setView }) {
     }
   });
 
+  const [metrics, setMetrics] = useState({
+    todayBookings: "0",
+    availableSlots: "0",
+    todayRevenue: "₹0",
+    activeVehicles: "0",
+    occupiedSlots: 0,
+    occupiedPercent: 0,
+    totalSlots: 25
+  });
+  const [recentEntries, setRecentEntries] = useState([]);
+
+  const fetchStaffDashboard = () => {
+    fetch(`${API_BASE_URL}/api/staff/dashboard-overview`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          if (data.metrics) {
+            setMetrics({
+              todayBookings: String(data.metrics.todayBookings ?? "0"),
+              availableSlots: String(data.metrics.availableSlots ?? "0"),
+              todayRevenue: String(data.metrics.todayRevenue ?? "₹0"),
+              activeVehicles: String(data.metrics.activeVehicles ?? "0"),
+              occupiedSlots: data.metrics.occupiedSlots !== undefined ? data.metrics.occupiedSlots : (data.metrics.activeVehicles ? parseInt(data.metrics.activeVehicles, 10) : 0),
+              occupiedPercent: data.metrics.occupancyRate ?? 0,
+              totalSlots: data.metrics.totalSlots ?? 25
+            });
+          }
+          if (Array.isArray(data.recentEntries)) {
+            setRecentEntries(
+              data.recentEntries.map((e, idx) => ({
+                id: `#ENT-${1000 + (e.id || idx)}`,
+                plate: e.vehicle_number,
+                slot: e.slot_number,
+                type: e.vehicle_type || (e.slot_number?.startsWith("D") ? "Bike" : e.slot_number?.startsWith("C") ? "EV" : "Car"),
+                time: e.entry_time
+                  ? new Date(e.entry_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
+                  : "Recently",
+                status: e.status || "Active"
+              }))
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  };
+
   const toggleSidebar = () => {
     if (window.innerWidth <= 1024) {
       setIsMobileNavOpen((prev) => !prev);
@@ -136,52 +182,6 @@ export default function StaffDashboard({ setView }) {
     } else {
       navigate(`/staff/dashboard/${target}`);
     }
-  };
-
-  const [metrics, setMetrics] = useState({
-    todayBookings: "0",
-    availableSlots: "0",
-    todayRevenue: "₹0",
-    activeVehicles: "0",
-    occupiedSlots: 0,
-    occupiedPercent: 0,
-    totalSlots: 25
-  });
-  const [recentEntries, setRecentEntries] = useState([]);
-
-  const fetchStaffDashboard = () => {
-    fetch(`${API_BASE_URL}/api/staff/dashboard-overview`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          if (data.metrics) {
-            setMetrics({
-              todayBookings: String(data.metrics.todayBookings ?? "0"),
-              availableSlots: String(data.metrics.availableSlots ?? "0"),
-              todayRevenue: String(data.metrics.todayRevenue ?? "₹0"),
-              activeVehicles: String(data.metrics.activeVehicles ?? "0"),
-              occupiedSlots: data.metrics.occupiedSlots !== undefined ? data.metrics.occupiedSlots : (data.metrics.activeVehicles ? parseInt(data.metrics.activeVehicles, 10) : 0),
-              occupiedPercent: data.metrics.occupancyRate ?? 0,
-              totalSlots: data.metrics.totalSlots ?? 25
-            });
-          }
-          if (Array.isArray(data.recentEntries)) {
-            setRecentEntries(
-              data.recentEntries.map((e, idx) => ({
-                id: `#ENT-${1000 + (e.id || idx)}`,
-                plate: e.vehicle_number,
-                slot: e.slot_number,
-                type: e.vehicle_type || (e.slot_number?.startsWith("D") ? "Bike" : e.slot_number?.startsWith("C") ? "EV" : "Car"),
-                time: e.entry_time
-                  ? new Date(e.entry_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
-                  : "Recently",
-                status: e.status || "Active"
-              }))
-            );
-          }
-        }
-      })
-      .catch(() => {});
   };
 
   useEffect(() => {

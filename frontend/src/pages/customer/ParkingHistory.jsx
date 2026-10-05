@@ -104,7 +104,6 @@ export default function ParkingHistory({ loggedInUser }) {
     return s === "parked" || s === "active";
   };
 
-  const validHistory = historyList;
   const filteredHistory = historyList;
 
   const handleDownloadSlip = (item) => {

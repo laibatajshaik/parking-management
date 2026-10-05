@@ -13,7 +13,6 @@ import {
   Settings,
   HelpCircle,
   Search,
-  LogOut,
   Menu,
   X,
   CheckCircle

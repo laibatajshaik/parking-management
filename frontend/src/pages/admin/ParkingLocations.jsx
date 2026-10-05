@@ -234,7 +234,7 @@ export default function ParkingLocations() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: "18px", width: "100%", minWidth: 0, boxSizing: border-box }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: "18px", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
         {filteredLocations.length > 0 ? (
           filteredLocations.map((loc) => {
           const occPct = Math.round((loc.occupiedSlots / (loc.totalSlots || 1)) * 100);

@@ -12,7 +12,6 @@ import {
   Tag,
   User,
   HelpCircle,
-  LogOut,
   Menu,
   X,
   Search,
