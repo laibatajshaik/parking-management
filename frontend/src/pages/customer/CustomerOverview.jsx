@@ -372,6 +372,16 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
               <span className="pw-action-sub">All past sessions</span>
             </div>
           </div>
+
+          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("ev-charging")}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "#ecfdf5" }}>
+              <Zap size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#059669" }} />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">EV Charging</span>
+              <span className="pw-action-sub">Find charger & charge</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

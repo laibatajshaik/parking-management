@@ -1,4 +1,4 @@
-import { TrendingUp, ChevronRight, LogIn, Layers, Activity, CreditCard, Car } from "lucide-react";
+import { TrendingUp, ChevronRight, LogIn, Layers, Activity, CreditCard, Car, Zap } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 
 export default function StaffOverview({ metrics, recentEntries = [], userEmail, setActiveTab }) {
@@ -210,6 +210,29 @@ export default function StaffOverview({ metrics, recentEntries = [], userEmail, 
             <div className="pw-action-meta">
               <span className="pw-action-title">Validate Payment</span>
               <span className="pw-action-sub">Cash / UPI / FASTag</span>
+            </div>
+          </div>
+
+          <div
+            className="pw-action-card"
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveTab && setActiveTab("ev-charging")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveTab && setActiveTab("ev-charging");
+              }
+            }}
+            title="EV charging stations and active sessions"
+            style={{ cursor: "pointer" }}
+          >
+            <div className="pw-action-icon-circle bg-teal-soft">
+              <Zap size={20} className="icon-teal" />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">EV Charging</span>
+              <span className="pw-action-sub">Sessions & Bays</span>
             </div>
           </div>
         </div>

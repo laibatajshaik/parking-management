@@ -19,12 +19,21 @@ import {
   Download,
   X,
   CheckCircle,
-  ChevronRight
+  ChevronRight,
+  Zap
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 
 function getActivityBadge(type) {
   const t = (type || "").toLowerCase();
+  if (t.includes("ev") || t.includes("charging")) {
+    return {
+      bg: "#ecfdf5",
+      color: "#059669",
+      border: "#a7f3d0",
+      icon: Zap
+    };
+  }
   if (t.includes("entry") || t.includes("entered") || t.includes("check-in") || t.includes("check in")) {
     return {
       bg: "var(--bg-teal-sub, #f0fdf4)",

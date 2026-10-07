@@ -18,7 +18,8 @@ import {
   X,
   CheckCircle,
   ChevronDown,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import StaffOverview from "./StaffOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -36,12 +37,14 @@ const StaffParkingRecords = lazy(() => import("./StaffParkingRecords.jsx"));
 const StaffShiftReports = lazy(() => import("./StaffShiftReports.jsx"));
 const StaffNotifications = lazy(() => import("./StaffNotifications.jsx"));
 const StaffSupport = lazy(() => import("./StaffSupport.jsx"));
+const StaffEVCharging = lazy(() => import("./StaffEVCharging.jsx"));
 
 const STAFF_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
   { id: "vehicle-entry", label: "Entry", icon: Car, isWorking: true },
   { id: "slot-assignment", label: "Slots", icon: MapPin, isWorking: true },
   { id: "active-parking", label: "Active Parking", icon: Car, isWorking: true },
+  { id: "ev-charging", label: "EV Charging", icon: Zap, isWorking: true },
   { id: "vehicle-exit", label: "Exit", icon: LogOutIcon, isWorking: true },
   { id: "fee-calculation", label: "Fees", icon: Calculator, isWorking: true },
   { id: "payment", label: "Payments", icon: CreditCard, isWorking: true },
@@ -62,6 +65,7 @@ export default function StaffDashboard({ setView }) {
     if (rawTab === "exit") return "vehicle-exit";
     if (rawTab === "slots") return "slot-assignment";
     if (rawTab === "records") return "parking-records";
+    if (rawTab === "ev-charging" || rawTab === "ev") return "ev-charging";
     return rawTab;
   };
 
@@ -257,6 +261,7 @@ export default function StaffDashboard({ setView }) {
     if (activeTab === "vehicle-entry") return "Entry";
     if (activeTab === "slot-assignment") return "Slots";
     if (activeTab === "active-parking") return "Active Parking";
+    if (activeTab === "ev-charging") return "EV Charging";
     if (activeTab === "vehicle-exit") return "Exit";
     if (activeTab === "fee-calculation") return "Fees";
     if (activeTab === "payment") return "Payments";
@@ -272,6 +277,7 @@ export default function StaffDashboard({ setView }) {
     if (activeTab === "vehicle-entry") return "Register walk-in vehicles, scan barcodes, and allocate empty parking bays.";
     if (activeTab === "slot-assignment") return "Live spatial bay oversight across all floors, status overrides, and walk-in allocation.";
     if (activeTab === "active-parking") return "Real-time management of parked vehicles and checkout initiation.";
+    if (activeTab === "ev-charging") return "Monitor active vehicle charging sessions, calculate usage fees, and finalize charging checkouts.";
     if (activeTab === "vehicle-exit") return "Process vehicle departures, free up parking bays, and issue exit passes.";
     if (activeTab === "fee-calculation") return "Select vehicle details and plan to calculate the accurate parking fee.";
     if (activeTab === "payment") return "Calculate tariffs, collect payments, and generate digital receipts.";
@@ -424,6 +430,10 @@ export default function StaffDashboard({ setView }) {
                   handleSelectVehicleForPayment(vehicle);
                 }}
               />
+            )}
+
+            {activeTab === "ev-charging" && (
+              <StaffEVCharging />
             )}
 
             {activeTab === "vehicle-exit" && (

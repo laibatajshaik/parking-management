@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   CheckCircle,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import AdminOverview from "./AdminOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -37,6 +38,7 @@ const ReportsAnalytics = lazy(() => import("./ReportsAnalytics.jsx"));
 const AdminNotifications = lazy(() => import("./AdminNotifications.jsx"));
 const SystemSettings = lazy(() => import("./SystemSettings.jsx"));
 const SupportAuditLogs = lazy(() => import("./SupportAuditLogs.jsx"));
+const EVChargingManagement = lazy(() => import("./EVChargingManagement.jsx"));
 
 const ADMIN_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
@@ -44,6 +46,7 @@ const ADMIN_SIDEBAR_ITEMS = [
   { id: "pricing-plans", label: "Pricing", icon: CreditCard, isWorking: true },
   { id: "parking-records", label: "Records", icon: CalendarCheck, isWorking: true },
   { id: "active-parking-sessions", label: "Active Parking", icon: Car, isWorking: true },
+  { id: "ev-charging", label: "EV Charging", icon: Zap, isWorking: true },
   { id: "payments-revenue", label: "Revenue", icon: CreditCard, isWorking: true },
   { id: "parking-occupancy", label: "Occupancy", icon: Car, isWorking: true },
   { id: "slot-management", label: "Slots", icon: Car, isWorking: true },
@@ -66,6 +69,7 @@ export default function AdminDashboard({ setView }) {
     if (rawTab === "plans") return "pricing-plans";
     if (rawTab === "records") return "parking-records";
     if (rawTab === "active-parking") return "active-parking-sessions";
+    if (rawTab === "ev-charging" || rawTab === "ev") return "ev-charging";
     if (rawTab === "revenue") return "payments-revenue";
     if (rawTab === "occupancy") return "parking-occupancy";
     if (rawTab === "slots") return "slot-management";
@@ -355,6 +359,7 @@ export default function AdminDashboard({ setView }) {
     if (activeTab === "pricing-plans") return "Pricing";
     if (activeTab === "parking-records") return "Records";
     if (activeTab === "active-parking-sessions") return "Active Parking";
+    if (activeTab === "ev-charging") return "EV Charging";
     if (activeTab === "payments-revenue") return "Revenue";
     if (activeTab === "parking-occupancy") return "Occupancy";
     if (activeTab === "slot-management") return "Slots";
@@ -373,6 +378,7 @@ export default function AdminDashboard({ setView }) {
     if (activeTab === "pricing-plans") return "Configure hourly rates, special event tiers, and subscription packages.";
     if (activeTab === "parking-records") return "Historical log of all completed, active, and cancelled vehicle visits.";
     if (activeTab === "active-parking-sessions") return "Live real-time inventory of all currently occupied parking bays.";
+    if (activeTab === "ev-charging") return "Manage electric vehicle charging stations, charger specifications, and live charging sessions.";
     if (activeTab === "payments-revenue") return "Real-time fee collection, UPI/Card settlements, and revenue projections.";
     if (activeTab === "parking-occupancy") return "Bay-by-bay status monitor across all floors, zones, and facilities.";
     if (activeTab === "slot-management") return "Create new parking slots, assign RFID sensors, and update maintenance states.";
@@ -514,6 +520,12 @@ export default function AdminDashboard({ setView }) {
 
             {activeTab === "active-parking-sessions" && (
               <ActiveParkingSessions
+                setStatusActionMessage={setStatusActionMessage}
+              />
+            )}
+
+            {activeTab === "ev-charging" && (
+              <EVChargingManagement
                 setStatusActionMessage={setStatusActionMessage}
               />
             )}

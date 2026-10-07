@@ -17,7 +17,8 @@ import {
   Search,
   ChevronDown,
   Crown,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import CustomerOverview from "./CustomerOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
@@ -34,12 +35,14 @@ const ReserveParking = lazy(() => import("./ReserveParking.jsx"));
 const CustomerParkingPlans = lazy(() => import("./CustomerParkingPlans.jsx"));
 const CustomerProfile = lazy(() => import("./CustomerProfile.jsx"));
 const CustomerSupport = lazy(() => import("./CustomerSupport.jsx"));
+const CustomerEVCharging = lazy(() => import("./CustomerEVCharging.jsx"));
 
 const CUSTOMER_SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, isWorking: true },
   { id: "find-parking", label: "Find Parking", icon: MapPin, isWorking: true },
   { id: "reserve-parking", label: "Book Parking", icon: BookmarkCheck, isWorking: true },
   { id: "my-parking", label: "My Parking", icon: Car, isWorking: true },
+  { id: "ev-charging", label: "EV Charging", icon: Zap, isWorking: true },
   { id: "parking-history", label: "History", icon: FileText, isWorking: true },
   { id: "payments", label: "Payments", icon: CreditCard, isWorking: true },
   { id: "digital-receipts", label: "Receipts", icon: Receipt, isWorking: true },
@@ -58,6 +61,7 @@ export default function CustomerDashboard({ setView }) {
     if (!rawTab || rawTab === "dashboard" || rawTab === "overview") return "dashboard";
     if (rawTab === "plans") return "parking-plans";
     if (rawTab === "receipts") return "digital-receipts";
+    if (rawTab === "ev-charging" || rawTab === "ev") return "ev-charging";
     return rawTab;
   };
 
@@ -345,6 +349,7 @@ export default function CustomerDashboard({ setView }) {
     if (activeTab === "reserve-parking") return "Book Parking";
     if (activeTab === "parking-plans") return "Plans";
     if (activeTab === "my-parking") return "My Parking";
+    if (activeTab === "ev-charging") return "EV Charging";
     if (activeTab === "parking-history") return "History";
     if (activeTab === "payments") return "Payments";
     if (activeTab === "digital-receipts") return "Receipts";
@@ -360,6 +365,7 @@ export default function CustomerDashboard({ setView }) {
     if (activeTab === "reserve-parking") return "Choose any configured parking plan, select date & time, and book your parking slot.";
     if (activeTab === "parking-plans") return "Explore all official vehicle parking tariffs, hourly rates, daily passes, and VIP tiers configured by management.";
     if (activeTab === "my-parking") return "Live session duration, bay location, and tariff accumulator.";
+    if (activeTab === "ev-charging") return "Locate charging bays, monitor live kWh energy transfer, and view digital charging receipts.";
     if (activeTab === "parking-history") return "Review all your past and active parking visits and download travel receipts.";
     if (activeTab === "payments") return "Complete record of all parking payments and transactions.";
     if (activeTab === "digital-receipts") return "Official verified digital passes and tax invoices.";
@@ -520,6 +526,15 @@ export default function CustomerDashboard({ setView }) {
                 onNavigate={(t) => handleTabChange(t)}
                 isPremiumActive={isPremiumActive}
                 premiumPlanInfo={premiumPlanInfo}
+              />
+            )}
+
+            {activeTab === "ev-charging" && (
+              <CustomerEVCharging
+                currentUser={currentUser}
+                loggedInUser={currentUser}
+                onNavigate={handleTabChange}
+                onViewReceipt={handleViewReceipt}
               />
             )}
 

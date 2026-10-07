@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import notificationRoutes from "./modules/notifications/notificationRoutes.js";
+import evChargingRoutes from "./modules/ev/evChargingRoutes.js";
 import {
   notifyUser,
   notifyUsers,
@@ -58,6 +59,7 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 app.use("/api/notifications", notificationRoutes);
+app.use("/api", evChargingRoutes);
 
 const getLocalTimestamp = (d = new Date()) => {
   const date = typeof d === "string" ? new Date(d) : d;
