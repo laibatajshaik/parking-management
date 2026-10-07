@@ -42,18 +42,38 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
 
   const fetchSlots = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/parking-slots`);
+      const [res, evRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/parking-slots`),
+        fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`)
+      ]);
       const slotsData = await res.json();
+      const evData = await evRes.json();
+      let free = [];
       if (slotsData.success && slotsData.slots) {
         setAllSlots(slotsData.slots);
-        const free = slotsData.slots.filter(
+        free = slotsData.slots.filter(
           (s) => s.status === "available" || (s.is_available && s.status !== "reserved")
         );
-        setAvailableSlots(free);
+      }
+      if (evData.success && Array.isArray(evData.slots)) {
+        const freeEv = evData.slots
+          .filter((s) => (s.status || "").toLowerCase() === "available")
+          .map((s) => ({
+            id: `ev-${s.id}`,
+            slot_number: s.slot_number,
+            zone: "Zone C",
+            slot_type: s.charger_type || "EV Fast",
+            hourly_rate: 80,
+            status: "available",
+            is_available: true,
+            isEv: true
+          }));
+        free = [...free, ...freeEv];
+      }
+      setAvailableSlots(free);
 
-        if (free.length > 0 && !formData.slot_number) {
-          setFormData((prev) => ({ ...prev, slot_number: free[0].slot_number }));
-        }
+      if (free.length > 0 && !formData.slot_number) {
+        setFormData((prev) => ({ ...prev, slot_number: free[0].slot_number }));
       }
     } catch (err) { void err; }
   };
@@ -117,8 +137,8 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
     let suggestedSlot = formData.slot_number;
     const matchingFree = availableSlots.filter((s) => {
       if (newType === "Bike") return s.zone === "Zone D" || (s.slot_type || "").toLowerCase().includes("bike");
-      if (newType === "EV") return s.zone === "Zone C" || (s.slot_type || "").toLowerCase().includes("vip");
-      return s.zone !== "Zone D";
+      if (newType === "EV") return s.is_ev || s.zone === "Zone E" || s.zone === "Zone EV" || (s.slot_number && s.slot_number.startsWith("EV")) || s.zone === "Zone C" || (s.slot_type || "").toLowerCase().includes("vip");
+      return s.zone !== "Zone D" && !s.is_ev && !s.zone?.includes("EV");
     });
 
     if (matchingFree.length > 0) {
@@ -138,8 +158,8 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
   const handleAutoAssignSlot = () => {
     const matchingFree = availableSlots.filter((s) => {
       if (formData.vehicle_type === "Bike") return s.zone === "Zone D" || (s.slot_type || "").toLowerCase().includes("bike");
-      if (formData.vehicle_type === "EV") return s.zone === "Zone C" || (s.slot_type || "").toLowerCase().includes("vip");
-      return s.zone !== "Zone D";
+      if (formData.vehicle_type === "EV") return s.is_ev || s.zone === "Zone E" || s.zone === "Zone EV" || (s.slot_number && s.slot_number.startsWith("EV")) || s.zone === "Zone C" || (s.slot_type || "").toLowerCase().includes("vip");
+      return s.zone !== "Zone D" && !s.is_ev && !s.zone?.includes("EV");
     });
 
     if (matchingFree.length > 0) {
@@ -591,7 +611,7 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
                 {availableSlots.length > 0 ? (
                   availableSlots.map((s) => (
                     <option key={s.id} value={s.slot_number}>
-                      Bay {s.slot_number} ({s.zone} - {s.slot_type || "Standard"} - ₹{s.hourly_rate || "50"}/hr)
+                      {s.isEv ? `⚡ Bay ${s.slot_number} (EV Charging - ${s.slot_type})` : `Bay ${s.slot_number} (${s.zone} - ${s.slot_type || "Standard"} - ₹${s.hourly_rate || "50"}/hr)`}
                     </option>
                   ))
                 ) : (

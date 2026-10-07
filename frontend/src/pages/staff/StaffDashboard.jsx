@@ -90,7 +90,7 @@ export default function StaffDashboard({ setView }) {
     activeVehicles: "0",
     occupiedSlots: 0,
     occupiedPercent: 0,
-    totalSlots: 25
+    totalSlots: 30
   });
   const [recentEntries, setRecentEntries] = useState([]);
 
@@ -107,7 +107,7 @@ export default function StaffDashboard({ setView }) {
               activeVehicles: String(data.metrics.activeVehicles ?? "0"),
               occupiedSlots: data.metrics.occupiedSlots !== undefined ? data.metrics.occupiedSlots : (data.metrics.activeVehicles ? parseInt(data.metrics.activeVehicles, 10) : 0),
               occupiedPercent: data.metrics.occupancyRate ?? 0,
-              totalSlots: data.metrics.totalSlots ?? 25
+              totalSlots: data.metrics.totalSlots ?? 30
             });
           }
           if (Array.isArray(data.recentEntries)) {

@@ -23,6 +23,7 @@ import {
   Zap
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import Pagination from "../../components/Pagination.jsx";
 
 function getActivityBadge(type) {
   const t = (type || "").toLowerCase();
@@ -259,6 +260,7 @@ export default function AdminOverview({
   const activeParkingSessions = currentData?.activeParkingSessions !== undefined ? currentData.activeParkingSessions : 0;
   const totalVehicles = currentData?.totalVehicles !== undefined ? currentData.totalVehicles : 0;
   const todaysRevenue = currentData?.todaysRevenue !== undefined ? currentData.todaysRevenue : 0;
+  const activeEvSessions = currentData?.activeEvSessions !== undefined ? currentData.activeEvSessions : (currentData?.evStats?.activeSessions || 0);
   const rawActivities = currentData?.recentActivity || [];
 
   const recentActivity = rawActivities.filter((act) => {
@@ -274,7 +276,13 @@ export default function AdminOverview({
   const [isBookingsLoading, setIsBookingsLoading] = useState(false);
   const [bookingSearch, setBookingSearch] = useState("");
   const [bookingStatusFilter, setBookingStatusFilter] = useState("ALL");
+  const [bookingPage, setBookingPage] = useState(1);
+  const [bookingLimit, setBookingLimit] = useState(5);
   const [actionAlert, setActionAlert] = useState("");
+
+  useEffect(() => {
+    setBookingPage(1);
+  }, [bookingSearch, bookingStatusFilter]);
 
   const fetchBookings = async () => {
     setIsBookingsLoading(true);
@@ -727,6 +735,34 @@ export default function AdminOverview({
             <span>Vehicles Parked Inside</span>
           </span>
         </div>
+
+        <div
+          className="pw-metric-card"
+          style={{ cursor: "pointer", transition: "transform 0.15s ease, box-shadow 0.15s ease" }}
+          onClick={() => setActiveTab && setActiveTab("ev-charging")}
+          title="Manage EV Charging Stations"
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+            <span className="pw-metric-label">EV Charging</span>
+            <div style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
+              background: "var(--bg-teal-sub, #ecfdf5)",
+              color: "#059669",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <Zap size={16} />
+            </div>
+          </div>
+          <span className="pw-metric-value" style={{ color: "#059669" }}>{activeEvSessions}</span>
+          <span className="pw-metric-trend positive" style={{ color: "#059669", marginTop: "6px" }}>
+            <Zap size={12} />
+            <span>Active EV Sessions</span>
+          </span>
+        </div>
       </div>
 
       <div style={{
@@ -1076,7 +1112,7 @@ export default function AdminOverview({
 
           <div className="pw-user-cards-stack" style={{ minWidth: "860px" }}>
             {filteredBookings.length > 0 ? (
-              filteredBookings.slice(0, 10).map((b) => {
+              filteredBookings.slice((bookingPage - 1) * bookingLimit, bookingPage * bookingLimit).map((b) => {
                 const amt = parseFloat(b.total_amount) || 0;
                 return (
                   <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px", padding: "8px 12px" }}>
@@ -1204,6 +1240,20 @@ export default function AdminOverview({
             )}
           </div>
         </div>
+
+        {filteredBookings.length > 0 && (
+          <Pagination
+            page={bookingPage}
+            limit={bookingLimit}
+            total={filteredBookings.length}
+            onPageChange={setBookingPage}
+            onLimitChange={(newLimit) => {
+              setBookingLimit(newLimit);
+              setBookingPage(1);
+            }}
+            limitOptions={[5, 10, 25, 50]}
+          />
+        )}
       </div>
     </div>
   );

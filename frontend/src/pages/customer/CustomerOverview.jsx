@@ -3,11 +3,18 @@ import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCar
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 import { API_BASE_URL } from "../../config/api.js";
 
-export default function CustomerOverview({ recentParkings = [], activeSession = null, onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser, totalVisits, totalSpent, onRefresh, isRefreshing }) {
+export default function CustomerOverview({ recentParkings = [], activeSession = null, activeSessions = [], onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser, totalVisits, totalSpent, onRefresh, isRefreshing }) {
   const navigateTab = onNavigate || setActiveTab;
   const user = currentUser || loggedInUser;
   const userEmail = user?.email || "";
   const [vehicles, setVehicles] = useState([]);
+  const [selectedActiveIdx, setSelectedActiveIdx] = useState(0);
+
+  const allActive = (Array.isArray(activeSessions) && activeSessions.length > 0)
+    ? activeSessions
+    : (activeSession ? [activeSession] : []);
+  const activeCount = allActive.length;
+  const currentDisplayedSession = allActive[selectedActiveIdx] || allActive[0] || null;
 
   useEffect(() => {
     if (!userEmail) return;
@@ -145,11 +152,21 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
       )}
 
       <div className="pw-metrics-four-grid">
-        <div className="pw-metric-card">
+        <div className="pw-metric-card" onClick={() => navigateTab && navigateTab("my-parking")} style={{ cursor: "pointer" }} title="View active parking passes">
           <span className="pw-metric-label">Active Parking Pass</span>
-          <span className="pw-metric-value">{activeSession ? (isPremiumActive ? "VIP Active" : "1 Active") : (isPremiumActive ? "VIP Ready" : "0 Active")}</span>
+          <span className="pw-metric-value">
+            {activeCount > 0
+              ? (isPremiumActive ? `VIP Active (${activeCount})` : `${activeCount} Active`)
+              : (isPremiumActive ? "VIP Ready" : "0 Active")}
+          </span>
           <span className="pw-metric-trend positive">
-            <span>{activeSession ? `Bay ${activeSession.current_slot} (${activeSession.zone || "Zone A"})` : "No parked vehicle"}</span>
+            <span>
+              {activeCount > 0
+                ? (activeCount === 1
+                    ? `Bay ${allActive[0].current_slot} (${allActive[0].zone || "Zone A"})`
+                    : `Bays: ${allActive.map((s) => s.current_slot).join(", ")}`)
+                : "No parked vehicle"}
+            </span>
           </span>
         </div>
 
@@ -178,6 +195,61 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
         </div>
       </div>
 
+      <div className="pw-find-parking-section" style={{ marginTop: "4px" }}>
+        <h2 className="pw-section-title" style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginBottom: "8px" }}>Quick Customer Services</h2>
+        <div className="pw-quick-actions-grid">
+          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("reserve-parking")}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)" }}>
+              <BookmarkCheck size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#0d9488" }} />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">Reserve Spot</span>
+              <span className="pw-action-sub">Book bay in advance</span>
+            </div>
+          </div>
+
+          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("my-parking")}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdf4)" }}>
+              <Car size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#16a34a" }} />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">My Parking</span>
+              <span className="pw-action-sub">Live parking meter</span>
+            </div>
+          </div>
+
+          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("digital-receipts")}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "#F5E7C3" : "#faf5ff" }}>
+              <CreditCard size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#9333ea" }} />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">Receipts</span>
+              <span className="pw-action-sub">Official tax invoices</span>
+            </div>
+          </div>
+
+          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("parking-history")}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #eff6ff)" }}>
+              <Clock size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#2563eb" }} />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">Trip History</span>
+              <span className="pw-action-sub">All past sessions</span>
+            </div>
+          </div>
+
+          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("ev-charging")}>
+            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "#ecfdf5" }}>
+              <Zap size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#059669" }} />
+            </div>
+            <div className="pw-action-meta">
+              <span className="pw-action-title">EV Charging</span>
+              <span className="pw-action-sub">Find charger & charge</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="pw-customer-overview-twocol">
         <div className="pw-chart-card">
           <div className="pw-chart-header">
@@ -187,39 +259,78 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
               </div>
               <h2 className="pw-chart-title">Current Active Parking Pass</h2>
             </div>
-            {activeSession ? (
-              <span className="pw-status-pill confirmed">Active Now</span>
+            {activeCount > 0 ? (
+              <span className="pw-status-pill confirmed">{activeCount} Active Now</span>
             ) : (
               <span className="pw-status-pill" style={{ background: "var(--bg-sub, #f1f5f9)", color: "var(--text-secondary, #64748b)" }}>Inactive</span>
             )}
           </div>
 
-          {activeSession ? (
+          {currentDisplayedSession ? (
             <div className="pw-upcoming-body">
+              {allActive.length > 1 && (
+                <div style={{ display: "flex", gap: "8px", marginBottom: "12px", overflowX: "auto", paddingBottom: "4px" }}>
+                  {allActive.map((s, idx) => {
+                    const isCur = idx === selectedActiveIdx;
+                    return (
+                      <button
+                        key={s.id || idx}
+                        type="button"
+                        onClick={() => setSelectedActiveIdx(idx)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                          border: isCur
+                            ? (isPremiumActive ? "1.5px solid #C99A2E" : "1.5px solid #0d9488")
+                            : "1px solid var(--border-color, #e2e8f0)",
+                          background: isCur
+                            ? (isPremiumActive ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)")
+                            : "var(--bg-card, #ffffff)",
+                          color: isCur
+                            ? (isPremiumActive ? "#713F12" : "#0f766e")
+                            : "var(--text-secondary, #64748b)",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        <Car size={13} />
+                        <span>Bay {s.current_slot} ({s.vehicle_number})</span>
+                        {isCur && <span style={{ fontSize: "0.68rem", fontWeight: 800 }}>● Active</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               <div className="pw-upcoming-location-row" style={{ background: isPremiumActive ? "var(--bg-sub, #FBF7EE)" : "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "10px", border: isPremiumActive ? "1px solid #ca8a04" : "1px solid var(--border-color, #e2e8f0)" }}>
                 <div className="pw-location-icon-box" style={{ background: isPremiumActive ? "#9A6B18" : "#0d9488", color: "#ffffff" }}>
                   <MapPin size={18} />
                 </div>
                 <div className="pw-location-meta" style={{ flex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="pw-location-name">{activeSession.zone || "Zone A"} Parking Bay</span>
-                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0d9488", background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)", padding: "2px 8px", borderRadius: "6px", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #ccfbf1" }}>Bay {activeSession.current_slot}</span>
+                    <span className="pw-location-name">{currentDisplayedSession.zone || "Zone A"} Parking Bay</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0d9488", background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)", padding: "2px 8px", borderRadius: "6px", border: isPremiumActive ? "1px solid #C99A2E" : "1px solid #ccfbf1" }}>Bay {currentDisplayedSession.current_slot}</span>
                   </div>
-                  <span className="pw-location-time">{activeSession.zone || "Zone A"} • Automated RFID Security Gate</span>
+                  <span className="pw-location-time">{currentDisplayedSession.zone || "Zone A"} • Automated RFID Security Gate</span>
                 </div>
               </div>
 
               <div className="pw-upcoming-two-col">
                 <div className="pw-upcoming-vehicle-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
                   <span className="pw-veh-label">Parked Vehicle</span>
-                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{activeSession.vehicle_number}</span>
-                  <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{activeSession.model} ({activeSession.vehicle_type})</span>
+                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{currentDisplayedSession.vehicle_number}</span>
+                  <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)" }}>{currentDisplayedSession.model} ({currentDisplayedSession.vehicle_type})</span>
                 </div>
 
                 <div className="pw-upcoming-vehicle-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
                   <span className="pw-veh-label">Entry Timestamp</span>
-                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{formatTime(activeSession.entry_time)}</span>
-                  <span style={{ fontSize: "0.72rem", color: isPremiumActive ? "#9A6B18" : "#0d9488", fontWeight: 600 }}>{activeSession.duration} elapsed</span>
+                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{formatTime(currentDisplayedSession.entry_time)}</span>
+                  <span style={{ fontSize: "0.72rem", color: isPremiumActive ? "#9A6B18" : "#0d9488", fontWeight: 600 }}>{currentDisplayedSession.duration} elapsed</span>
                 </div>
               </div>
 
@@ -228,7 +339,7 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
                   {isPremiumActive ? "VIP Pass Status" : "Accumulated Parking Tariff"}
                 </span>
                 <span style={{ fontSize: "1.1rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0f766e" }}>
-                  {isPremiumActive ? "Unlimited Included" : `${activeSession.calculated_fee} (₹${activeSession.hourly_rate}/hr)`}
+                  {isPremiumActive ? "Unlimited Included" : `${currentDisplayedSession.calculated_fee} (₹${currentDisplayedSession.hourly_rate}/hr)`}
                 </span>
               </div>
 
@@ -329,61 +440,6 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
       </div>
 
       <DashboardNotifications userEmail={userEmail} />
-
-      <div className="pw-find-parking-section" style={{ marginTop: "6px" }}>
-        <h2 className="pw-section-title" style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text-primary, #0f172a)", marginBottom: "8px" }}>Quick Customer Services</h2>
-        <div className="pw-quick-actions-grid">
-          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("reserve-parking")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdfa)" }}>
-              <BookmarkCheck size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#0d9488" }} />
-            </div>
-            <div className="pw-action-meta">
-              <span className="pw-action-title">Reserve Spot</span>
-              <span className="pw-action-sub">Book bay in advance</span>
-            </div>
-          </div>
-
-          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("my-parking")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #f0fdf4)" }}>
-              <Car size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#16a34a" }} />
-            </div>
-            <div className="pw-action-meta">
-              <span className="pw-action-title">My Parking</span>
-              <span className="pw-action-sub">Live parking meter</span>
-            </div>
-          </div>
-
-          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("digital-receipts")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "#F5E7C3" : "#faf5ff" }}>
-              <CreditCard size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#9333ea" }} />
-            </div>
-            <div className="pw-action-meta">
-              <span className="pw-action-title">Receipts</span>
-              <span className="pw-action-sub">Official tax invoices</span>
-            </div>
-          </div>
-
-          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("parking-history")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "var(--bg-teal-sub, #eff6ff)" }}>
-              <Clock size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#2563eb" }} />
-            </div>
-            <div className="pw-action-meta">
-              <span className="pw-action-title">Trip History</span>
-              <span className="pw-action-sub">All past sessions</span>
-            </div>
-          </div>
-
-          <div className="pw-action-card" style={{ cursor: "pointer" }} onClick={() => navigateTab && navigateTab("ev-charging")}>
-            <div className="pw-action-icon-circle" style={{ background: isPremiumActive ? "var(--bg-sub, #F5E7C3)" : "#ecfdf5" }}>
-              <Zap size={20} style={{ color: isPremiumActive ? "#9A6B18" : "#059669" }} />
-            </div>
-            <div className="pw-action-meta">
-              <span className="pw-action-title">EV Charging</span>
-              <span className="pw-action-sub">Find charger & charge</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

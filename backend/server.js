@@ -42,6 +42,11 @@ import {
   sendAdminPaymentUpdateEmail,
   sendAdminSystemUpdateEmail
 } from "./modules/email/emailService.js";
+import {
+  logAuditEvent,
+  getAuditClientIp,
+  getAuditUserAgent
+} from "./modules/audit/auditLogger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -687,18 +692,64 @@ app.post("/api/login", async (req, res) => {
   try {
     const userResult = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email.trim()]);
     if (userResult.rowCount === 0) {
+      await logAuditEvent({
+        userName: email.trim(),
+        userEmail: email.trim(),
+        role: "Guest",
+        action: "Failed Login",
+        module: "Authentication",
+        entityType: "user",
+        description: `Failed login attempt: Email not found (${email.trim()})`,
+        severity: "Medium",
+        status: "Failed",
+        ipAddress: getAuditClientIp(req),
+        userAgent: getAuditUserAgent(req)
+      });
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
     const user = userResult.rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      const userRole = (user.role || "user").charAt(0).toUpperCase() + (user.role || "user").slice(1);
+      await logAuditEvent({
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        role: userRole,
+        action: "Failed Login",
+        module: "Authentication",
+        entityType: "user",
+        entityId: String(user.id),
+        description: `Failed login attempt: Incorrect password for ${user.email}`,
+        severity: "Medium",
+        status: "Failed",
+        ipAddress: getAuditClientIp(req),
+        userAgent: getAuditUserAgent(req)
+      });
       return res.status(400).json({ error: "Invalid credentials" });
     }
 
     if (user.status && user.status.toLowerCase() === "inactive") {
       return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
     }
+
+    const formattedRole = (user.role || "user").charAt(0).toUpperCase() + (user.role || "user").slice(1);
+    await logAuditEvent({
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      role: formattedRole,
+      action: `${formattedRole} Login`,
+      module: "Authentication",
+      entityType: "user",
+      entityId: String(user.id),
+      description: `${user.name} logged in successfully as ${user.role}`,
+      severity: "Low",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.json({
       success: true,
@@ -716,6 +767,29 @@ app.post("/api/login", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Server error during login" });
   }
+});
+
+app.post("/api/logout", async (req, res) => {
+  const { email, name, role, id } = req.body || {};
+  if (email) {
+    const formattedRole = role ? (role.charAt(0).toUpperCase() + role.slice(1)) : "User";
+    await logAuditEvent({
+      userId: id || null,
+      userName: name || email,
+      userEmail: email,
+      role: formattedRole,
+      action: `${formattedRole} Logout`,
+      module: "Authentication",
+      entityType: "user",
+      entityId: id ? String(id) : null,
+      description: `${name || email} logged out`,
+      severity: "Low",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+  }
+  res.json({ success: true, message: "Logged out successfully" });
 });
 
 app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
@@ -1128,11 +1202,13 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
 
     const [
       slotsRes,
+      evSlotsRes,
       usersRes,
       bookRes,
       todayPayRes,
       totalPayRes,
       activeVehRes,
+      activeEvSessRes,
       totalVehRes,
       resvBookingsRes,
       entriesRes,
@@ -1144,11 +1220,13 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
       usersActRes
     ] = await Promise.all([
       pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
+      pool.query("SELECT * FROM ev_charging_slots ORDER BY slot_number ASC"),
       pool.query("SELECT COUNT(*) FROM users"),
       pool.query("SELECT COUNT(*) FROM reservations"),
       pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
       pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL)"),
       pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'"),
+      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'"),
       pool.query("SELECT COUNT(*) FROM vehicles"),
       pool.query("SELECT COUNT(DISTINCT slot_number) FROM reservations WHERE LOWER(status) IN ('confirmed', 'pending') AND (end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)"),
       pool.query("SELECT id, vehicle_number, slot_number, entry_time AS timestamp, 'Vehicle Entry' AS type, CONCAT('Vehicle ', vehicle_number, ' Entered') AS title, CONCAT(vehicle_number, ' entered Slot ', slot_number) AS description FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC LIMIT 10"),
@@ -1160,18 +1238,51 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
       pool.query("SELECT id, name, email, role, created_at AS timestamp, 'User Registered' AS type, CONCAT('New User: ', name) AS title, CONCAT(name, ' registered as ', role, ' (', email, ')') AS description FROM users ORDER BY id DESC LIMIT 10")
     ]);
 
-    const slots = slotsRes.rows;
-    const totalParkingSlots = slots.length;
-    const availableSlots = slots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved" && s.status !== "occupied")).length;
-    const occupiedSlots = slots.filter(s => s.status === "occupied" || (!s.is_available && s.status !== "reserved")).length;
-    const reservedSlots = parseInt(resvBookingsRes.rows[0]?.count || 0, 10);
-    const activeParkingSessions = parseInt(activeVehRes.rows[0]?.count || 0, 10);
+    const normalSlots = slotsRes.rows;
+    const evSlots = evSlotsRes.rows;
+    const totalSlots = normalSlots.length + evSlots.length;
+
+    const normalAvail = normalSlots.filter(s => (s.status || "").toLowerCase() === "available" || (s.is_available && (s.status || "").toLowerCase() !== "reserved" && (s.status || "").toLowerCase() !== "occupied")).length;
+    const evAvail = evSlots.filter(s => (s.status || "").toLowerCase() === "available").length;
+    const availableSlots = normalAvail + evAvail;
+
+    const normalOcc = normalSlots.filter(s => (s.status || "").toLowerCase() === "occupied" || (!s.is_available && (s.status || "").toLowerCase() !== "reserved" && (s.status || "").toLowerCase() !== "available")).length;
+    const evOcc = evSlots.filter(s => (s.status || "").toLowerCase() === "occupied").length;
+    const occupiedSlots = normalOcc + evOcc;
+
+    const normalResv = normalSlots.filter(s => (s.status || "").toLowerCase() === "reserved").length;
+    const evResv = evSlots.filter(s => (s.status || "").toLowerCase() === "reserved").length;
+    const reservedSlots = normalResv + evResv;
+
+    const chargingSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "charging").length;
+    const maintenanceSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "maintenance").length;
+    const activeEvSessions = parseInt(activeEvSessRes.rows[0]?.count || 0, 10);
+
+    const activeParkingSessions = parseInt(activeVehRes.rows[0]?.count || 0, 10) + activeEvSessions;
     const totalVehicles = parseInt(totalVehRes.rows[0]?.count || 0, 10);
     const todaysRevenue = parseFloat(todayPayRes.rows[0]?.sum || 0);
     const totalRevenue = parseFloat(totalPayRes.rows[0]?.sum || 0);
     const totalBookings = parseInt(bookRes.rows[0]?.count || 0, 10);
     const totalUsers = parseInt(usersRes.rows[0]?.count || 0, 10);
-    const occupancyRate = totalParkingSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalParkingSlots) * 100) : 0;
+    const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots + chargingSlots) / totalSlots) * 100) : 0;
+
+    const allSlots = [
+      ...normalSlots,
+      ...evSlots.map(es => ({
+        id: `ev-${es.id}`,
+        raw_ev_id: es.id,
+        slot_number: es.slot_number,
+        zone: "Zone EV (Fast Chargers)",
+        slot_type: es.charger_type || "EV Fast",
+        status: (es.status || "available").toLowerCase(),
+        is_available: (es.status || "").toLowerCase() === "available",
+        hourly_rate: es.charging_rate || 18.00,
+        is_ev: true,
+        power_kw: es.power_kw,
+        charging_power: es.charging_power,
+        connector_type: es.connector_type
+      }))
+    ];
 
     const combinedActivities = [
       ...entriesRes.rows.map(r => ({ id: `entry-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
@@ -1187,24 +1298,34 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
     const recentActivity = combinedActivities.slice(0, 15);
 
     const parkedVehicles = await pool.query(
-      "SELECT vehicle_number, current_slot AS slot_number, owner_name AS user_name, status, created_at FROM vehicles WHERE status = 'Parked' ORDER BY id DESC"
+      "SELECT vehicle_number, current_slot AS slot_number, owner_name AS user_name, status, created_at FROM vehicles WHERE LOWER(status) IN ('parked', 'charging') ORDER BY id DESC"
     );
 
     res.json({
       success: true,
-      totalParkingSlots,
+      totalParkingSlots: totalSlots,
+      totalSlots,
       availableSlots,
+      occupiedSlots,
       reservedSlots,
+      chargingSlots,
+      maintenanceSlots,
+      activeEvSessions,
+      evChargingSlotsInUse: chargingSlots,
       activeParkingSessions,
       totalVehicles,
       todaysRevenue,
       recentActivity,
       stats: {
-        totalParkingSlots,
-        totalSlots: totalParkingSlots,
+        totalParkingSlots: totalSlots,
+        totalSlots,
         availableSlots,
         occupiedSlots,
         reservedSlots,
+        chargingSlots,
+        maintenanceSlots,
+        activeEvSessions,
+        evChargingSlotsInUse: chargingSlots,
         activeParkingSessions,
         activeParkings: activeParkingSessions,
         totalVehicles,
@@ -1215,8 +1336,14 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
         totalUsers,
         occupancyRate
       },
-      slots,
-      activeSessions: parkedVehicles.rows
+      slots: allSlots,
+      activeSessions: parkedVehicles.rows,
+      evStats: {
+        activeSessions: activeEvSessions,
+        inUse: chargingSlots,
+        available: evAvail,
+        total: evSlots.length
+      }
     });
   } catch (err) {
     console.error(err);
@@ -1224,10 +1351,141 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
   }
 });
 
-app.get("/api/parking-slots", async (req, res) => {
-  const { page, limit, search, zone, status, slot_type } = req.query;
+app.get(["/api/occupancy", "/api/admin/occupancy"], async (req, res) => {
   try {
-    let baseQuery = "FROM parking_slots WHERE 1=1";
+    const [
+      normalSlotsRes,
+      evSlotsRes,
+      activeVehRes,
+      activeEvSessRes,
+      resvRes
+    ] = await Promise.all([
+      pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
+      pool.query("SELECT * FROM ev_charging_slots ORDER BY slot_number ASC"),
+      pool.query("SELECT vehicle_number, current_slot, owner_name, status, created_at FROM vehicles WHERE LOWER(status) IN ('parked', 'charging')"),
+      pool.query("SELECT * FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'"),
+      pool.query("SELECT slot_number, customer_name, vehicle_number FROM reservations WHERE LOWER(status) IN ('confirmed', 'pending') AND (end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)")
+    ]);
+
+    const normalSlots = normalSlotsRes.rows;
+    const evSlots = evSlotsRes.rows;
+    const totalSlots = normalSlots.length + evSlots.length;
+
+    const normalAvail = normalSlots.filter(s => (s.status || "").toLowerCase() === "available" || (s.is_available && (s.status || "").toLowerCase() !== "reserved" && (s.status || "").toLowerCase() !== "occupied")).length;
+    const evAvail = evSlots.filter(s => (s.status || "").toLowerCase() === "available").length;
+    const availableSlots = normalAvail + evAvail;
+
+    const normalOcc = normalSlots.filter(s => (s.status || "").toLowerCase() === "occupied" || (!s.is_available && (s.status || "").toLowerCase() !== "reserved" && (s.status || "").toLowerCase() !== "available")).length;
+    const evOcc = evSlots.filter(s => (s.status || "").toLowerCase() === "occupied").length;
+    const occupiedSlots = normalOcc + evOcc;
+
+    const normalResv = normalSlots.filter(s => (s.status || "").toLowerCase() === "reserved").length;
+    const evResv = evSlots.filter(s => (s.status || "").toLowerCase() === "reserved").length;
+    const reservedSlots = normalResv + evResv;
+
+    const chargingSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "charging").length;
+    const maintenanceSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "maintenance").length;
+
+    const activeVehMap = new Map();
+    activeVehRes.rows.forEach(v => {
+      if (v.current_slot) activeVehMap.set(v.current_slot.trim().toUpperCase(), v);
+    });
+
+    const activeEvMap = new Map();
+    activeEvSessRes.rows.forEach(es => {
+      if (es.slot_number) activeEvMap.set(es.slot_number.trim().toUpperCase(), es);
+    });
+
+    const unifiedSlots = [
+      ...normalSlots.map(s => {
+        const v = activeVehMap.get((s.slot_number || "").toUpperCase());
+        return {
+          id: s.id,
+          slot_number: s.slot_number,
+          zone: s.zone,
+          slot_type: s.slot_type || "Standard",
+          status: s.status,
+          is_available: s.is_available,
+          hourly_rate: s.hourly_rate,
+          is_ev: false,
+          current_vehicle: v ? v.vehicle_number : null,
+          vehicle_owner: v ? v.owner_name : null
+        };
+      }),
+      ...evSlots.map(es => {
+        const evSess = activeEvMap.get((es.slot_number || "").toUpperCase());
+        const st = (es.status || "available").toLowerCase();
+        return {
+          id: `ev-${es.id}`,
+          raw_ev_id: es.id,
+          slot_number: es.slot_number,
+          zone: "Zone EV (Fast Chargers)",
+          slot_type: es.charger_type || "EV Fast",
+          status: st,
+          is_available: st === "available",
+          hourly_rate: es.charging_rate || 18.00,
+          is_ev: true,
+          power_kw: es.power_kw,
+          charging_power: es.charging_power,
+          connector_type: es.connector_type,
+          current_vehicle: evSess ? evSess.vehicle_number : null,
+          vehicle_owner: evSess ? evSess.customer_name : null,
+          energy_consumed: evSess ? evSess.energy_consumed : null
+        };
+      })
+    ];
+
+    const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots + chargingSlots) / totalSlots) * 100) : 0;
+
+    res.json({
+      success: true,
+      totalSlots,
+      availableSlots,
+      occupiedSlots,
+      reservedSlots,
+      chargingSlots,
+      maintenanceSlots,
+      occupancyRate,
+      slots: unifiedSlots,
+      activeVehicles: activeVehRes.rows,
+      evSessions: activeEvSessRes.rows
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error fetching unified occupancy" });
+  }
+});
+
+app.get("/api/parking-slots", async (req, res) => {
+  const { page, limit, search, zone, status, slot_type, type } = req.query;
+  const effectiveType = slot_type || type;
+  try {
+    let baseQuery = `
+      FROM (
+        SELECT
+          id,
+          slot_number,
+          zone,
+          slot_type,
+          LOWER(status) AS status,
+          is_available,
+          hourly_rate,
+          false AS is_ev
+        FROM parking_slots
+        UNION ALL
+        SELECT
+          id + 10000 AS id,
+          slot_number,
+          'Zone EV' AS zone,
+          COALESCE(charger_type, 'EV Fast') AS slot_type,
+          LOWER(status) AS status,
+          (LOWER(status) = 'available') AS is_available,
+          charging_rate AS hourly_rate,
+          true AS is_ev
+        FROM ev_charging_slots
+      ) AS unified_slots
+      WHERE 1=1
+    `;
     const params = [];
 
     if (search && search.trim()) {
@@ -1236,8 +1494,14 @@ app.get("/api/parking-slots", async (req, res) => {
     }
 
     if (zone && zone !== "ALL") {
-      params.push(zone);
-      baseQuery += ` AND zone = $${params.length}`;
+      if (zone === "Zone D" || zone === "Zone D (Bikes)") {
+        baseQuery += ` AND (zone = 'Zone D' OR zone = 'Zone D (Bikes)')`;
+      } else if (zone === "Zone EV" || zone === "Zone EV (Fast Chargers)" || zone === "Zone E" || zone === "Zone E (EV)" || zone === "Zone E (Fast Chargers)") {
+        baseQuery += ` AND (zone = 'Zone EV' OR zone = 'Zone EV (Fast Chargers)' OR zone = 'Zone E' OR zone = 'Zone E (EV)')`;
+      } else {
+        params.push(zone);
+        baseQuery += ` AND zone = $${params.length}`;
+      }
     }
 
     if (status && status !== "ALL") {
@@ -1245,9 +1509,9 @@ app.get("/api/parking-slots", async (req, res) => {
       baseQuery += ` AND LOWER(status) = $${params.length}`;
     }
 
-    if (slot_type && slot_type !== "ALL") {
-      params.push(slot_type.toLowerCase());
-      baseQuery += ` AND LOWER(COALESCE(slot_type, 'standard')) = $${params.length}`;
+    if (effectiveType && effectiveType !== "ALL") {
+      params.push(`%${effectiveType.toLowerCase()}%`);
+      baseQuery += ` AND LOWER(COALESCE(slot_type, 'standard')) LIKE $${params.length}`;
     }
 
     const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
@@ -1318,6 +1582,20 @@ app.post("/api/admin/slots", async (req, res) => {
       [slot_number, zone, slotType, rate, slotStatus, isAvailable]
     );
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Slot Created",
+      module: "Parking Slots",
+      entityType: "parking_slot",
+      entityId: slot_number,
+      description: `Created parking slot ${slot_number} in ${zone} (${slotType}) at ₹${rate}/hr`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.status(201).json({ success: true, slot: insertRes.rows[0], message: "Parking slot created successfully" });
   } catch (err) {
     console.error(err);
@@ -1338,7 +1616,36 @@ app.put("/api/admin/slots/:id", async (req, res) => {
   const slotStatus = status || "available";
   const isAvailable = slotStatus === "available";
 
+  const isEv = String(id).startsWith("ev-") || (!isNaN(id) && parseInt(id, 10) > 10000) || String(zone).toLowerCase().includes("ev") || String(slot_number).toUpperCase().startsWith("EV-");
+  const realId = isEv ? (String(id).startsWith("ev-") ? parseInt(id.replace("ev-", ""), 10) : (!isNaN(id) && parseInt(id, 10) > 10000 ? parseInt(id, 10) - 10000 : parseInt(id, 10))) : parseInt(id, 10);
+
   try {
+    if (isEv) {
+      const updateRes = await pool.query(
+        "UPDATE ev_charging_slots SET slot_number = $1, status = $2, charging_rate = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *",
+        [slot_number, slotStatus, rate, realId]
+      );
+      if (updateRes.rowCount === 0) {
+        return res.status(404).json({ error: "EV slot not found" });
+      }
+
+      await logAuditEvent({
+        userName: req.headers["x-admin-name"] || "Admin",
+        userEmail: req.headers["x-admin-email"] || null,
+        role: "Admin",
+        action: "EV Slot Updated",
+        module: "EV Charging",
+        entityType: "ev_slot",
+        entityId: slot_number,
+        description: `Updated EV slot ${slot_number} (status: ${slotStatus}, rate: ₹${rate}/kWh)`,
+        status: "Success",
+        ipAddress: getAuditClientIp(req),
+        userAgent: getAuditUserAgent(req)
+      });
+
+      return res.json({ success: true, slot: updateRes.rows[0], message: "EV slot updated successfully" });
+    }
+
     const updateRes = await pool.query(
       "UPDATE parking_slots SET slot_number = $1, zone = $2, slot_type = $3, hourly_rate = $4, status = $5, is_available = $6 WHERE id = $7 RETURNING *",
       [slot_number, zone, slotType, rate, slotStatus, isAvailable, id]
@@ -1347,6 +1654,20 @@ app.put("/api/admin/slots/:id", async (req, res) => {
     if (updateRes.rowCount === 0) {
       return res.status(404).json({ error: "Parking slot not found" });
     }
+
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Slot Updated",
+      module: "Parking Slots",
+      entityType: "parking_slot",
+      entityId: slot_number,
+      description: `Updated parking slot ${slot_number} in ${zone} (${slotType}) to status "${slotStatus}"`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await notifyStaffAndAdmins({
       title: "Parking Slot Updated",
@@ -1366,11 +1687,52 @@ app.put("/api/admin/slots/:id", async (req, res) => {
 
 app.delete("/api/admin/slots/:id", async (req, res) => {
   const { id } = req.params;
+  const isEv = String(id).startsWith("ev-") || (!isNaN(id) && parseInt(id, 10) > 10000);
+  const realId = isEv ? (String(id).startsWith("ev-") ? parseInt(id.replace("ev-", ""), 10) : parseInt(id, 10) - 10000) : parseInt(id, 10);
   try {
+    if (isEv) {
+      const delRes = await pool.query("DELETE FROM ev_charging_slots WHERE id = $1 RETURNING slot_number", [realId]);
+      if (delRes.rowCount === 0) {
+        return res.status(404).json({ error: "EV slot not found" });
+      }
+
+      await logAuditEvent({
+        userName: req.headers["x-admin-name"] || "Admin",
+        userEmail: req.headers["x-admin-email"] || null,
+        role: "Admin",
+        action: "EV Slot Deleted",
+        module: "EV Charging",
+        entityType: "ev_slot",
+        entityId: delRes.rows[0].slot_number,
+        description: `Deleted EV charging slot ${delRes.rows[0].slot_number}`,
+        severity: "Medium",
+        status: "Success",
+        ipAddress: getAuditClientIp(req),
+        userAgent: getAuditUserAgent(req)
+      });
+
+      return res.json({ success: true, message: `EV slot ${delRes.rows[0].slot_number} deleted successfully` });
+    }
     const delRes = await pool.query("DELETE FROM parking_slots WHERE id = $1 RETURNING slot_number", [id]);
     if (delRes.rowCount === 0) {
       return res.status(404).json({ error: "Parking slot not found" });
     }
+
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Slot Deleted",
+      module: "Parking Slots",
+      entityType: "parking_slot",
+      entityId: delRes.rows[0].slot_number,
+      description: `Deleted parking slot ${delRes.rows[0].slot_number}`,
+      severity: "Medium",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({ success: true, message: `Slot ${delRes.rows[0].slot_number} deleted successfully` });
   } catch (err) {
     console.error(err);
@@ -1383,21 +1745,39 @@ const handleSlotStatusUpdate = async (req, res) => {
   const { status } = req.body;
   const normalizedStatus = (status || "").toLowerCase();
 
-  if (!["available", "occupied", "reserved"].includes(normalizedStatus)) {
-    return res.status(400).json({ error: "Status must be 'available', 'occupied', or 'reserved'" });
+  if (!["available", "occupied", "reserved", "charging", "maintenance"].includes(normalizedStatus)) {
+    return res.status(400).json({ error: "Status must be 'available', 'occupied', 'reserved', 'charging', or 'maintenance'" });
   }
 
   const isAvailable = normalizedStatus === "available";
 
   try {
-    const slotResult = await pool.query(
+    let slotResult = await pool.query(
       "UPDATE parking_slots SET status = $1, is_available = $2 WHERE slot_number = $3 RETURNING *",
       [normalizedStatus, isAvailable, slotNumber]
     );
 
     if (slotResult.rowCount === 0) {
-      return res.status(404).json({ error: "Slot not found" });
+      slotResult = await pool.query(
+        "UPDATE ev_charging_slots SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE slot_number = $2 RETURNING *",
+        [normalizedStatus, slotNumber]
+      );
     }
+
+    const isEvSlot = slotNumber.toUpperCase().startsWith("EV-");
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || req.headers["x-user-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || req.headers["x-user-email"] || null,
+      role: req.headers["x-user-role"] || "Admin",
+      action: "Slot Status Changed",
+      module: isEvSlot ? "EV Charging" : "Parking Slots",
+      entityType: isEvSlot ? "ev_slot" : "parking_slot",
+      entityId: slotNumber,
+      description: `Changed status of slot ${slotNumber} to ${normalizedStatus}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await notifyStaff({
       title: "Important Parking/Operational Update",
@@ -1443,6 +1823,19 @@ app.post("/api/parking-slots/:slotNumber/toggle", async (req, res) => {
     }
 
     await pool.query("UPDATE parking_slots SET is_available = $1, status = $2 WHERE slot_number = $3", [isAvailable, newStatus, slotNumber]);
+
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Staff",
+      role: "Staff",
+      action: "Slot Status Changed",
+      module: slotNumber.toUpperCase().startsWith("EV-") ? "EV Charging" : "Parking Slots",
+      entityType: "parking_slot",
+      entityId: slotNumber,
+      description: `Toggled status of slot ${slotNumber} from ${current} to ${newStatus}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await notifyStaffAndAdmins({
       title: "Parking Slot Status Toggled",
@@ -1557,16 +1950,29 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [vSlot]);
+    let isEvSlot = false;
+    let evSlotRow = null;
+    let slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [vSlot]);
     if (slotCheck.rowCount === 0) {
-      await client.query("ROLLBACK");
-      client.release();
-      return res.status(400).json({ error: `Slot ${vSlot} does not exist` });
-    }
-    if (slotCheck.rows[0].status === "occupied" || !slotCheck.rows[0].is_available) {
-      await client.query("ROLLBACK");
-      client.release();
-      return res.status(400).json({ error: `Slot ${vSlot} is already occupied` });
+      const evCheck = await client.query("SELECT * FROM ev_charging_slots WHERE UPPER(slot_number) = UPPER($1) FOR UPDATE", [vSlot]);
+      if (evCheck.rowCount === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: `Slot ${vSlot} does not exist` });
+      }
+      isEvSlot = true;
+      evSlotRow = evCheck.rows[0];
+      if (evSlotRow.status && evSlotRow.status.toLowerCase() !== "available") {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: `EV Slot ${vSlot} is currently ${evSlotRow.status}` });
+      }
+    } else {
+      if (slotCheck.rows[0].status === "occupied" || !slotCheck.rows[0].is_available) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: `Slot ${vSlot} is already occupied` });
+      }
     }
 
     const activeCheck = await client.query(
@@ -1579,12 +1985,13 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
       return res.status(400).json({ error: `Vehicle ${vPlate} already has an active parking session at slot ${activeCheck.rows[0].slot_number}` });
     }
 
+    const targetStatus = isEvSlot ? "charging" : "Parked";
     const upsertVeh = await client.query(`
       INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot)
-      VALUES ($1, $2, $3, $4, $5, $6, 'Parked', $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (vehicle_number)
       DO UPDATE SET
-        status = 'Parked',
+        status = EXCLUDED.status,
         current_slot = EXCLUDED.current_slot,
         vehicle_type = COALESCE(NULLIF(EXCLUDED.vehicle_type, ''), vehicles.vehicle_type),
         model = COALESCE(NULLIF(EXCLUDED.model, ''), vehicles.model),
@@ -1592,13 +1999,43 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
         owner_email = COALESCE(NULLIF(EXCLUDED.owner_email, ''), vehicles.owner_email),
         owner_phone = COALESCE(NULLIF(EXCLUDED.owner_phone, ''), vehicles.owner_phone)
       RETURNING *
-    `, [vPlate, vType, vModel, vOwner, vEmail, vPhone, vSlot]);
+    `, [vPlate, vType, vModel, vOwner, vEmail, vPhone, targetStatus, vSlot]);
     const vehicleData = upsertVeh.rows[0];
 
-    await client.query(
-      "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
-      [vSlot]
-    );
+    if (isEvSlot) {
+      await client.query(
+        "UPDATE ev_charging_slots SET status = 'Charging', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
+        [vSlot]
+      );
+      const sessionCode = `EV-SESS-${Date.now().toString().slice(-6)}`;
+      await client.query(
+        `INSERT INTO ev_charging_sessions (
+          session_code, customer_name, customer_email, customer_phone,
+          vehicle_number, vehicle_model, vehicle_type,
+          slot_id, slot_number, location_name,
+          start_time, charging_rate, session_status, payment_status,
+          created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, $11, 'Active', 'Pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+          sessionCode,
+          vOwner,
+          vEmail,
+          vPhone,
+          vPlate,
+          vModel,
+          vType || "EV",
+          evSlotRow.id,
+          evSlotRow.slot_number,
+          evSlotRow.location_name || "Zone C (EV Station)",
+          evSlotRow.charging_rate || 18.00
+        ]
+      );
+    } else {
+      await client.query(
+        "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
+        [vSlot]
+      );
+    }
 
     const nowStr = getLocalTimestamp(vEntryTime);
     const historyInsert = await client.query(
@@ -1606,11 +2043,20 @@ app.post("/api/staff/vehicle-entry", async (req, res) => {
       [vPlate, vSlot, nowStr]
     );
 
-    const logCode1 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
-    await client.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Staff', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [logCode1, vOwner || "Staff Operator", `Vehicle Entry: ${vPlate}`, `Vehicle ${vPlate} parked in slot ${vSlot}`]
-    );
+    await logAuditEvent({
+      client,
+      userName: vOwner || "Staff Operator",
+      userEmail: vEmail || null,
+      role: "Staff",
+      action: "Vehicle Entry",
+      module: "Vehicles",
+      entityType: "vehicle",
+      entityId: vPlate,
+      description: `Vehicle ${vPlate} parked in slot ${vSlot}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await client.query("COMMIT");
     client.release();
@@ -1936,6 +2382,20 @@ app.post("/api/admin/vehicles", async (req, res) => {
 
     const emailResult = await sendVehicleRegistrationEmail(insertRes.rows[0]);
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Vehicle Created",
+      module: "Vehicles",
+      entityType: "vehicle",
+      entityId: vehicle_number.toUpperCase(),
+      description: `Registered vehicle ${vehicle_number.toUpperCase()} (${vehicle_type} - ${vModel}) for ${owner_name}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.status(201).json({
       success: true,
       vehicle: insertRes.rows[0],
@@ -1975,6 +2435,20 @@ app.put("/api/admin/vehicles/:id", async (req, res) => {
       return res.status(404).json({ error: "Vehicle not found" });
     }
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Vehicle Updated",
+      module: "Vehicles",
+      entityType: "vehicle",
+      entityId: vehicle_number.toUpperCase(),
+      description: `Updated vehicle ${vehicle_number.toUpperCase()} details (status: ${vStatus}, slot: ${vSlot})`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({ success: true, vehicle: updateRes.rows[0], message: "Vehicle updated successfully" });
   } catch (err) {
     console.error(err);
@@ -1993,6 +2467,22 @@ app.delete("/api/admin/vehicles/:id", async (req, res) => {
       return res.status(404).json({ error: "Vehicle not found" });
     }
     await pool.query("DELETE FROM vehicle_history WHERE vehicle_number = $1", [delRes.rows[0].vehicle_number]);
+
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Vehicle Removed",
+      module: "Vehicles",
+      entityType: "vehicle",
+      entityId: delRes.rows[0].vehicle_number,
+      description: `Removed vehicle ${delRes.rows[0].vehicle_number} from database`,
+      severity: "Medium",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({ success: true, message: `Vehicle ${delRes.rows[0].vehicle_number} deleted successfully` });
   } catch (err) {
     console.error(err);
@@ -2108,6 +2598,20 @@ app.post("/api/admin/users", async (req, res) => {
       console.error(e);
     }
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "User Created",
+      module: "Users",
+      entityType: "user",
+      entityId: String(insertResult.rows[0].id),
+      description: `Created user account for ${name} (${email}) with role ${userRole}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.status(201).json({ success: true, user: insertResult.rows[0], message: "User added successfully" });
   } catch (err) {
     console.error(err);
@@ -2151,6 +2655,20 @@ app.put("/api/admin/users/:id", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "User Updated",
+      module: "Users",
+      entityType: "user",
+      entityId: String(id),
+      description: `Updated profile for user ${name} (${email}), role: ${userRole}, status: ${userStatus}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({ success: true, user: updateResult.rows[0], message: "User updated successfully" });
   } catch (err) {
     console.error(err);
@@ -2179,6 +2697,21 @@ app.put("/api/admin/users/:id/status", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const targetUser = updateResult.rows[0];
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: status === "Active" ? "User Activated" : "User Deactivated",
+      module: "Users",
+      entityType: "user",
+      entityId: String(id),
+      description: `Changed status of user ${targetUser.name} (${targetUser.email}) to ${status}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({ success: true, user: updateResult.rows[0] });
   } catch (err) {
     console.error(err);
@@ -2190,13 +2723,29 @@ app.delete("/api/admin/users/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const deleteResult = await pool.query(
-      "DELETE FROM users WHERE id = $1 RETURNING id, name",
+      "DELETE FROM users WHERE id = $1 RETURNING id, name, email",
       [id]
     );
 
     if (deleteResult.rowCount === 0) {
       return res.status(404).json({ error: "User not found" });
     }
+
+    const delUser = deleteResult.rows[0];
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "User Deleted",
+      module: "Users",
+      entityType: "user",
+      entityId: String(id),
+      description: `Deleted user account ${delUser.name} (${delUser.email})`,
+      severity: "Medium",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.json({ success: true, message: `User ${deleteResult.rows[0].name} deleted successfully` });
   } catch (err) {
@@ -2238,7 +2787,8 @@ const handleActiveSessions = async (req, res) => {
     let baseQuery = `
       FROM vehicles v
       LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
-      WHERE LOWER(v.status) = 'parked'
+      LEFT JOIN ev_charging_slots es ON UPPER(v.current_slot) = UPPER(es.slot_number)
+      WHERE LOWER(v.status) IN ('parked', 'charging')
     `;
     const params = [];
 
@@ -2249,7 +2799,7 @@ const handleActiveSessions = async (req, res) => {
 
     if (zone && zone !== "ALL") {
       params.push(zone);
-      baseQuery += ` AND ps.zone = $${params.length}`;
+      baseQuery += ` AND (ps.zone = $${params.length} OR es.location_name = $${params.length} OR (LOWER($${params.length}) = 'zone c' AND UPPER(COALESCE(v.current_slot, '')) LIKE 'EV%'))`;
     }
 
     if (type && type !== "ALL") {
@@ -2269,12 +2819,12 @@ const handleActiveSessions = async (req, res) => {
         v.owner_name,
         v.owner_email,
         v.owner_phone,
-        v.status,
+        CASE WHEN LOWER(v.status) = 'charging' THEN 'Charging' ELSE 'Parked' END as status,
         v.current_slot,
         v.created_at,
-        ps.zone,
-        ps.slot_type,
-        COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
+        COALESCE(ps.zone, es.location_name, 'Zone C (EV)') as zone,
+        COALESCE(ps.slot_type, es.charger_type, 'Standard') as slot_type,
+        COALESCE(ps.hourly_rate, es.charging_rate, 50.00) as hourly_rate,
         (
           SELECT entry_time 
           FROM vehicle_history 
@@ -2312,6 +2862,7 @@ const handleActiveSessions = async (req, res) => {
       const billedHours = Math.max(1, Math.ceil(diffMins / 60));
       const rate = parseFloat(row.hourly_rate) || 50;
       const totalFee = (billedHours * rate).toFixed(2);
+      const isCharging = (row.status || "").toLowerCase() === "charging" || (row.vehicle_type || "").toLowerCase() === "ev";
 
       return {
         id: row.id,
@@ -2330,7 +2881,7 @@ const handleActiveSessions = async (req, res) => {
         billed_hours: billedHours,
         calculated_fee: `₹${totalFee}`,
         fee_numeric: parseFloat(totalFee),
-        status: "Parked"
+        status: isCharging ? "Charging" : "Parked"
       };
     });
 
@@ -2377,9 +2928,17 @@ app.get("/api/payments/today", async (req, res) => {
       "Net Banking": 0
     };
 
+    let evRevenue = 0;
+    let parkingRevenue = 0;
     paymentsToUse.forEach((p) => {
       const amt = parseFloat(p.amount) || 0;
       totalRevenue += amt;
+      const isEv = (p.transaction_id && String(p.transaction_id).startsWith("TXN-EV-")) || (p.slot_number && String(p.slot_number).startsWith("EV-"));
+      if (isEv) {
+        evRevenue += amt;
+      } else {
+        parkingRevenue += amt;
+      }
       const method = p.payment_method || "UPI";
       if (methodsBreakdown[method] !== undefined) {
         methodsBreakdown[method] += amt;
@@ -2400,6 +2959,10 @@ app.get("/api/payments/today", async (req, res) => {
       summary: {
         totalRevenue: `₹${totalRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
         totalRevenueNumeric: totalRevenue,
+        evRevenue: `₹${evRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        evRevenueNumeric: evRevenue,
+        parkingRevenue: `₹${parkingRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        parkingRevenueNumeric: parkingRevenue,
         completedCount,
         avgTicket: `₹${parseFloat(avgTicket).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
         methodsBreakdown
@@ -2858,16 +3421,16 @@ app.get("/api/customer/my-parking", async (req, res) => {
       SELECT 
         vh.id as history_id,
         vh.vehicle_number,
-        COALESCE(v.vehicle_type, res.vehicle_type, 'Car') as vehicle_type,
+        COALESCE(v.vehicle_type, res.vehicle_type, (CASE WHEN UPPER(TRIM(vh.slot_number)) LIKE 'EV%' THEN 'EV' ELSE 'Car' END)) as vehicle_type,
         COALESCE(v.model, res.model, 'Standard') as model,
         COALESCE(v.owner_name, res.customer_name, 'Customer') as owner_name,
         COALESCE(v.owner_email, res.customer_email, '') as owner_email,
         COALESCE(v.owner_phone, res.customer_phone, '') as owner_phone,
-        COALESCE(v.status, vh.status, 'Parked') as status,
-        COALESCE(v.current_slot, vh.slot_number) as current_slot,
+        COALESCE(vh.status, v.status, 'Parked') as status,
+        COALESCE(vh.slot_number, v.current_slot) as current_slot,
         COALESCE(vh.entry_time, v.created_at) as entry_time,
-        ps.zone,
-        ps.slot_type,
+        COALESCE(ps.zone, (CASE WHEN UPPER(TRIM(vh.slot_number)) LIKE 'EV%' THEN 'Zone C (EV Fast)' ELSE 'Zone A' END)) as zone,
+        COALESCE(ps.slot_type, 'Standard') as slot_type,
         COALESCE(ps.hourly_rate, 50.00) as hourly_rate
       FROM vehicle_history vh
       LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(vh.vehicle_number)
@@ -2877,7 +3440,7 @@ app.get("/api/customer/my-parking", async (req, res) => {
         WHERE LOWER(vehicle_number) = LOWER(vh.vehicle_number)
         ORDER BY id DESC LIMIT 1
       ) res ON true
-      LEFT JOIN parking_slots ps ON COALESCE(v.current_slot, vh.slot_number) = ps.slot_number
+      LEFT JOIN parking_slots ps ON UPPER(TRIM(vh.slot_number)) = UPPER(TRIM(ps.slot_number))
       WHERE (vh.exit_time IS NULL OR LOWER(vh.status) = 'parked')
         AND (
           ($1::text IS NOT NULL AND (LOWER(v.owner_email) = $1 OR LOWER(res.customer_email) = $1))
@@ -2885,7 +3448,6 @@ app.get("/api/customer/my-parking", async (req, res) => {
           ($2::text IS NOT NULL AND (LOWER(v.owner_name) LIKE '%' || $2 || '%' OR LOWER(res.customer_name) LIKE '%' || $2 || '%'))
         )
       ORDER BY vh.entry_time DESC
-      LIMIT 1
     `, [cleanEmail, cleanName]);
 
     if (result.rowCount === 0) {
@@ -2919,38 +3481,36 @@ app.get("/api/customer/my-parking", async (req, res) => {
             OR
             ($2::text IS NOT NULL AND LOWER(v.owner_name) LIKE '%' || $2 || '%')
           )
-        ORDER BY v.id DESC LIMIT 1
+        ORDER BY v.id DESC
       `, [cleanEmail, cleanName]);
     }
 
     if (result.rowCount === 0) {
-      return res.json({ success: true, session: null, message: "No active parking session found" });
+      return res.json({ success: true, session: null, sessions: [], activeCount: 0, message: "No active parking session found" });
     }
 
-    const row = result.rows[0];
     const now = new Date();
-    const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at || now);
-    const diffMs = Math.max(0, now - entryDate);
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const hours = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-    const billedHours = Math.max(1, Math.ceil(diffMins / 60));
-    const rate = parseFloat(row.hourly_rate) || 50;
-    const totalFee = (billedHours * rate).toFixed(2);
+    const mappedSessions = result.rows.map((row) => {
+      const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at || now);
+      const diffMs = Math.max(0, now - entryDate);
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+      const rate = parseFloat(row.hourly_rate) || 50;
+      const totalFee = (billedHours * rate).toFixed(2);
 
-    res.json({
-      success: true,
-      session: {
+      return {
         id: row.id || row.history_id,
         vehicle_number: row.vehicle_number,
-        vehicle_type: row.vehicle_type || "Car",
+        vehicle_type: row.vehicle_type || (String(row.current_slot || "").toUpperCase().startsWith("EV") ? "EV" : "Car"),
         model: row.model || "Standard",
         owner_name: row.owner_name,
         owner_email: row.owner_email,
         owner_phone: row.owner_phone,
         current_slot: row.current_slot,
-        zone: row.zone || "Zone A",
+        zone: row.zone || (String(row.current_slot || "").toUpperCase().startsWith("EV") ? "Zone C (EV Fast)" : "Zone A"),
         slot_type: row.slot_type || "Standard",
         hourly_rate: rate,
         entry_time: entryDate.toISOString(),
@@ -2959,7 +3519,14 @@ app.get("/api/customer/my-parking", async (req, res) => {
         calculated_fee: `₹${totalFee}`,
         fee_numeric: parseFloat(totalFee),
         status: "Parked"
-      }
+      };
+    });
+
+    res.json({
+      success: true,
+      session: mappedSessions[0] || null,
+      sessions: mappedSessions,
+      activeCount: mappedSessions.length
     });
   } catch (err) {
     console.error(err);
@@ -3201,7 +3768,18 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
         "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
         [slotToFree]
       );
+      await client.query(
+        "UPDATE ev_charging_slots SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
+        [slotToFree]
+      );
     }
+
+    await client.query(
+      `UPDATE ev_charging_sessions 
+       SET session_status = 'Completed', payment_status = 'Completed', end_time = $1, duration = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE UPPER(vehicle_number) = $4 AND LOWER(session_status) = 'active'`,
+      [exitDate, dur, rawFee, vPlate]
+    );
 
     await client.query(
       "UPDATE vehicles SET status = 'Checked Out', current_slot = NULL WHERE UPPER(vehicle_number) = $1",
@@ -3243,11 +3821,35 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       ]
     );
 
-    const logCode2 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
-    await client.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Staff', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [logCode2, ownerName || "Staff Operator", `Vehicle Checkout: ${vPlate}`, `Vehicle ${vPlate} checked out from slot ${slotToFree}, fee: ₹${rawFee.toFixed(2)}`]
-    );
+    await logAuditEvent({
+      client,
+      userName: ownerName || "Staff Operator",
+      userEmail: ownerEmail || null,
+      role: "Staff",
+      action: "Vehicle Checkout",
+      module: "Vehicles",
+      entityType: "vehicle",
+      entityId: vPlate,
+      description: `Vehicle ${vPlate} checked out from slot ${slotToFree}, fee: ₹${rawFee.toFixed(2)}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
+    await logAuditEvent({
+      client,
+      userName: ownerName || "Customer",
+      userEmail: ownerEmail || null,
+      role: "Customer",
+      action: "Payment Completed",
+      module: "Payments",
+      entityType: "payment",
+      entityId: txnId,
+      description: `Parking payment of ₹${rawFee.toFixed(2)} completed via ${payMethod} for ${vPlate}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await client.query("COMMIT");
     client.release();
@@ -3719,16 +4321,31 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [slot_number]);
+    let isEvSlot = false;
+    let slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [slot_number]);
+    let targetZone = zone;
     if (slotCheck.rowCount === 0) {
-      await client.query("ROLLBACK");
-      client.release();
-      return res.status(400).json({ error: `Slot ${slot_number} does not exist` });
-    }
-    if (slotCheck.rows[0].status === "occupied" || slotCheck.rows[0].status === "reserved" || !slotCheck.rows[0].is_available) {
-      await client.query("ROLLBACK");
-      client.release();
-      return res.status(400).json({ error: `Slot ${slot_number} is already occupied or reserved` });
+      const evCheck = await client.query("SELECT * FROM ev_charging_slots WHERE UPPER(slot_number) = UPPER($1) FOR UPDATE", [slot_number]);
+      if (evCheck.rowCount === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: `Slot ${slot_number} does not exist` });
+      }
+      isEvSlot = true;
+      const evRow = evCheck.rows[0];
+      if (evRow.status && evRow.status.toLowerCase() !== "available") {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: `Slot ${slot_number} is currently ${evRow.status}` });
+      }
+      targetZone = targetZone || evRow.location_name || "Zone C (EV Station)";
+    } else {
+      if (slotCheck.rows[0].status === "occupied" || slotCheck.rows[0].status === "reserved" || !slotCheck.rows[0].is_available) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: `Slot ${slot_number} is already occupied or reserved` });
+      }
+      targetZone = targetZone || slotCheck.rows[0].zone || "Zone A";
     }
 
     const insertRes = await client.query(
@@ -3746,7 +4363,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         vType,
         vModel,
         slot_number,
-        zone || slotCheck.rows[0].zone || "Zone A",
+        targetZone,
         sTimeStr,
         eTimeStr,
         durHours,
@@ -3758,10 +4375,17 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       ]
     );
 
-    await client.query(
-      "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
-      [slot_number]
-    );
+    if (isEvSlot) {
+      await client.query(
+        "UPDATE ev_charging_slots SET status = 'Reserved', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
+        [slot_number]
+      );
+    } else {
+      await client.query(
+        "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
+        [slot_number]
+      );
+    }
 
     await client.query(
       `INSERT INTO vehicles (vehicle_number, vehicle_type, model, owner_name, owner_email, owner_phone, status, current_slot)
@@ -3802,11 +4426,35 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       ]
     );
 
-    const logCode3 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
-    await client.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Customer', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [logCode3, customer_name, `Reservation Created: ${bookingId}`, `Slot ${slot_number} reserved for vehicle ${vPlate}`]
-    );
+    await logAuditEvent({
+      client,
+      userName: customer_name,
+      userEmail: customer_email || null,
+      role: "Customer",
+      action: "Booking Created",
+      module: "Bookings",
+      entityType: "booking",
+      entityId: bookingId,
+      description: `Slot ${slot_number} reserved for vehicle ${vPlate} (${durHours}h, ₹${amountNum.toFixed(2)})`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
+    await logAuditEvent({
+      client,
+      userName: customer_name,
+      userEmail: customer_email || null,
+      role: "Customer",
+      action: "Payment Completed",
+      module: "Payments",
+      entityType: "payment",
+      entityId: payTxnId,
+      description: `Reservation advance payment of ₹${amountNum.toFixed(2)} via ${payMethod} for ${vPlate}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await client.query("COMMIT");
     client.release();
@@ -3946,11 +4594,19 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
       [booking.vehicle_number, booking.slot_number, nowStr, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
     );
 
-    const logCode4 = `LOG-${Math.floor(1000 + Math.random() * 9000)}`;
-    await client.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Staff', $3, $4, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [logCode4, validated_by || "Staff Operator", `Reservation Validated: ${booking.booking_id}`, `Vehicle ${booking.vehicle_number} checked in to slot ${booking.slot_number}`]
-    );
+    await logAuditEvent({
+      client,
+      userName: validated_by || "Staff Operator",
+      role: "Staff",
+      action: "Reservation Validated",
+      module: "Bookings",
+      entityType: "booking",
+      entityId: booking.booking_id,
+      description: `Vehicle ${booking.vehicle_number} checked in to slot ${booking.slot_number}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await client.query("COMMIT");
     client.release();
@@ -4047,6 +4703,10 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
         [updatedBooking.slot_number]
       );
       await pool.query(
+        "UPDATE ev_charging_slots SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
+        [updatedBooking.slot_number]
+      );
+      await pool.query(
         "UPDATE vehicles SET status = 'Registered', current_slot = NULL WHERE vehicle_number = $1 AND status = 'Reserved'",
         [updatedBooking.vehicle_number]
       );
@@ -4091,6 +4751,10 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
         "UPDATE parking_slots SET status = 'reserved', is_available = false WHERE slot_number = $1",
         [updatedBooking.slot_number]
       );
+      await pool.query(
+        "UPDATE ev_charging_slots SET status = 'Reserved', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
+        [updatedBooking.slot_number]
+      );
       if (updatedBooking.customer_email) {
         await notifyUser(updatedBooking.customer_email, {
           title: "Reservation Confirmed",
@@ -4106,6 +4770,10 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
     } else if (status.toLowerCase() === "checked in") {
       await pool.query(
         "UPDATE parking_slots SET status = 'occupied', is_available = false WHERE slot_number = $1",
+        [updatedBooking.slot_number]
+      );
+      await pool.query(
+        "UPDATE ev_charging_slots SET status = 'Charging', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
         [updatedBooking.slot_number]
       );
       await pool.query(
@@ -4134,6 +4802,14 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
       await pool.query(
         "UPDATE parking_slots SET status = 'available', is_available = true WHERE slot_number = $1",
         [updatedBooking.slot_number]
+      );
+      await pool.query(
+        "UPDATE ev_charging_slots SET status = 'Available', updated_at = CURRENT_TIMESTAMP WHERE UPPER(slot_number) = UPPER($1)",
+        [updatedBooking.slot_number]
+      );
+      await pool.query(
+        "UPDATE ev_charging_sessions SET session_status = 'Completed', payment_status = 'Completed', updated_at = CURRENT_TIMESTAMP WHERE UPPER(vehicle_number) = UPPER($1) AND LOWER(session_status) = 'active'",
+        [updatedBooking.vehicle_number]
       );
       await pool.query(
         "UPDATE vehicles SET status = 'Checked Out', current_slot = NULL WHERE vehicle_number = $1",
@@ -4287,6 +4963,20 @@ app.post("/api/pricing-plans", async (req, res) => {
       [pCode, plan_name.trim(), vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive]
     );
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Pricing Plan Created",
+      module: "Pricing",
+      entityType: "pricing_plan",
+      entityId: pCode,
+      description: `Created pricing plan "${plan_name}" at ₹${pRate.toFixed(2)} (${billing_type || "Hourly"})`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.status(201).json({
       success: true,
       message: `Pricing plan "${plan_name}" created successfully`,
@@ -4353,6 +5043,21 @@ app.put("/api/pricing-plans/:id", async (req, res) => {
       return res.status(404).json({ error: "Pricing plan not found" });
     }
 
+    const updatedPlan = updateRes.rows[0];
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Pricing Plan Updated",
+      module: "Pricing",
+      entityType: "pricing_plan",
+      entityId: updatedPlan.plan_code,
+      description: `Updated pricing plan "${plan_name}" (rate: ₹${pRate.toFixed(2)})`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({
       success: true,
       message: `Pricing plan "${plan_name}" updated successfully`,
@@ -4413,6 +5118,20 @@ app.patch("/api/pricing-plans/:id/status", async (req, res) => {
 
     const plan = updateRes.rows[0];
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Pricing Plan Status Changed",
+      module: "Pricing",
+      entityType: "pricing_plan",
+      entityId: plan.plan_code,
+      description: `Changed status of pricing plan "${plan.plan_name}" to ${is_active ? "Active" : "Inactive"}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({
       success: true,
       message: `Plan "${plan.plan_name}" status updated to ${is_active ? "Active" : "Inactive"}`,
@@ -4466,6 +5185,21 @@ app.delete("/api/pricing-plans/:id", async (req, res) => {
     }
 
     const plan = delRes.rows[0];
+
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Pricing Plan Deleted",
+      module: "Pricing",
+      entityType: "pricing_plan",
+      entityId: plan.plan_code,
+      description: `Deleted pricing plan "${plan.plan_name}" (${plan.plan_code})`,
+      severity: "Medium",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.json({
       success: true,
@@ -4655,6 +5389,20 @@ app.put("/api/support-tickets/:id/status", async (req, res) => {
       });
     }
 
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin Support",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Support Ticket Status Updated",
+      module: "Support",
+      entityType: "support_ticket",
+      entityId: ticket.ticket_code,
+      description: `Updated status of ticket ${ticket.ticket_code} to "${status}"`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({
       success: true,
       message: `Ticket status updated to ${status}`,
@@ -4679,6 +5427,21 @@ app.put("/api/support-tickets/:id/priority", async (req, res) => {
     if (updateRes.rowCount === 0) {
       return res.status(404).json({ error: "Support ticket not found" });
     }
+
+    const ticket = updateRes.rows[0];
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin Support",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Support Ticket Priority Updated",
+      module: "Support",
+      entityType: "support_ticket",
+      entityId: ticket.ticket_code,
+      description: `Updated priority of ticket ${ticket.ticket_code} to "${priority}"`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.json({
       success: true,
@@ -4740,6 +5503,22 @@ app.delete("/api/support-tickets/:id", async (req, res) => {
       return res.status(404).json({ error: "Support ticket not found" });
     }
 
+    const delTicket = deleteRes.rows[0];
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin Support",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Support Ticket Deleted",
+      module: "Support",
+      entityType: "support_ticket",
+      entityId: delTicket.ticket_code,
+      description: `Deleted support ticket ${delTicket.ticket_code} ("${delTicket.subject}")`,
+      severity: "Medium",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({
       success: true,
       message: "Ticket deleted successfully",
@@ -4785,6 +5564,20 @@ app.post("/api/support-tickets/:id/reply", async (req, res) => {
        WHERE id = $2 RETURNING *`,
       [JSON.stringify(messages), ticket.id]
     );
+
+    await logAuditEvent({
+      userName: sender || req.headers["x-admin-name"] || "Admin Support",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Support Reply Sent",
+      module: "Support",
+      entityType: "support_ticket",
+      entityId: ticket.ticket_code,
+      description: `Sent official response to customer on ticket ${ticket.ticket_code}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     if (ticket.customer_email) {
       await notifyUser(ticket.customer_email, {
@@ -5038,6 +5831,21 @@ app.put("/api/system-settings", async (req, res) => {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
       [JSON.stringify(settings)]
     );
+
+    await logAuditEvent({
+      userName: req.headers["x-admin-name"] || "Admin",
+      userEmail: req.headers["x-admin-email"] || null,
+      role: "Admin",
+      action: "Settings Updated",
+      module: "Settings",
+      entityType: "system_settings",
+      entityId: "general",
+      description: "Updated global system configurations and parking operational policies",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
     res.json({ success: true, settings, message: "System settings updated successfully" });
   } catch (err) {
     console.error(err);
@@ -5045,51 +5853,161 @@ app.put("/api/system-settings", async (req, res) => {
   }
 });
 
+const verifyAdminAccess = async (req) => {
+  let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.query.admin_email || req.query.email || "";
+  const authHeader = req.headers["authorization"] || "";
+  if (!adminEmail && authHeader) {
+    adminEmail = authHeader.replace(/^Bearer\s+/i, "").trim();
+  }
+  if (!adminEmail) {
+    return { error: "Unauthorized: Admin authentication required", status: 401 };
+  }
+  const adminResult = await pool.query(
+    "SELECT id, name, email, role, status FROM users WHERE LOWER(email) = LOWER($1)",
+    [adminEmail.trim()]
+  );
+  if (adminResult.rowCount === 0 || (adminResult.rows[0].status && adminResult.rows[0].status.toLowerCase() === "inactive")) {
+    return { error: "Unauthorized: Invalid or inactive admin account", status: 401 };
+  }
+  const adminUser = adminResult.rows[0];
+  if (adminUser.role !== "admin") {
+    return { error: "Forbidden: Administrator privileges required", status: 403 };
+  }
+  return { user: adminUser };
+};
+
+app.get("/api/admin/audit-logs/summary", async (req, res) => {
+  const auth = await verifyAdminAccess(req);
+  if (auth.error) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  try {
+    const totalRes = await pool.query("SELECT COUNT(*) FROM audit_logs");
+    const todayRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE DATE(created_at) = CURRENT_DATE");
+    const successRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE LOWER(COALESCE(status, 'success')) = 'success'");
+    const failedRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE LOWER(COALESCE(status, '')) = 'failed'");
+    const adminRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE LOWER(COALESCE(user_role, role, '')) = 'admin'");
+
+    res.json({
+      success: true,
+      summary: {
+        totalLogs: parseInt(totalRes.rows[0].count, 10) || 0,
+        todayLogs: parseInt(todayRes.rows[0].count, 10) || 0,
+        successfulActions: parseInt(successRes.rows[0].count, 10) || 0,
+        failedActions: parseInt(failedRes.rows[0].count, 10) || 0,
+        adminActions: parseInt(adminRes.rows[0].count, 10) || 0
+      }
+    });
+  } catch (err) {
+    console.error("Error fetching audit logs summary:", err);
+    res.status(500).json({ error: "Server error fetching audit logs summary" });
+  }
+});
+
 app.get("/api/admin/audit-logs", async (req, res) => {
-  const { page, limit, search, role, severity, action } = req.query;
+  const auth = await verifyAdminAccess(req);
+  if (auth.error) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { page, limit, search, role, module, action, status, dateRange, from, to } = req.query;
   try {
     let baseWhere = "FROM audit_logs WHERE 1=1";
     const params = [];
 
     if (search && search.trim()) {
       params.push(`%${search.trim().toLowerCase()}%`);
-      baseWhere += ` AND (LOWER(log_code) LIKE $${params.length} OR LOWER(actor) LIKE $${params.length} OR LOWER(action) LIKE $${params.length} OR LOWER(COALESCE(target, '')) LIKE $${params.length})`;
+      const pIdx = params.length;
+      baseWhere += ` AND (
+        LOWER(COALESCE(log_code, '')) LIKE $${pIdx} OR 
+        LOWER(COALESCE(user_name, actor, '')) LIKE $${pIdx} OR 
+        LOWER(COALESCE(user_email, '')) LIKE $${pIdx} OR 
+        LOWER(COALESCE(action, '')) LIKE $${pIdx} OR 
+        LOWER(COALESCE(module, '')) LIKE $${pIdx} OR 
+        LOWER(COALESCE(entity_id, '')) LIKE $${pIdx} OR 
+        LOWER(COALESCE(description, target, '')) LIKE $${pIdx}
+      )`;
     }
 
-    if (role && role !== "ALL") {
+    if (role && role !== "ALL" && role !== "All") {
       params.push(role.toLowerCase());
-      baseWhere += ` AND LOWER(role) = $${params.length}`;
+      baseWhere += ` AND LOWER(COALESCE(user_role, role, '')) = $${params.length}`;
     }
 
-    if (severity && severity !== "ALL") {
-      params.push(severity.toLowerCase());
-      baseWhere += ` AND LOWER(severity) = $${params.length}`;
+    if (module && module !== "ALL" && module !== "All") {
+      params.push(module.toLowerCase());
+      baseWhere += ` AND LOWER(COALESCE(module, '')) = $${params.length}`;
     }
 
-    if (action && action !== "ALL") {
-      params.push(action.toLowerCase());
-      baseWhere += ` AND LOWER(action) = $${params.length}`;
+    if (action && action !== "ALL" && action !== "All") {
+      params.push(`%${action.toLowerCase()}%`);
+      baseWhere += ` AND LOWER(action) LIKE $${params.length}`;
+    }
+
+    if (status && status !== "ALL" && status !== "All") {
+      params.push(status.toLowerCase());
+      baseWhere += ` AND LOWER(COALESCE(status, 'success')) = $${params.length}`;
+    }
+
+    if (dateRange && dateRange !== "ALL" && dateRange !== "All") {
+      const dr = dateRange.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (dr === "today") {
+        baseWhere += " AND DATE(created_at) = CURRENT_DATE";
+      } else if (dr === "yesterday") {
+        baseWhere += " AND DATE(created_at) = CURRENT_DATE - INTERVAL '1 day'";
+      } else if (dr === "last7days" || dr === "7days") {
+        baseWhere += " AND created_at >= CURRENT_DATE - INTERVAL '7 days'";
+      } else if (dr === "last30days" || dr === "30days") {
+        baseWhere += " AND created_at >= CURRENT_DATE - INTERVAL '30 days'";
+      }
+    }
+
+    if (from && from.trim()) {
+      params.push(new Date(from.trim()));
+      baseWhere += ` AND created_at >= $${params.length}`;
+    }
+
+    if (to && to.trim()) {
+      params.push(new Date(to.trim()));
+      baseWhere += ` AND created_at <= $${params.length}`;
     }
 
     const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
     const total = parseInt(countRes.rows[0].count, 10) || 0;
 
-    let logsRes;
-    let pageNum = 1;
-    let limitNum = total || 5;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
+    const offset = (pageNum - 1) * limitNum;
+    const dataParams = [...params, limitNum, offset];
 
-    if (page || limit) {
-      pageNum = Math.max(1, parseInt(page, 10) || 1);
-      limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
-      const offset = (pageNum - 1) * limitNum;
-      const dataParams = [...params, limitNum, offset];
-      logsRes = await pool.query(
-        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-        dataParams
-      );
-    } else {
-      logsRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC LIMIT 50`, params);
-    }
+    const logsRes = await pool.query(
+      `SELECT 
+        id, 
+        log_code, 
+        COALESCE(user_name, actor, 'System') AS user_name,
+        COALESCE(user_role, role, 'Staff') AS user_role,
+        user_email,
+        user_id,
+        action, 
+        COALESCE(module, 'System') AS module,
+        COALESCE(description, target, '') AS description,
+        entity_type, 
+        entity_id,
+        COALESCE(ip_address, ip, '127.0.0.1') AS ip_address,
+        user_agent,
+        COALESCE(status, 'Success') AS status,
+        severity,
+        created_at,
+        actor, 
+        role, 
+        target, 
+        ip
+       ${baseWhere} 
+       ORDER BY created_at DESC, id DESC 
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    );
 
     res.json({
       success: true,
@@ -5104,7 +6022,7 @@ app.get("/api/admin/audit-logs", async (req, res) => {
       }
     });
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching audit logs:", err);
     res.status(500).json({ error: "Server error fetching audit logs" });
   }
 });
@@ -5204,29 +6122,55 @@ app.put("/api/staff/incidents/:id/status", async (req, res) => {
 
 app.get("/api/staff/dashboard-overview", async (req, res) => {
   try {
-    const slotsRes = await pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC");
-    const todayResCount = await pool.query(
-      "SELECT COUNT(*) FROM reservations WHERE LOWER(status) != 'cancelled' AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR DATE(start_time) = CURRENT_DATE OR DATE(start_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"
-    );
-    const todayPaySum = await pool.query(
-      "SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"
-    );
-    const parkedVehicles = await pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'");
+    const [slotsRes, evSlotsRes, todayResCount, todayPaySum, parkedVehicles, activeEvSessRes] = await Promise.all([
+      pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
+      pool.query("SELECT * FROM ev_charging_slots ORDER BY slot_number ASC"),
+      pool.query("SELECT COUNT(*) FROM reservations WHERE LOWER(status) != 'cancelled' AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR DATE(start_time) = CURRENT_DATE OR DATE(start_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
+      pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
+      pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'"),
+      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'")
+    ]);
 
-    const slots = slotsRes.rows;
-    const totalSlots = slots.length;
-    const availableSlots = slots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved" && s.status !== "occupied")).length;
-    const occupiedSlots = slots.filter(s => s.status === "occupied" || (!s.is_available && s.status !== "reserved")).length;
-    const reservedSlots = slots.filter(s => s.status === "reserved").length;
-    const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots) / totalSlots) * 100) : 0;
+    const normalSlots = slotsRes.rows;
+    const evSlots = evSlotsRes.rows;
+    const totalSlots = normalSlots.length + evSlots.length;
+    const normalAvail = normalSlots.filter(s => s.status === "available" || (s.is_available && s.status !== "reserved" && s.status !== "occupied")).length;
+    const evAvail = evSlots.filter(s => (s.status || "").toLowerCase() === "available").length;
+    const availableSlots = normalAvail + evAvail;
+    const normalOcc = normalSlots.filter(s => s.status === "occupied" || (!s.is_available && s.status !== "reserved")).length;
+    const evOcc = evSlots.filter(s => (s.status || "").toLowerCase() === "occupied").length;
+    const occupiedSlots = normalOcc + evOcc;
+    const normalResv = normalSlots.filter(s => s.status === "reserved").length;
+    const evResv = evSlots.filter(s => (s.status || "").toLowerCase() === "reserved").length;
+    const reservedSlots = normalResv + evResv;
+    const chargingSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "charging").length;
+    const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots + chargingSlots) / totalSlots) * 100) : 0;
 
     const todayBookings = parseInt(todayResCount.rows[0]?.count || 0, 10);
     const todayRevenueVal = parseFloat(todayPaySum.rows[0]?.sum || 0);
-    const activeVehicles = parseInt(parkedVehicles.rows[0]?.count || 0, 10);
+    const activeVehicles = parseInt(parkedVehicles.rows[0]?.count || 0, 10) + parseInt(activeEvSessRes.rows[0]?.count || 0, 10);
 
     const recentRes = await pool.query(
       "SELECT id, vehicle_number, slot_number, entry_time, exit_time, duration, fee, status FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC, id DESC LIMIT 10"
     );
+
+    const unifiedSlots = [
+      ...normalSlots,
+      ...evSlots.map(es => ({
+        id: `ev-${es.id}`,
+        raw_ev_id: es.id,
+        slot_number: es.slot_number,
+        zone: "Zone EV (Fast Chargers)",
+        slot_type: es.charger_type || "EV Fast",
+        status: (es.status || "available").toLowerCase(),
+        is_available: (es.status || "").toLowerCase() === "available",
+        hourly_rate: es.charging_rate || 18.00,
+        is_ev: true,
+        power_kw: es.power_kw,
+        charging_power: es.charging_power,
+        connector_type: es.connector_type
+      }))
+    ];
 
     res.json({
       success: true,
@@ -5238,9 +6182,10 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
         totalSlots,
         occupiedSlots,
         reservedSlots,
+        chargingSlots,
         occupancyRate
       },
-      slots,
+      slots: unifiedSlots,
       recentEntries: recentRes.rows
     });
   } catch (err) {
@@ -5328,12 +6273,18 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       ? `SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments ${dateFilter} GROUP BY payment_method`
       : "SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments GROUP BY payment_method";
 
-    const [payRes, bookRes, vehTypeRes, payMethodRes, slotsRes] = await Promise.all([
+    const evQuery = dateFilter
+      ? `SELECT COUNT(*) AS ev_sessions_count, COALESCE(SUM(total_amount), 0) AS ev_revenue, COALESCE(SUM(energy_consumed), 0) AS ev_energy_kwh FROM ev_charging_sessions ${dateFilter}`
+      : "SELECT COUNT(*) AS ev_sessions_count, COALESCE(SUM(total_amount), 0) AS ev_revenue, COALESCE(SUM(energy_consumed), 0) AS ev_energy_kwh FROM ev_charging_sessions";
+
+    const [payRes, bookRes, vehTypeRes, payMethodRes, slotsRes, evStatsRes, evSlotsRes] = await Promise.all([
       pool.query(payQuery),
       pool.query(bookQuery),
       pool.query("SELECT vehicle_type, COUNT(*) AS count FROM vehicles GROUP BY vehicle_type"),
       pool.query(payMethodQuery),
-      pool.query("SELECT zone, COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' OR is_available = false THEN 1 ELSE 0 END) AS occupied FROM parking_slots GROUP BY zone ORDER BY zone ASC")
+      pool.query("SELECT zone, COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' OR is_available = false THEN 1 ELSE 0 END) AS occupied FROM parking_slots GROUP BY zone ORDER BY zone ASC"),
+      pool.query(evQuery),
+      pool.query("SELECT COUNT(*) AS total, SUM(CASE WHEN LOWER(status) IN ('charging', 'occupied') THEN 1 ELSE 0 END) AS occupied FROM ev_charging_slots")
     ]);
 
     const totalRevenue = parseFloat(payRes.rows[0]?.total_revenue || 0);
@@ -5362,6 +6313,17 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
         available: Math.max(0, total - occupied),
         rate
       };
+    });
+
+    const evTotalSlots = parseInt(evSlotsRes.rows[0]?.total || 0, 10);
+    const evOccupiedSlots = parseInt(evSlotsRes.rows[0]?.occupied || 0, 10);
+    const evRate = evTotalSlots > 0 ? Math.round((evOccupiedSlots / evTotalSlots) * 100) : 0;
+    zoneStats.push({
+      zone: "Zone C (EV Fast)",
+      total: evTotalSlots,
+      occupied: evOccupiedSlots,
+      available: Math.max(0, evTotalSlots - evOccupiedSlots),
+      rate: evRate
     });
 
     const hourlyEntryFilter = dateFilter ? `AND (entry_time >= CURRENT_DATE OR DATE(entry_time) = CURRENT_DATE)` : "";
@@ -5404,6 +6366,13 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
         totalBookings: totalBookings + totalPayments,
         avgOccupancy: zoneStats.length > 0 ? Math.round(zoneStats.reduce((acc, z) => acc + z.rate, 0) / zoneStats.length) : 0,
         activeParked: zoneStats.reduce((acc, z) => acc + z.occupied, 0)
+      },
+      evStats: {
+        sessionsCount: parseInt(evStatsRes.rows[0]?.ev_sessions_count || 0, 10),
+        revenue: parseFloat(evStatsRes.rows[0]?.ev_revenue || 0),
+        energyKwh: parseFloat(evStatsRes.rows[0]?.ev_energy_kwh || 0),
+        totalSlots: evTotalSlots,
+        availableSlots: Math.max(0, evTotalSlots - evOccupiedSlots)
       },
       vehicleBreakdown,
       paymentBreakdown,

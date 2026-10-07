@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../../config/api.js";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, Sparkles, CreditCard, Smartphone, Layers, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
 
 export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActive, onActivatePremium, preselectedPlan }) {
@@ -17,11 +17,19 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     return `${d}-${m}-${y} ${String(hours).padStart(2, "0")}:${mins} ${ampm}`;
   };
 
+  const isSlotAvailable = (s) => {
+    if (!s) return false;
+    const st = (s.status || "").toLowerCase().trim();
+    if (st !== "available") return false;
+    if (s.is_available === false) return false;
+    return true;
+  };
+
   const [entryDateTime, setEntryDateTime] = useState(() => formatDateTime(new Date()));
   const [exitDateTime, setExitDateTime] = useState(() => formatDateTime(new Date(Date.now() + 4 * 3600000)));
   const [duration] = useState("4 hours");
-  const [selectedZone, setSelectedZone] = useState("Zone A");
-  const [selectedSlot, setSelectedSlot] = useState("A-01");
+  const [selectedZone, setSelectedZone] = useState("Zone A (Ground - VIP)");
+  const [selectedSlot, setSelectedSlot] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("UPI / Fastag");
@@ -30,6 +38,8 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const [slotsList, setSlotsList] = useState([]);
   const [plansList, setPlansList] = useState([]);
   const [selectedPlanObject, setSelectedPlanObject] = useState(preselectedPlan || null);
+  const [bookingError, setBookingError] = useState("");
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
 
   const fetchActivePlans = async () => {
     setIsLoadingPlans(true);
@@ -68,18 +78,53 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     }
   }, [loggedInUser]);
 
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/parking-slots`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success && Array.isArray(d.slots)) {
-          setSlotsList(d.slots);
-          const firstInZone = d.slots.find((s) => s.zone === "Zone A" && s.status === "Available");
-          if (firstInZone) setSelectedSlot(firstInZone.slot_number);
+  const fetchSlotsList = useCallback(async () => {
+    try {
+      const [d, evD] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/parking-slots`).then((r) => r.json()).catch(() => ({})),
+        fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`).then((r) => r.json()).catch(() => ({}))
+      ]);
+      let combined = [];
+      if (d && d.success && Array.isArray(d.slots)) {
+        combined = [...d.slots];
+      }
+      if (evD && evD.success && Array.isArray(evD.slots)) {
+        const evMapped = evD.slots.map((s) => ({
+          id: `ev-${s.id}`,
+          slot_number: s.slot_number,
+          zone: "Zone C (EV Fast)",
+          status: s.status,
+          is_available: (s.status || "").toLowerCase().trim() === "available",
+          isEv: true
+        }));
+        combined = [...combined, ...evMapped];
+      }
+      if (combined.length > 0) {
+        setSlotsList(combined);
+        const firstInZone = combined.find((s) => s.zone && s.zone.includes("Zone A") && isSlotAvailable(s));
+        if (firstInZone) {
+          setSelectedSlot(firstInZone.slot_number);
+        } else {
+          const anyAvail = combined.find(isSlotAvailable);
+          if (anyAvail) {
+            setSelectedSlot(anyAvail.slot_number);
+            const matchingZoneBtn = ["Zone A (Ground - VIP)", "Zone B (Basement)", "Zone C (EV Fast)", "Zone D (Bikes)"].find(
+              (z) => anyAvail.zone && anyAvail.zone.includes(z.slice(0, 6))
+            );
+            if (matchingZoneBtn) setSelectedZone(matchingZoneBtn);
+          } else {
+            setSelectedSlot("");
+          }
         }
-      })
-      .catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
   }, []);
+
+  useEffect(() => {
+    fetchSlotsList();
+  }, [fetchSlotsList]);
 
   const updateTimesForPlan = (plan) => {
     const now = new Date();
@@ -135,85 +180,6 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     setCurrentStep(2);
   };
 
-  const handleProceedToConfirm = () => {
-    setCurrentStep(3);
-  };
-
-  const handleProceedToPayment = () => {
-    setCurrentStep(4);
-  };
-
-  const handleCompletePayment = async () => {
-    const isMonthly = isCurrentPlanMonthly();
-    const custEmail = loggedInUser?.email || "";
-    const custName = loggedInUser?.name || "Customer";
-
-    try {
-      await fetch(`${API_BASE_URL}/api/customer/reserve-slot`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer_name: custName,
-          customer_email: custEmail,
-          customer_phone: loggedInUser?.phone || "",
-          vehicle_number: vehiclePlate || "DL01 AB 1234",
-          vehicle_type: selectedPlanObject?.vehicle_type || "Car",
-          model: vehicleModel || "Standard",
-          slot_number: selectedSlot,
-          zone: selectedZone,
-          start_time: entryDateTime,
-          end_time: exitDateTime,
-          duration_hours: (selectedPlanObject?.billing_type || "").toLowerCase() === "monthly"
-            ? 720
-            : (selectedPlanObject?.billing_type || "").toLowerCase() === "daily"
-            ? 24
-            : (selectedPlanObject?.duration_hours || 2),
-          total_amount: getPlanCost(),
-          plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
-          plan_name: selectedPlanObject?.plan_name || "Standard Parking",
-          payment_method: paymentMethod || "UPI"
-        })
-      });
-    } catch (err) {
-      void err;
-    }
-
-    if (isMonthly) {
-      const validFromStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      const validUntilStr = new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      if (onActivatePremium) {
-        onActivatePremium({
-          active: true,
-          plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-          planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-          amount: getPlanCost(),
-          validFrom: validFromStr,
-          validUntil: validUntilStr,
-          remainingDays: 30,
-          slot: `${selectedSlot} (${selectedZone})`,
-          vehicle: vehiclePlate
-        });
-      }
-      try {
-        await fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_email: custEmail,
-            customer_name: custName,
-            plan_name: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-            amount: getPlanCost(),
-            slot: `${selectedSlot} (${selectedZone})`,
-            vehicle: vehiclePlate
-          })
-        });
-      } catch (err) {
-        void err;
-      }
-    }
-    setIsSuccessModalOpen(true);
-  };
-
   const handleFinish = () => {
     setIsSuccessModalOpen(false);
     if (onNavigate) {
@@ -251,6 +217,126 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-05`, status: "Available" },
     { slot_number: `${currentZoneCode.replace("Zone ", "").trim()}-06`, status: "Available" }
   ];
+
+  const hasAnyAvailableInZone = displayedSlots.some(isSlotAvailable);
+  const isCurrentSlotValidAndAvailable = Boolean(
+    selectedSlot && displayedSlots.some((s) => s.slot_number === selectedSlot && isSlotAvailable(s))
+  );
+
+  const handleZoneSelect = (z) => {
+    setSelectedZone(z);
+    const zCode = z.slice(0, 6);
+    const firstInNewZone = slotsList.find((s) => s.zone && s.zone.includes(zCode) && isSlotAvailable(s));
+    if (firstInNewZone) {
+      setSelectedSlot(firstInNewZone.slot_number);
+    } else {
+      setSelectedSlot("");
+    }
+  };
+
+  const handleProceedToConfirm = () => {
+    if (!isCurrentSlotValidAndAvailable) {
+      return;
+    }
+    setCurrentStep(3);
+  };
+
+  const handleProceedToPayment = () => {
+    if (!isCurrentSlotValidAndAvailable) {
+      setCurrentStep(2);
+      return;
+    }
+    setCurrentStep(4);
+  };
+
+  const handleCompletePayment = async () => {
+    if (!selectedSlot || !isCurrentSlotValidAndAvailable) {
+      setBookingError("Please select an available parking bay first.");
+      return;
+    }
+    const isMonthly = isCurrentPlanMonthly();
+    const custEmail = loggedInUser?.email || "";
+    const custName = loggedInUser?.name || "Customer";
+
+    setIsSubmittingBooking(true);
+    setBookingError("");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/customer/reserve-slot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: custName,
+          customer_email: custEmail,
+          customer_phone: loggedInUser?.phone || "",
+          vehicle_number: vehiclePlate || "DL01 AB 1234",
+          vehicle_type: selectedPlanObject?.vehicle_type || "Car",
+          model: vehicleModel || "Standard",
+          slot_number: selectedSlot,
+          zone: selectedZone,
+          start_time: entryDateTime,
+          end_time: exitDateTime,
+          duration_hours: (selectedPlanObject?.billing_type || "").toLowerCase() === "monthly"
+            ? 720
+            : (selectedPlanObject?.billing_type || "").toLowerCase() === "daily"
+            ? 24
+            : (selectedPlanObject?.duration_hours || 2),
+          total_amount: getPlanCost(),
+          plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
+          plan_name: selectedPlanObject?.plan_name || "Standard Parking",
+          payment_method: paymentMethod || "UPI"
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setBookingError(data.error || "Failed to book slot. This bay is currently reserved or unavailable.");
+        setIsSubmittingBooking(false);
+        fetchSlotsList();
+        return;
+      }
+    } catch {
+      setBookingError("Network error while connecting to server. Please try again.");
+      setIsSubmittingBooking(false);
+      return;
+    }
+
+    if (isMonthly) {
+      const validFromStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const validUntilStr = new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      if (onActivatePremium) {
+        onActivatePremium({
+          active: true,
+          plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+          planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+          amount: getPlanCost(),
+          validFrom: validFromStr,
+          validUntil: validUntilStr,
+          remainingDays: 30,
+          slot: `${selectedSlot} (${selectedZone})`,
+          vehicle: vehiclePlate
+        });
+      }
+      try {
+        await fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_email: custEmail,
+            customer_name: custName,
+            plan_name: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+            amount: getPlanCost(),
+            slot: `${selectedSlot} (${selectedZone})`,
+            vehicle: vehiclePlate
+          })
+        });
+      } catch (err) {
+        void err;
+      }
+    }
+    setIsSubmittingBooking(false);
+    setIsSuccessModalOpen(true);
+  };
 
   return (
     <div className="pw-reserve-screen-wrapper" style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
@@ -525,7 +611,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                 <button
                   key={z}
                   type="button"
-                  onClick={() => setSelectedZone(z)}
+                  onClick={() => handleZoneSelect(z)}
                   style={{
                     padding: "12px",
                     borderRadius: "8px",
@@ -543,36 +629,136 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             })}
           </div>
 
-          <label className="pw-calc-label" style={{ marginBottom: "8px", display: "block" }}>Available Bays in {selectedZone}</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", marginTop: "16px", flexWrap: "wrap", gap: "8px" }}>
+            <label className="pw-calc-label" style={{ margin: 0, display: "block" }}>
+              Bays in {selectedZone}
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "0.74rem", fontWeight: 700 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#0d9488" }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#0d9488" }}></span>
+                Available
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#dc2626" }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#dc2626" }}></span>
+                Reserved (Cannot Book)
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b" }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#64748b" }}></span>
+                Occupied
+              </span>
+            </div>
+          </div>
+
           <div className="pw-bay-selection-grid">
             {displayedSlots.map((slotObj) => {
               const slot = slotObj.slot_number;
-              const isSel = selectedSlot === slot;
+              const isAvail = isSlotAvailable(slotObj);
+              const rawStatus = (slotObj.status || "").toLowerCase().trim();
+              const isReserved = rawStatus === "reserved";
+              const isOccupied = rawStatus === "occupied";
+              const isMaintenance = rawStatus === "maintenance";
+              const isSel = selectedSlot === slot && isAvail;
+
               return (
                 <button
                   key={slot}
                   type="button"
-                  onClick={() => setSelectedSlot(slot)}
+                  disabled={!isAvail}
+                  onClick={() => {
+                    if (!isAvail) return;
+                    setSelectedSlot(slot);
+                  }}
+                  title={
+                    !isAvail
+                      ? `Bay ${slot} is currently ${rawStatus.toUpperCase()} and cannot be booked.`
+                      : `Click to select Bay ${slot}`
+                  }
                   style={{
                     padding: "14px 8px",
                     borderRadius: "8px",
-                    border: isSel ? (isCurrentPlanMonthly() ? "2px solid #C99A2E" : "2px solid #0d9488") : "1px solid #e2e8f0",
-                    background: isSel ? (isCurrentPlanMonthly() ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488") : "#ffffff",
-                    color: isSel ? "#ffffff" : "#0f172a",
+                    border: isSel
+                      ? (isCurrentPlanMonthly() ? "2px solid #C99A2E" : "2px solid #0d9488")
+                      : isReserved
+                      ? "1.5px dashed #f87171"
+                      : isOccupied
+                      ? "1px solid #cbd5e1"
+                      : isMaintenance
+                      ? "1px solid #fcd34d"
+                      : "1px solid #e2e8f0",
+                    background: isSel
+                      ? (isCurrentPlanMonthly() ? "linear-gradient(135deg, #C99A2E 0%, #9A6B18 100%)" : "#0d9488")
+                      : isReserved
+                      ? "var(--bg-sub, #fff1f2)"
+                      : isOccupied
+                      ? "var(--bg-sub, #f1f5f9)"
+                      : isMaintenance
+                      ? "var(--bg-sub, #fffbeb)"
+                      : "#ffffff",
+                    color: isSel
+                      ? "#ffffff"
+                      : isReserved
+                      ? "#b91c1c"
+                      : isOccupied
+                      ? "#64748b"
+                      : isMaintenance
+                      ? "#b45309"
+                      : "#0f172a",
                     fontWeight: 800,
                     fontSize: "0.95rem",
-                    cursor: "pointer",
-                    textAlign: "center"
+                    cursor: isAvail ? "pointer" : "not-allowed",
+                    opacity: isAvail ? 1 : 0.65,
+                    textAlign: "center",
+                    position: "relative",
+                    transition: "all 0.15s ease"
                   }}
                 >
-                  <div>Bay {slot}</div>
-                  <div style={{ fontSize: "0.68rem", opacity: 0.8, marginTop: "2px" }}>{isSel ? "Selected" : (slotObj.status || "Available")}</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                    <span>Bay {slot}</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.68rem",
+                      marginTop: "3px",
+                      fontWeight: 700,
+                      color: isSel
+                        ? "#ffffff"
+                        : isReserved
+                        ? "#dc2626"
+                        : isOccupied
+                        ? "#64748b"
+                        : isMaintenance
+                        ? "#b45309"
+                        : "#0d9488"
+                    }}
+                  >
+                    {isSel
+                      ? "✓ Selected"
+                      : isReserved
+                      ? "🚫 Reserved"
+                      : isOccupied
+                      ? "⛔ Occupied"
+                      : isMaintenance
+                      ? "⚠️ Maintenance"
+                      : "🟢 Available"}
+                  </div>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {!hasAnyAvailableInZone && (
+            <div style={{ background: "#fff1f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "10px 14px", marginTop: "14px", color: "#b91c1c", fontSize: "0.82rem", fontWeight: 600 }}>
+              ⚠️ All bays in {selectedZone} are currently reserved or occupied. Please select another parking zone above.
+            </div>
+          )}
+
+          {hasAnyAvailableInZone && !isCurrentSlotValidAndAvailable && (
+            <div style={{ background: "var(--bg-sub, #f8fafc)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "8px", padding: "8px 12px", marginTop: "14px", color: "var(--text-secondary, #64748b)", fontSize: "0.78rem" }}>
+              💡 Please click on an available bay (green) to select your parking spot before continuing.
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "18px" }}>
             <button
               type="button"
               className="pw-calc-btn-reset"
@@ -584,9 +770,16 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
             <button
               type="button"
+              disabled={!isCurrentSlotValidAndAvailable}
               className={`pw-calc-btn-submit ${isCurrentPlanMonthly() ? "pw-btn-gold" : ""}`}
               onClick={handleProceedToConfirm}
-              style={{ display: "inline-flex", alignItems: "center", gap: "8px", cursor: "pointer" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: isCurrentSlotValidAndAvailable ? "pointer" : "not-allowed",
+                opacity: isCurrentSlotValidAndAvailable ? 1 : 0.5
+              }}
             >
               <span>Confirm Details</span>
               <ArrowRight size={16} />
@@ -712,6 +905,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             })}
           </div>
 
+          {bookingError && (
+            <div style={{ background: "#fff1f2", border: "1.5px solid #fca5a5", color: "#b91c1c", padding: "12px 16px", borderRadius: "10px", marginBottom: "18px", fontWeight: 700, fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>⚠️ {bookingError}</span>
+            </div>
+          )}
+
           <div className="pw-reserve-cost-summary-box" style={{ background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #1c1809 0%, #2a200a 100%)" : "var(--bg-sub, #f8fafc)", border: isCurrentPlanMonthly() ? "1.5px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
             <div>
               <div style={{ fontSize: "0.82rem", color: isCurrentPlanMonthly() ? "#713F12" : "#64748b", fontWeight: 600 }}>Amount Due</div>
@@ -738,12 +937,22 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
             <button
               type="button"
+              disabled={isSubmittingBooking}
               className={`pw-calc-btn-submit ${isCurrentPlanMonthly() ? "pw-btn-gold" : ""}`}
               onClick={handleCompletePayment}
-              style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 34px", fontSize: "0.95rem", fontWeight: 800, cursor: "pointer" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 34px", fontSize: "0.95rem", fontWeight: 800, cursor: isSubmittingBooking ? "not-allowed" : "pointer", opacity: isSubmittingBooking ? 0.7 : 1 }}
             >
-              <Sparkles size={16} />
-              <span>Pay ₹ {getPlanCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })} & Complete</span>
+              {isSubmittingBooking ? (
+                <>
+                  <RefreshCw size={16} className="pw-spin" />
+                  <span>Processing Reservation...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  <span>Pay ₹ {getPlanCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })} & Complete</span>
+                </>
+              )}
             </button>
           </div>
         </div>

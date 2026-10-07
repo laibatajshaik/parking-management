@@ -225,6 +225,7 @@ export default function CustomerDashboard({ setView }) {
 
   const [recentParkings, setRecentParkings] = useState([]);
   const [activeSession, setActiveSession] = useState(null);
+  const [activeSessions, setActiveSessions] = useState([]);
   const [totalVisits, setTotalVisits] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
   const [primaryLocation, setPrimaryLocation] = useState({ name: "Central Parking Garage", available: "Available Bays" });
@@ -285,13 +286,16 @@ export default function CustomerDashboard({ setView }) {
     try {
       const sessRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?email=${encodeURIComponent(currentUser.email)}`);
       const sessData = await sessRes.json();
-      if (sessData.success && sessData.session) {
-        setActiveSession(sessData.session);
+      if (sessData.success && (sessData.session || (Array.isArray(sessData.sessions) && sessData.sessions.length > 0))) {
+        setActiveSession(sessData.session || sessData.sessions[0]);
+        setActiveSessions(Array.isArray(sessData.sessions) ? sessData.sessions : (sessData.session ? [sessData.session] : []));
       } else {
         setActiveSession(null);
+        setActiveSessions([]);
       }
     } catch {
       setActiveSession(null);
+      setActiveSessions([]);
     }
 
     try {
@@ -489,6 +493,7 @@ export default function CustomerDashboard({ setView }) {
                 loggedInUser={currentUser}
                 recentParkings={recentParkings}
                 activeSession={activeSession}
+                activeSessions={activeSessions}
                 onNavigate={handleTabChange}
                 setActiveTab={handleTabChange}
                 onViewReceipt={handleViewReceipt}

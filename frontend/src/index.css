@@ -4791,10 +4791,28 @@ img, video, canvas, svg {
 }
 
 .pw-customer-history-grid {
-  grid-template-columns: minmax(125px, 1.3fr) 80px minmax(115px, 1.1fr) minmax(115px, 1.1fr) minmax(95px, 0.9fr) minmax(85px, 0.8fr) minmax(85px, 0.8fr) minmax(110px, auto);
+  display: grid;
+  grid-template-columns: minmax(115px, 1.25fr) minmax(75px, 0.75fr) minmax(110px, 1.15fr) minmax(95px, 1fr) minmax(75px, 0.8fr) minmax(75px, 0.75fr) minmax(80px, 0.8fr) minmax(105px, auto);
   gap: 8px;
   width: 100%;
-  min-width: 880px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.pw-customer-history-table-wrapper {
+  width: 100%;
+  min-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.pw-customer-history-table-wrapper .pw-users-header-row,
+.pw-customer-history-table-wrapper .pw-user-cards-stack,
+.pw-customer-history-table-wrapper .pw-user-card-box {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pw-btn-action-download {

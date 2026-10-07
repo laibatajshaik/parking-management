@@ -15,7 +15,8 @@ import {
   Phone,
   History,
   RefreshCw,
-  Download
+  Download,
+  Zap
 } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -415,6 +416,7 @@ export default function VehicleManagement({
           {filteredVehicles.length > 0 ? (
             filteredVehicles.map((v) => {
               const isParked = (v.status || "").toLowerCase() === "parked";
+              const isCharging = (v.status || "").toLowerCase() === "charging";
               const typeKey = (v.vehicle_type || "Car").toLowerCase();
 
               return (
@@ -422,7 +424,7 @@ export default function VehicleManagement({
                   <div className="pw-veh-plate-col">
                     <div>
                       <span className="pw-veh-plate-badge" style={{ display: "inline-flex" }}>
-                        {typeKey === "bike" ? <Bike size={13} /> : <Car size={13} />}
+                        {typeKey === "bike" ? <Bike size={13} /> : typeKey === "ev" ? <Zap size={13} /> : <Car size={13} />}
                         <span>{v.vehicle_number}</span>
                       </span>
                     </div>
@@ -457,9 +459,12 @@ export default function VehicleManagement({
                   </div>
 
                   <div>
-                    <span className={`pw-veh-status-pill ${isParked ? "parked" : "checkedout"}`}>
-                      <span className="pw-status-dot"></span>
-                      {isParked ? `Parked (${v.current_slot || "Bay"})` : "Checked Out"}
+                    <span
+                      className={`pw-veh-status-pill ${isCharging ? "charging" : isParked ? "parked" : "checkedout"}`}
+                      style={isCharging ? { background: "rgba(16, 185, 129, 0.12)", color: "#059669", borderColor: "rgba(16, 185, 129, 0.3)" } : {}}
+                    >
+                      <span className="pw-status-dot" style={isCharging ? { background: "#10b981" } : {}}></span>
+                      {isCharging ? `Charging (${v.current_slot || "EV Bay"})` : isParked ? `Parked (${v.current_slot || "Bay"})` : "Checked Out"}
                     </span>
                   </div>
 

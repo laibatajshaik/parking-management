@@ -5,6 +5,11 @@ import {
   notifyAdmins,
   notifyStaff
 } from "../notifications/notificationService.js";
+import {
+  logAuditEvent,
+  getAuditClientIp,
+  getAuditUserAgent
+} from "../audit/auditLogger.js";
 
 const router = express.Router();
 
@@ -132,10 +137,18 @@ router.post("/ev-charging-slots", async (req, res) => {
       ]
     );
 
-    await pool.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Admin', 'Created EV Slot', $3, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [`LOG-${Date.now().toString().slice(-4)}`, admin_name, `Slot ${cleanSlotNumber}`]
-    );
+    await logAuditEvent({
+      userName: admin_name || "Admin",
+      role: "Admin",
+      action: "Created EV Slot",
+      module: "EV Charging",
+      entityType: "ev_slot",
+      entityId: cleanSlotNumber,
+      description: `Created EV charging slot ${cleanSlotNumber} (${charger_type}) at ₹${parsedRate}/kWh`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.status(201).json({
       success: true,
@@ -216,10 +229,18 @@ router.put("/ev-charging-slots/:id", async (req, res) => {
       ]
     );
 
-    await pool.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Admin', 'Updated EV Slot', $3, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [`LOG-${Date.now().toString().slice(-4)}`, admin_name, `Slot ${newSlotNumber} (${status || existing.status})`]
-    );
+    await logAuditEvent({
+      userName: admin_name || "Admin",
+      role: "Admin",
+      action: "Updated EV Slot",
+      module: "EV Charging",
+      entityType: "ev_slot",
+      entityId: newSlotNumber,
+      description: `Updated EV slot ${newSlotNumber} (status: ${status || existing.status})`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.json({
       success: true,
@@ -254,10 +275,19 @@ router.delete("/ev-charging-slots/:id", async (req, res) => {
 
     await pool.query("DELETE FROM ev_charging_slots WHERE id = $1", [id]);
 
-    await pool.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Admin', 'Deleted EV Slot', $3, 'Medium', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [`LOG-${Date.now().toString().slice(-4)}`, admin_name, `Slot ${slot.slot_number}`]
-    );
+    await logAuditEvent({
+      userName: admin_name || "Admin",
+      role: "Admin",
+      action: "Deleted EV Slot",
+      module: "EV Charging",
+      entityType: "ev_slot",
+      entityId: slot.slot_number,
+      description: `Deleted EV charging slot ${slot.slot_number}`,
+      severity: "Medium",
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     res.json({
       success: true,
@@ -500,10 +530,21 @@ router.post("/ev-charging/sessions/start", async (req, res) => {
       );
     }
 
-    await client.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Customer', 'Started EV Charging', $3, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [`LOG-${Date.now().toString().slice(-4)}`, resolvedName, `${cleanPlate} at Bay ${slot.slot_number}`]
-    );
+    await logAuditEvent({
+      client,
+      userId: resolvedUserId,
+      userName: resolvedName,
+      userEmail: cleanEmail,
+      role: "Customer",
+      action: "Started EV Charging",
+      module: "EV Charging",
+      entityType: "ev_session",
+      entityId: sessionCode,
+      description: `Vehicle ${cleanPlate} started charging at Bay ${slot.slot_number}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await client.query("COMMIT");
 
@@ -681,10 +722,21 @@ router.post("/ev-charging/sessions/:id/stop", async (req, res) => {
       [session.vehicle_number.toUpperCase()]
     );
 
-    await client.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'System', 'Completed EV Charging Session', $3, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [`LOG-${Date.now().toString().slice(-4)}`, session.customer_name, `${session.session_code} • ₹${totalAmount.toFixed(2)} via ${payment_method}`]
-    );
+    await logAuditEvent({
+      client,
+      userId: session.user_id || null,
+      userName: session.customer_name || "Customer",
+      userEmail: session.customer_email || null,
+      role: "Customer",
+      action: "Completed EV Charging Session",
+      module: "EV Charging",
+      entityType: "ev_session",
+      entityId: session.session_code,
+      description: `Completed EV session ${session.session_code} at Bay ${session.slot_number}: ${energyConsumed} kWh consumed, total ₹${totalAmount.toFixed(2)} via ${payment_method}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
 
     await client.query("COMMIT");
 

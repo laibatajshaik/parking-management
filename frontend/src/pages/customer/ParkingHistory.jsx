@@ -331,116 +331,136 @@ export default function ParkingHistory({ loggedInUser }) {
         </div>
 
         <div className="pw-users-table-scroll-container">
-          <div className="pw-users-header-row pw-mgmt-grid-row pw-customer-history-grid">
-            <span>Vehicle Plate</span>
-            <span>Assigned Bay</span>
-            <span>Entry Timestamp</span>
-            <span>Exit Timestamp</span>
-            <span>Duration</span>
-            <span>Amount Paid</span>
-            <span>Trip Status</span>
-            <span style={{ textAlign: "right" }}>Actions</span>
-          </div>
+          <div className="pw-customer-history-table-wrapper">
+            <div className="pw-users-header-row pw-mgmt-grid-row pw-customer-history-grid">
+              <span>Vehicle Plate</span>
+              <span>Assigned Bay</span>
+              <span>Entry Timestamp</span>
+              <span>Exit Timestamp</span>
+              <span>Duration</span>
+              <span>Amount Paid</span>
+              <span>Trip Status</span>
+              <span style={{ textAlign: "right" }}>Actions</span>
+            </div>
 
-          <div className="pw-user-cards-stack">
-            {filteredHistory.length > 0 ? (
-              filteredHistory.map((item) => {
-                const isOngoing = isOngoingSession(item);
-                const typeKey = (item.vehicle_type || "Car").toLowerCase();
-                const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "Completed");
-                const displayDuration = isOngoing
-                  ? (item.duration || "Ongoing")
-                  : (item.duration && item.duration !== "Ongoing" ? item.duration : "1h 00m");
-                const displayFee = item.fee ? item.fee : (isOngoing ? "Pending" : "₹50.00");
+            <div className="pw-user-cards-stack">
+              {filteredHistory.length > 0 ? (
+                filteredHistory.map((item) => {
+                  const isOngoing = isOngoingSession(item);
+                  const typeKey = (item.vehicle_type || "Car").toLowerCase();
+                  const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "Completed");
+                  const rawDuration = isOngoing
+                    ? (item.duration || "Ongoing")
+                    : (item.duration && item.duration !== "Ongoing" ? item.duration : "1h 00m");
+                  const displayDuration = String(rawDuration).replace(/\s*\(Ongoing\)/i, "").trim();
+                  const displayFee = item.fee ? item.fee : (isOngoing ? "Pending" : "₹50.00");
 
-                return (
-                  <div key={item.id} className="pw-user-card-box pw-mgmt-grid-row pw-customer-history-grid">
-                    <div className="pw-veh-plate-col">
+                  return (
+                    <div key={item.id} className="pw-user-card-box pw-mgmt-grid-row pw-customer-history-grid">
+                      <div className="pw-veh-plate-col">
+                        <div>
+                          <span className="pw-veh-plate-badge">
+                            {typeKey === "bike" ? <Bike size={13} /> : typeKey === "ev" ? <Zap size={13} /> : <Car size={13} />}
+                            <span>{item.vehicle_number}</span>
+                          </span>
+                        </div>
+                        <div className="pw-veh-model-sub">
+                          {item.model} • {item.vehicle_type}
+                        </div>
+                      </div>
+
                       <div>
-                        <span className="pw-veh-plate-badge">
-                          {typeKey === "bike" ? <Bike size={13} /> : typeKey === "ev" ? <Zap size={13} /> : <Car size={13} />}
-                          <span>{item.vehicle_number}</span>
+                        <span className="pw-badge-slot-cell">
+                          <Layers size={11} />
+                          <span>Bay {item.slot_number}</span>
                         </span>
                       </div>
-                      <div className="pw-veh-model-sub">
-                        {item.model} • {item.vehicle_type}
+
+                      <div className="pw-user-card-date-col">
+                        <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
+                          {formatDate(item.entry_time)}
+                        </span>
+                      </div>
+
+                      <div className="pw-user-card-date-col">
+                        {isOngoing ? (
+                          <span
+                            className="pw-status-pill"
+                            style={{
+                              fontSize: "0.72rem",
+                              background: "var(--bg-teal-sub, #f0fdf4)",
+                              color: "#16a34a",
+                              border: "1px solid #bbf7d0",
+                              width: "fit-content",
+                              padding: "2px 8px",
+                              fontWeight: 700
+                            }}
+                          >
+                            Ongoing
+                          </span>
+                        ) : (
+                          <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
+                            {displayExit}
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <span className="pw-duration-chip">
+                          <Clock size={11} />
+                          <span>{displayDuration}</span>
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="pw-fee-amount" style={{ color: "#0f766e", fontWeight: 800 }}>
+                          {displayFee}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span
+                          className={`pw-veh-status-pill ${isOngoing ? "parked" : "checkedout"}`}
+                          style={{ fontSize: "0.72rem" }}
+                        >
+                          <span className="pw-status-dot"></span>
+                          {isOngoing ? "Parked" : "Completed"}
+                        </span>
+                      </div>
+
+                      <div className="pw-user-card-actions-col" style={{ justifyContent: "flex-end", gap: "6px" }}>
+                        <button
+                          type="button"
+                          className="pw-btn-action-view"
+                          onClick={() => setSelectedSessionModal(item)}
+                          title="View Trip Summary"
+                        >
+                          <Receipt size={13} />
+                          <span>Details</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="pw-btn-action-download"
+                          onClick={() => handleDownloadSlip(item)}
+                          title="Download Trip Slip"
+                        >
+                          <Download size={13} />
+                        </button>
                       </div>
                     </div>
-
-                    <div>
-                      <span className="pw-badge-slot-cell">
-                        <Layers size={11} />
-                        <span>Bay {item.slot_number}</span>
-                      </span>
-                    </div>
-
-                    <div className="pw-user-card-date-col">
-                      <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
-                        {formatDate(item.entry_time)}
-                      </span>
-                    </div>
-
-                    <div className="pw-user-card-date-col">
-                      <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
-                        {displayExit}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="pw-duration-chip">
-                        <Clock size={11} />
-                        <span>{displayDuration}</span>
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="pw-fee-amount" style={{ color: "#0f766e" }}>
-                        {displayFee}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span
-                        className={`pw-veh-status-pill ${isOngoing ? "parked" : "checkedout"}`}
-                        style={{ fontSize: "0.72rem" }}
-                      >
-                        <span className="pw-status-dot"></span>
-                        {isOngoing ? "Parked" : "Completed"}
-                      </span>
-                    </div>
-
-                    <div className="pw-user-card-actions-col" style={{ justifyContent: "flex-end", gap: "6px" }}>
-                      <button
-                        type="button"
-                        className="pw-btn-action-view"
-                        onClick={() => setSelectedSessionModal(item)}
-                        title="View Trip Summary"
-                      >
-                        <Receipt size={13} />
-                        <span>Details</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className="pw-btn-action-download"
-                        onClick={() => handleDownloadSlip(item)}
-                        title="Download Trip Slip"
-                      >
-                        <Download size={13} />
-                      </button>
-                    </div>
+                  );
+                })
+              ) : (
+                <div className="pw-empty-users-card">
+                  <div className="pw-empty-state">
+                    <History size={36} className="pw-empty-icon" />
+                    <h4>No parking history found</h4>
+                    <p>When you check in and park at our facilities, your session records will appear here.</p>
                   </div>
-                );
-              })
-            ) : (
-              <div className="pw-empty-users-card">
-                <div className="pw-empty-state">
-                  <History size={36} className="pw-empty-icon" />
-                  <h4>No parking history found</h4>
-                  <p>When you check in and park at our facilities, your session records will appear here.</p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers, Download } from "lucide-react";
+import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers, Download, Zap } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function TodaysRevenue() {
@@ -157,13 +157,31 @@ export default function TodaysRevenue() {
 
   return (
     <div className="pw-todays-revenue-module">
-      <div className="pw-metrics-four-grid">
+      <div className="pw-metrics-four-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <div className="pw-metric-card">
           <span className="pw-metric-label">Today's Total Revenue</span>
           <span className="pw-metric-value">{totalRevFormatted}</span>
           <span className="pw-metric-trend positive">
             <TrendingUp size={12} />
-            <span>Verified collections</span>
+            <span>Combined collections</span>
+          </span>
+        </div>
+
+        <div className="pw-metric-card">
+          <span className="pw-metric-label">Normal Parking Revenue</span>
+          <span className="pw-metric-value" style={{ color: "#0284c7" }}>{summary.parkingRevenue || "₹0.00"}</span>
+          <span className="pw-metric-trend positive" style={{ color: "#0284c7" }}>
+            <Layers size={12} />
+            <span>Zones A, B, C, D</span>
+          </span>
+        </div>
+
+        <div className="pw-metric-card">
+          <span className="pw-metric-label">EV Charging Revenue</span>
+          <span className="pw-metric-value" style={{ color: "#10b981" }}>{summary.evRevenue || "₹0.00"}</span>
+          <span className="pw-metric-trend positive" style={{ color: "#10b981" }}>
+            <Zap size={12} />
+            <span>Fast charging sessions</span>
           </span>
         </div>
 
@@ -180,15 +198,8 @@ export default function TodaysRevenue() {
           <span className="pw-metric-label">Average Ticket Size</span>
           <span className="pw-metric-value">{avgTicketVal}</span>
           <span className="pw-metric-trend positive">
+            <Clock size={12} />
             <span>Per vehicle session</span>
-          </span>
-        </div>
-
-        <div className="pw-metric-card">
-          <span className="pw-metric-label">Primary Method</span>
-          <span className="pw-metric-value">UPI & Digital</span>
-          <span className="pw-metric-trend positive">
-            <span>Fast & contactless</span>
           </span>
         </div>
       </div>
@@ -226,6 +237,14 @@ export default function TodaysRevenue() {
             <span>Net Banking / Fastag</span>
           </div>
           <div className="pw-rev-method-val">₹{(methods["Net Banking"] || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+        </div>
+
+        <div className="pw-rev-method-card" style={{ border: "1.5px solid #a7f3d0", background: "rgba(16, 185, 129, 0.05)" }}>
+          <div className="pw-rev-method-header">
+            <Zap size={16} style={{ color: "#10b981" }} />
+            <span>EV Charging Revenue</span>
+          </div>
+          <div className="pw-rev-method-val" style={{ color: "#047857" }}>{summary.evRevenue || "₹0.00"}</div>
         </div>
       </div>
 
@@ -311,6 +330,13 @@ export default function TodaysRevenue() {
                         <Receipt size={12} />
                         <span>{p.transaction_id}</span>
                       </div>
+                      {((p.transaction_id && String(p.transaction_id).startsWith("TXN-EV-")) || (p.slot_number && String(p.slot_number).startsWith("EV-"))) && (
+                        <div style={{ marginTop: "2px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", padding: "1px 6px", borderRadius: "4px", fontSize: "0.68rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+                            <Zap size={10} /> EV Supercharge
+                          </span>
+                        </div>
+                      )}
                       <div className="pw-veh-model-sub" style={{ marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
                         <Calendar size={11} style={{ color: "#0d9488" }} />
                         <span>{formatDate(p.created_at || p.exit_time)}</span>

@@ -12,7 +12,8 @@ import {
   X,
   CheckCircle,
   RefreshCw,
-  Download
+  Download,
+  Zap
 } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -34,6 +35,11 @@ export default function ParkingSlotManagement({
   const [limit, setLimit] = useState(5);
   const [paginatedSlots, setPaginatedSlots] = useState([]);
   const [totalSlots, setTotalSlots] = useState(0);
+
+  const [evSlots, setEvSlots] = useState([]);
+  const [evActiveSessions, setEvActiveSessions] = useState([]);
+  const [evSearch, setEvSearch] = useState("");
+  const [evStatusFilter, setEvStatusFilter] = useState("ALL");
 
   const [isAddSlotModalOpen, setIsAddSlotModalOpen] = useState(false);
   const [addSlotFormData, setAddSlotFormData] = useState({
@@ -78,9 +84,27 @@ export default function ParkingSlotManagement({
     } catch {}
   }, [page, limit, slotSearch, slotZoneFilter, slotStatusFilter, slotTypeFilter]);
 
+  const fetchEvSlots = useCallback(async () => {
+    try {
+      const [slotsRes, sessRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`),
+        fetch(`${API_BASE_URL}/api/ev-charging/sessions?status=Active`)
+      ]);
+      const sData = await slotsRes.json();
+      const sessData = await sessRes.json();
+      if (sData.success && Array.isArray(sData.slots)) {
+        setEvSlots(sData.slots);
+      }
+      if (sessData.success && Array.isArray(sessData.sessions)) {
+        setEvActiveSessions(sessData.sessions);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchSlots();
-  }, [fetchSlots]);
+    fetchEvSlots();
+  }, [fetchSlots, fetchEvSlots]);
 
   const filteredSlotManagerSlots = paginatedSlots;
 
@@ -91,10 +115,27 @@ export default function ParkingSlotManagement({
     setIsRefreshing(true);
     try {
       if (fetchDashboardData) await fetchDashboardData();
-      await fetchSlots();
+      await Promise.all([fetchSlots(), fetchEvSlots()]);
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleEvStatusChange = async (slotId, newStatus) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots/${slotId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        if (setStatusActionMessage) {
+          setStatusActionMessage(`EV Slot updated to ${newStatus}`);
+          setTimeout(() => setStatusActionMessage(""), 3000);
+        }
+        await fetchEvSlots();
+      }
+    } catch {}
   };
 
   const handleExportCsv = () => {
@@ -297,7 +338,8 @@ export default function ParkingSlotManagement({
               <option value="Zone A">Zone A</option>
               <option value="Zone B">Zone B</option>
               <option value="Zone C">Zone C</option>
-              <option value="Zone D">Zone D</option>
+              <option value="Zone D (Bikes)">Zone D (Bikes)</option>
+              <option value="Zone EV">Zone EV</option>
             </select>
           </div>
 
@@ -332,6 +374,8 @@ export default function ParkingSlotManagement({
               <option value="available">Available</option>
               <option value="occupied">Occupied</option>
               <option value="reserved">Reserved</option>
+              <option value="charging">Charging</option>
+              <option value="maintenance">Maintenance</option>
             </select>
           </div>
 
@@ -391,7 +435,7 @@ export default function ParkingSlotManagement({
           {filteredSlotManagerSlots.length > 0 ? (
             filteredSlotManagerSlots.map((s) => {
               const state = getSlotState(s);
-              const typeKey = (s.slot_type || "Standard").toLowerCase().includes("vip") ? "vip" : (s.slot_type || "").toLowerCase().includes("bike") ? "bike" : "standard";
+              const typeKey = (s.slot_type || "").toLowerCase().includes("ev") ? "ev" : (s.slot_type || "Standard").toLowerCase().includes("vip") ? "vip" : (s.slot_type || "").toLowerCase().includes("bike") ? "bike" : "standard";
 
               return (
                 <div key={s.id} className="pw-user-card-box pw-mgmt-grid-row pw-slot-mgmt-grid">
@@ -420,7 +464,7 @@ export default function ParkingSlotManagement({
 
                   <div>
                     <span
-                      className={`pw-tile-status-chip ${state === "available" ? "avail" : state === "occupied" ? "occ" : "reserved"}`}
+                      className={`pw-tile-status-chip ${state === "available" ? "avail" : state === "occupied" ? "occ" : state === "charging" ? "charging" : state === "maintenance" ? "maint" : "reserved"}`}
                       style={{ cursor: "pointer" }}
                       onClick={async () => {
                         const nextStatus = state === "available" ? "occupied" : state === "occupied" ? "reserved" : "available";
@@ -429,7 +473,7 @@ export default function ParkingSlotManagement({
                       }}
                       title="Click to cycle status"
                     >
-                      {state === "available" ? "🟢 Free" : state === "occupied" ? "🔴 Occupied" : "🔵 Reserved"}
+                      {state === "available" ? "🟢 Free" : state === "occupied" ? "🔴 Occupied" : state === "charging" ? "⚡ Charging" : state === "maintenance" ? "⚠️ Maintenance" : "🔵 Reserved"}
                     </span>
                   </div>
 
@@ -489,6 +533,190 @@ export default function ParkingSlotManagement({
         }}
         itemLabel="parking slots"
       />
+
+      <div style={{ marginTop: "40px", paddingTop: "28px", borderTop: "2px dashed var(--border-color, #e2e8f0)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+          <div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <Zap size={20} style={{ color: "#10b981" }} />
+              <h3 style={{ fontSize: "1.15rem", fontWeight: 800, margin: 0, color: "var(--text-primary, #0f172a)" }}>
+                EV CHARGING SLOTS
+              </h3>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px", background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+                Dedicated High-Voltage Charging Stations
+              </span>
+            </div>
+            <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "var(--text-secondary, #64748b)" }}>
+              Zone C Electric Vehicle Charging Infrastructure • Real-time Hardware & Session Monitor
+            </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div className="pw-search-box-pill" style={{ minWidth: "220px" }}>
+              <Search size={14} className="pw-search-icon" />
+              <input
+                type="text"
+                placeholder="Search EV bay, type, power..."
+                value={evSearch}
+                onChange={(e) => setEvSearch(e.target.value)}
+                className="pw-pill-input"
+              />
+            </div>
+            <select
+              value={evStatusFilter}
+              onChange={(e) => setEvStatusFilter(e.target.value)}
+              className="pw-custom-select"
+              style={{ width: "auto", minWidth: "140px" }}
+            >
+              <option value="ALL">All EV Statuses</option>
+              <option value="Available">Available</option>
+              <option value="Charging">Charging</option>
+              <option value="Occupied">Occupied</option>
+              <option value="Maintenance">Maintenance</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          {evSlots.filter((s) => {
+            const q = (evSearch || "").trim().toLowerCase();
+            const queryMatch =
+              !q ||
+              (s.slot_number || "").toLowerCase().includes(q) ||
+              (s.location_name || "").toLowerCase().includes(q) ||
+              (s.charger_type || "").toLowerCase().includes(q) ||
+              (s.connector_type || "").toLowerCase().includes(q);
+            const statusMatch = evStatusFilter === "ALL" || (s.status || "").toLowerCase() === evStatusFilter.toLowerCase();
+            return queryMatch && statusMatch;
+          }).length > 0 ? (
+            evSlots.filter((s) => {
+              const q = (evSearch || "").trim().toLowerCase();
+              const queryMatch =
+                !q ||
+                (s.slot_number || "").toLowerCase().includes(q) ||
+                (s.location_name || "").toLowerCase().includes(q) ||
+                (s.charger_type || "").toLowerCase().includes(q) ||
+                (s.connector_type || "").toLowerCase().includes(q);
+              const statusMatch = evStatusFilter === "ALL" || (s.status || "").toLowerCase() === evStatusFilter.toLowerCase();
+              return queryMatch && statusMatch;
+            }).map((ev) => {
+              const activeSession = evActiveSessions.find(
+                (s) => s.slot_id === ev.id || String(s.slot_number).toUpperCase() === String(ev.slot_number).toUpperCase()
+              );
+              const statusLower = (ev.status || "available").toLowerCase();
+              const isAvail = statusLower === "available";
+              const isCharging = statusLower === "charging" || !!activeSession;
+              const isMaint = statusLower === "maintenance";
+
+              return (
+                <div
+                  key={ev.id}
+                  style={{
+                    background: "var(--bg-card, #ffffff)",
+                    border: `1.5px solid ${isCharging ? "#3b82f6" : isAvail ? "#10b981" : isMaint ? "#f59e0b" : "#e2e8f0"}`,
+                    borderRadius: "12px",
+                    padding: "16px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "12px"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "1.15rem", fontWeight: 900, color: "var(--text-primary, #0f172a)" }}>
+                          {ev.slot_number}
+                        </span>
+                        <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", background: "rgba(16, 185, 129, 0.1)", color: "#059669" }}>
+                          {ev.charging_power || "60 kW"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #64748b)", marginTop: "2px" }}>
+                        {ev.location_name || "Zone C (EV Station)"}
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: "0.74rem",
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: "12px",
+                        background: isAvail ? "rgba(16, 185, 129, 0.12)" : isCharging ? "rgba(59, 130, 246, 0.12)" : isMaint ? "rgba(245, 158, 11, 0.12)" : "rgba(100, 116, 139, 0.12)",
+                        color: isAvail ? "#059669" : isCharging ? "#2563eb" : isMaint ? "#d97706" : "#475569",
+                        border: `1px solid ${isAvail ? "#a7f3d0" : isCharging ? "#bfdbfe" : isMaint ? "#fde68a" : "#cbd5e1"}`
+                      }}
+                    >
+                      {isCharging ? "⚡ Charging" : ev.status}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "var(--bg-muted, #f8fafc)", padding: "10px", borderRadius: "8px", fontSize: "0.76rem" }}>
+                    <div>
+                      <span style={{ color: "var(--text-secondary, #64748b)", display: "block", fontSize: "0.7rem" }}>Charger Type</span>
+                      <strong style={{ color: "var(--text-primary, #0f172a)" }}>{ev.charger_type || "DC Fast"}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--text-secondary, #64748b)", display: "block", fontSize: "0.7rem" }}>Connector</span>
+                      <strong style={{ color: "var(--text-primary, #0f172a)" }}>{ev.connector_type || "CCS2"}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--text-secondary, #64748b)", display: "block", fontSize: "0.7rem" }}>Tariff Rate</span>
+                      <strong style={{ color: "#0d9488" }}>₹{parseFloat(ev.charging_rate || 18).toFixed(2)}/kWh</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "var(--text-secondary, #64748b)", display: "block", fontSize: "0.7rem" }}>Status</span>
+                      <strong style={{ color: "var(--text-primary, #0f172a)" }}>{ev.status}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--border-color, #f1f5f9)", paddingTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: "0.75rem" }}>
+                      {activeSession ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#2563eb", fontWeight: 700 }}>
+                          <Zap size={12} /> {activeSession.vehicle_number}
+                        </span>
+                      ) : isAvail ? (
+                        <span style={{ color: "#16a34a", fontWeight: 600 }}>Ready for vehicle</span>
+                      ) : (
+                        <span style={{ color: "#64748b" }}>{ev.status}</span>
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {isAvail ? (
+                        <button
+                          type="button"
+                          onClick={() => handleEvStatusChange(ev.id, "Maintenance")}
+                          style={{ padding: "4px 8px", fontSize: "0.7rem", fontWeight: 600, borderRadius: "6px", border: "1px solid #fde68a", background: "#fef3c7", color: "#92400e", cursor: "pointer" }}
+                        >
+                          Maintenance
+                        </button>
+                      ) : isMaint ? (
+                        <button
+                          type="button"
+                          onClick={() => handleEvStatusChange(ev.id, "Available")}
+                          style={{ padding: "4px 8px", fontSize: "0.7rem", fontWeight: 600, borderRadius: "6px", border: "1px solid #a7f3d0", background: "#ecfdf5", color: "#065f46", cursor: "pointer" }}
+                        >
+                          Set Available
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ gridColumn: "1 / -1", padding: "24px", textAlign: "center", background: "var(--bg-card, #ffffff)", borderRadius: "10px", border: "1px dashed var(--border-color, #cbd5e1)" }}>
+              <Zap size={24} style={{ color: "#94a3b8", margin: "0 auto 8px auto" }} />
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary, #64748b)" }}>No EV charging slots match your filters.</p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {isAddSlotModalOpen && (
         <div className="pw-modal-backdrop" onClick={() => setIsAddSlotModalOpen(false)}>

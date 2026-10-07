@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function ReportsAnalytics() {
   const [timeRange, setTimeRange] = useState("Last 30 Days");
@@ -8,6 +9,8 @@ export default function ReportsAnalytics() {
   const [exportMessage, setExportMessage] = useState("");
   const [analyticsData, setAnalyticsData] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [zonePage, setZonePage] = useState(1);
+  const [zoneLimit, setZoneLimit] = useState(5);
 
   const fetchAnalytics = () => {
     return fetch(`${API_BASE_URL}/api/admin/reports-analytics?range=${encodeURIComponent(timeRange)}`)
@@ -21,6 +24,7 @@ export default function ReportsAnalytics() {
   };
 
   useEffect(() => {
+    setZonePage(1);
     fetchAnalytics();
   }, [timeRange]);
 
@@ -32,6 +36,7 @@ export default function ReportsAnalytics() {
   };
 
   const summary = analyticsData?.summary || { totalRevenue: 0, totalBookings: 0, avgOccupancy: 0, activeParked: 0 };
+  const evStats = analyticsData?.evStats || { sessionsCount: 0, revenue: 0, energyKwh: 0, totalSlots: 6, availableSlots: 5 };
   const vehicleBreakdown = analyticsData?.vehicleBreakdown || [];
   const paymentBreakdown = analyticsData?.paymentBreakdown || [];
   const zoneStats = analyticsData?.zoneStats || [];
@@ -121,6 +126,9 @@ export default function ReportsAnalytics() {
       csvRows.push(["Total Vehicles Handled", currentData.metrics.totalVehicles, currentData.metrics.vehicleSubtitle]);
       csvRows.push(["Avg Parking Duration", currentData.metrics.avgDuration, currentData.metrics.durationSubtitle]);
       csvRows.push(["Peak Occupancy Rate", currentData.metrics.peakOccupancy, currentData.metrics.peakSubtitle]);
+      csvRows.push(["EV Sessions Count", String(evStats.sessionsCount), "Completed charging sessions"]);
+      csvRows.push(["EV Charging Revenue", `₹ ${Math.round(evStats.revenue).toLocaleString("en-IN")}`, "Fast chargers"]);
+      csvRows.push(["EV Energy Consumed", `${evStats.energyKwh.toFixed(1)} kWh`, "High-voltage dispensed"]);
       csvRows.push([]);
 
       csvRows.push(["HOURLY TRAFFIC & REVENUE HEATMAP"]);
@@ -294,6 +302,46 @@ export default function ReportsAnalytics() {
         </div>
       </div>
 
+      <div className="pw-metrics-four-grid" style={{ marginTop: "16px", marginBottom: "6px" }}>
+        <div className="pw-metric-card" style={{ borderLeft: "3.5px solid #10b981" }}>
+          <span className="pw-metric-label">EV Charging Sessions</span>
+          <span className="pw-metric-value" style={{ color: "#059669" }}>{evStats.sessionsCount}</span>
+          <span className="pw-metric-trend positive">
+            <Zap size={13} />
+            <span>Fast charge cycles</span>
+          </span>
+        </div>
+
+        <div className="pw-metric-card" style={{ borderLeft: "3.5px solid #10b981" }}>
+          <span className="pw-metric-label">EV Charging Revenue</span>
+          <span className="pw-metric-value" style={{ color: "#059669" }}>₹ {Math.round(evStats.revenue).toLocaleString("en-IN")}</span>
+          <span className="pw-metric-trend positive">
+            <TrendingUp size={13} />
+            <span>High-voltage tariff</span>
+          </span>
+        </div>
+
+        <div className="pw-metric-card" style={{ borderLeft: "3.5px solid #10b981" }}>
+          <span className="pw-metric-label">Energy Dispensed</span>
+          <span className="pw-metric-value">{evStats.energyKwh.toFixed(1)} kWh</span>
+          <span className="pw-metric-trend positive">
+            <Layers size={13} />
+            <span>Facility grid output</span>
+          </span>
+        </div>
+
+        <div className="pw-metric-card" style={{ borderLeft: "3.5px solid #10b981" }}>
+          <span className="pw-metric-label">EV Station Utilization</span>
+          <span className="pw-metric-value">
+            {evStats.totalSlots > 0 ? Math.round(((evStats.totalSlots - evStats.availableSlots) / evStats.totalSlots) * 100) : 0}%
+          </span>
+          <span className="pw-metric-trend positive">
+            <ShieldCheck size={13} />
+            <span>{evStats.totalSlots - evStats.availableSlots} of {evStats.totalSlots} bays active</span>
+          </span>
+        </div>
+      </div>
+
       <div className="pw-analytics-two-col-grid">
         <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
@@ -386,7 +434,7 @@ export default function ReportsAnalytics() {
               </tr>
             </thead>
             <tbody>
-              {currentData.zonePerformance.map((zp, idx) => (
+              {(currentData.zonePerformance.slice((zonePage - 1) * zoneLimit, zonePage * zoneLimit)).map((zp, idx) => (
                 <tr key={idx}>
                   <td style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>{zp.zone}</td>
                   <td style={{ textAlign: "center" }}>{zp.totalBays} Bays</td>
@@ -402,6 +450,20 @@ export default function ReportsAnalytics() {
             </tbody>
           </table>
         </div>
+
+        {currentData.zonePerformance.length > 0 && (
+          <Pagination
+            page={zonePage}
+            limit={zoneLimit}
+            total={currentData.zonePerformance.length}
+            onPageChange={setZonePage}
+            onLimitChange={(newLimit) => {
+              setZoneLimit(newLimit);
+              setZonePage(1);
+            }}
+            limitOptions={[5, 10, 25, 50]}
+          />
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { CalendarCheck, Search, RefreshCw, CheckCircle2, Clock, Layers, Download, X, TrendingUp, Tag, CheckCircle, XCircle } from "lucide-react";
+import { CalendarCheck, Search, RefreshCw, CheckCircle2, Clock, Layers, Download, X, TrendingUp, Tag, CheckCircle, XCircle, Zap } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function BookingsReservations({ setStatusActionMessage }) {
@@ -29,14 +29,18 @@ export default function BookingsReservations({ setStatusActionMessage }) {
         page: String(page),
         limit: String(limit),
         search: searchQuery || "",
-        status: statusFilter
+        status: statusFilter === "EV" ? "ALL" : statusFilter
       });
       const res = await fetch(`${API_BASE_URL}/api/bookings?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.bookings)) {
-        setBookings(data.bookings);
-        setTotalBookings(data.total !== undefined ? data.total : data.bookings.length);
+        let list = data.bookings;
+        if (statusFilter === "EV") {
+          list = list.filter((b) => (b.slot_number || "").startsWith("EV") || (b.vehicle_type || "").toUpperCase() === "EV" || (b.plan_code || "").includes("EV"));
+        }
+        setBookings(list);
+        setTotalBookings(statusFilter === "EV" ? list.length : (data.total !== undefined ? data.total : data.bookings.length));
         if (data.stats) {
           setStats(data.stats);
         }
@@ -532,6 +536,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                 <option value="Checked In">Checked In</option>
                 <option value="Completed">Completed</option>
                 <option value="Cancelled">Cancelled</option>
+                <option value="EV">⚡ EV Charging Only</option>
               </select>
             </div>
 
@@ -613,6 +618,13 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>
                         {b.zone || "Zone A"}
                       </span>
+                      {((b.slot_number || "").startsWith("EV") || (b.vehicle_type || "").toUpperCase() === "EV" || (b.plan_code || "").includes("EV")) && (
+                        <div style={{ marginTop: "3px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", padding: "1px 6px", borderRadius: "4px", fontSize: "0.68rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+                            <Zap size={10} /> EV Charging
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pw-user-card-date-col">

@@ -29,15 +29,22 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
           setBays(
             slotsData.slots.map((s) => {
               const matchedVeh = vehMap[s.slot_number];
+              const isEv = Boolean(
+                s.is_ev ||
+                (s.slot_number && s.slot_number.startsWith("EV")) ||
+                (s.zone && (s.zone.includes("EV") || s.zone === "Zone E"))
+              );
               return {
                 id: s.id,
                 slot: s.slot_number,
-                zone: s.zone,
-                type: s.slot_type || (s.slot_number.startsWith("D") ? "Bike" : s.slot_number.startsWith("C") ? "EV" : "Car"),
-                status: s.status,
-                vehicle: matchedVeh ? matchedVeh.vehicle_number : s.status === "available" ? null : "Assigned",
-                parkedSince: matchedVeh ? "Active Session" : s.status === "reserved" ? "Reserved Booking" : s.status === "available" ? null : "Ongoing",
-                user: matchedVeh ? matchedVeh.owner_name : s.status === "available" ? null : "Registered User"
+                zone: isEv ? "Zone E" : s.zone,
+                raw_zone: s.zone,
+                is_ev: isEv,
+                type: s.slot_type || (s.slot_number.startsWith("D") ? "Bike" : isEv ? "EV Fast" : s.slot_number.startsWith("C") ? "VIP" : "Car"),
+                status: (s.status || "available").toLowerCase(),
+                vehicle: matchedVeh ? matchedVeh.vehicle_number : (s.status || "").toLowerCase() === "available" ? null : "Assigned",
+                parkedSince: matchedVeh ? "Active Session" : (s.status || "").toLowerCase() === "reserved" ? "Reserved Booking" : (s.status || "").toLowerCase() === "available" ? null : "Ongoing",
+                user: matchedVeh ? matchedVeh.owner_name : (s.status || "").toLowerCase() === "available" ? null : "Registered User"
               };
             })
           );
@@ -89,8 +96,27 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
       .catch(() => {});
   };
 
+  const isMatchZone = (b, targetZone) => {
+    if (!b) return false;
+    const bz = (b.zone || "").trim();
+    const tz = (targetZone || "").trim();
+    if (tz === "Zone E" || tz === "Zone EV" || tz === "Zone E (EV)" || tz === "Zone E (Fast Chargers)") {
+      return (
+        bz === "Zone E" ||
+        bz === "Zone EV" ||
+        bz.includes("EV") ||
+        b.is_ev ||
+        (b.slot && String(b.slot).startsWith("EV"))
+      );
+    }
+    if (tz === "Zone D" || tz === "Zone D (Bikes)") {
+      return bz === "Zone D" || bz === "Zone D (Bikes)";
+    }
+    return bz === tz;
+  };
+
   const filteredBays = bays.filter((b) => {
-    const matchesZone = b.zone === selectedZone;
+    const matchesZone = isMatchZone(b, selectedZone);
     const matchesSearch =
       b.slot.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (b.vehicle && b.vehicle.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -98,10 +124,10 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
     return matchesZone && matchesSearch;
   });
 
-  const totalZoneBays = bays.filter((b) => b.zone === selectedZone).length;
-  const availZoneBays = bays.filter((b) => b.zone === selectedZone && b.status === "available").length;
-  const occZoneBays = bays.filter((b) => b.zone === selectedZone && b.status === "occupied").length;
-  const resZoneBays = bays.filter((b) => b.zone === selectedZone && b.status === "reserved").length;
+  const totalZoneBays = bays.filter((b) => isMatchZone(b, selectedZone)).length;
+  const availZoneBays = bays.filter((b) => isMatchZone(b, selectedZone) && b.status === "available").length;
+  const occZoneBays = bays.filter((b) => isMatchZone(b, selectedZone) && b.status === "occupied").length;
+  const resZoneBays = bays.filter((b) => isMatchZone(b, selectedZone) && b.status === "reserved").length;
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -168,7 +194,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
                 cursor: "pointer"
               }}
             >
-              {z} ({z === "Zone A" ? "Cars" : z === "Zone B" ? "SUVs" : z === "Zone C" ? "EV Fast" : "Bikes"})
+              {z} ({z === "Zone A" ? "Cars" : z === "Zone B" ? "SUVs" : z === "Zone C" ? "VIP" : z === "Zone D" ? "Bikes" : "EV Charging"})
             </button>
           ))}
         </div>

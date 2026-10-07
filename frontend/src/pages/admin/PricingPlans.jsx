@@ -21,6 +21,7 @@ import {
 export default function PricingPlans({ setStatusActionMessage }) {
   const [plans, setPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState("All");
   const [billingFilter, setBillingFilter] = useState("All");
@@ -79,6 +80,15 @@ export default function PricingPlans({ setStatusActionMessage }) {
   useEffect(() => {
     fetchPlans();
   }, [fetchPlans]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchPlans();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const showNotification = (msg) => {
     setActionSuccess(msg);
@@ -292,80 +302,118 @@ export default function PricingPlans({ setStatusActionMessage }) {
         </div>
       )}
 
-      <div className="pw-plans-action-bar" style={{ marginTop: "20px" }}>
-        <div className="pw-plans-search-group">
-          <div className="pw-search-input-wrap">
-            <Search size={16} className="pw-search-icon" />
+      <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+          <div className="pw-user-search-wrapper" style={{ minWidth: "260px", maxWidth: "420px", flex: "1 1 300px", position: "relative" }}>
+            <Search size={15} className="pw-search-icon" />
             <input
               type="text"
-              className="pw-search-input"
-              placeholder="Search plan name, code, vehicle..."
+              className="pw-user-search-input"
+              placeholder="Search plan name, code, vehicle type..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setPage(1);
               }}
+              style={{ width: "100%", paddingRight: searchQuery ? "32px" : "12px" }}
             />
-          </div>
-
-          <div className="pw-filter-pills-row">
-            {["All", "Car", "SUV", "EV", "Bike"].map((v) => (
+            {searchQuery && (
               <button
-                key={v}
                 type="button"
-                className={`pw-filter-pill ${vehicleFilter === v ? "active" : ""}`}
+                className="pw-clear-search-btn"
                 onClick={() => {
-                  setVehicleFilter(v);
+                  setSearchQuery("");
                   setPage(1);
                 }}
+                title="Clear search"
+                style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary, #94a3b8)" }}
               >
-                {v}
+                <X size={14} />
               </button>
-            ))}
+            )}
           </div>
 
-          <div className="pw-filter-pills-row">
-            {["All", "Hourly", "Daily", "Flat"].map((b) => (
-              <button
-                key={b}
-                type="button"
-                className={`pw-filter-pill ${billingFilter === b ? "active" : ""}`}
-                onClick={() => {
-                  setBillingFilter(b);
-                  setPage(1);
-                }}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-
-          <div className="pw-filter-pills-row">
-            {["All", "Active", "Inactive"].map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`pw-filter-pill ${statusFilter === s ? "active" : ""}`}
-                onClick={() => {
-                  setStatusFilter(s);
-                  setPage(1);
-                }}
-              >
-                {s}
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="pw-btn-secondary"
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              title="Refresh pricing plans from database"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border-color, #cbd5e1)", background: "var(--bg-card, #ffffff)", color: "var(--text-primary, #0f172a)", cursor: (isRefreshing || isLoading) ? "not-allowed" : "pointer", fontSize: "0.86rem", fontWeight: 600 }}
+            >
+              <RefreshCw size={15} className={(isRefreshing || isLoading) ? "pw-spin-icon" : ""} />
+              <span>{isRefreshing ? "Refreshing..." : "Refresh Plans"}</span>
+            </button>
+            <button
+              type="button"
+              className="pw-btn-primary"
+              onClick={handleOpenCreateModal}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "var(--primary-color, #0284c7)", color: "#ffffff", border: "none", cursor: "pointer", fontSize: "0.86rem", fontWeight: 600 }}
+            >
+              <Plus size={16} />
+              <span>Create New Plan</span>
+            </button>
           </div>
         </div>
 
-        <div className="pw-plans-right-actions">
-          <button type="button" className="pw-btn-secondary" onClick={fetchPlans} title="Refresh Plans">
-            <RefreshCw size={15} />
-            <span>Refresh</span>
-          </button>
-          <button type="button" className="pw-btn-primary" onClick={handleOpenCreateModal}>
-            <Plus size={16} />
-            <span>Create New Plan</span>
-          </button>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "16px", padding: "10px 14px", background: "rgba(15, 23, 42, 0.03)", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Vehicle:</span>
+            <div className="pw-filter-pills-row" style={{ display: "inline-flex", gap: "4px" }}>
+              {["All", "Car", "SUV", "EV", "Bike"].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={`pw-filter-pill ${vehicleFilter === v ? "active" : ""}`}
+                  onClick={() => {
+                    setVehicleFilter(v);
+                    setPage(1);
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Billing:</span>
+            <div className="pw-filter-pills-row" style={{ display: "inline-flex", gap: "4px" }}>
+              {["All", "Hourly", "Daily", "Flat"].map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  className={`pw-filter-pill ${billingFilter === b ? "active" : ""}`}
+                  onClick={() => {
+                    setBillingFilter(b);
+                    setPage(1);
+                  }}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Status:</span>
+            <div className="pw-filter-pills-row" style={{ display: "inline-flex", gap: "4px" }}>
+              {["All", "Active", "Inactive"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`pw-filter-pill ${statusFilter === s ? "active" : ""}`}
+                  onClick={() => {
+                    setStatusFilter(s);
+                    setPage(1);
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

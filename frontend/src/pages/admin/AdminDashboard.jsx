@@ -11,7 +11,7 @@ import {
   BarChart3,
   Bell,
   Settings,
-  HelpCircle,
+  ShieldAlert,
   Search,
   Menu,
   X,
@@ -56,7 +56,7 @@ const ADMIN_SIDEBAR_ITEMS = [
   { id: "reports-analytics", label: "Reports", icon: BarChart3, isWorking: true },
   { id: "notifications", label: "Notifications", icon: Bell, isWorking: true },
   { id: "system-settings", label: "Settings", icon: Settings, isWorking: true },
-  { id: "support-logs", label: "Support & Logs", icon: HelpCircle, isWorking: true },
+  { id: "support-logs", label: "Audit & Logs", icon: ShieldAlert, isWorking: true },
 ];
 
 export default function AdminDashboard({ setView }) {
@@ -78,7 +78,7 @@ export default function AdminDashboard({ setView }) {
     if (rawTab === "locations") return "parking-locations";
     if (rawTab === "reports") return "reports-analytics";
     if (rawTab === "settings") return "system-settings";
-    if (rawTab === "logs") return "support-logs";
+    if (rawTab === "logs" || rawTab === "audit-logs" || rawTab === "audit") return "support-logs";
     return rawTab;
   };
 
@@ -307,8 +307,13 @@ export default function AdminDashboard({ setView }) {
   };
 
   const getSlotState = (slot) => {
+    if (!slot) return "available";
+    const st = (slot.status || "").toLowerCase();
+    if (st === "charging") return "charging";
+    if (st === "maintenance") return "maintenance";
+    if (st === "reserved") return "reserved";
+    if (st === "occupied") return "occupied";
     if (!slot.is_available) {
-      if (slot.status === "reserved") return "reserved";
       return "occupied";
     }
     return "available";
@@ -342,6 +347,8 @@ export default function AdminDashboard({ setView }) {
   const availableCount = slots.filter((s) => getSlotState(s) === "available").length;
   const occupiedCount = slots.filter((s) => getSlotState(s) === "occupied").length;
   const reservedCount = slots.filter((s) => getSlotState(s) === "reserved").length;
+  const chargingCount = slots.filter((s) => getSlotState(s) === "charging").length;
+  const maintenanceCount = slots.filter((s) => getSlotState(s) === "maintenance").length;
 
   const formatDate = (isoStr) => {
     if (!isoStr) return "Just now";
@@ -369,7 +376,7 @@ export default function AdminDashboard({ setView }) {
     if (activeTab === "reports-analytics") return "Reports";
     if (activeTab === "notifications") return "Notifications";
     if (activeTab === "system-settings") return "Settings";
-    if (activeTab === "support-logs") return "Support & Logs";
+    if (activeTab === "support-logs") return "Audit & Logs";
     return "Admin Dashboard";
   };
 
@@ -388,7 +395,7 @@ export default function AdminDashboard({ setView }) {
     if (activeTab === "reports-analytics") return "Data visualisations, peak hour analysis, and exportable financial reports.";
     if (activeTab === "notifications") return "System-wide alert history, revenue milestones, and administrative notifications.";
     if (activeTab === "system-settings") return "Database connectivity, IoT hardware gates, and platform security flags.";
-    if (activeTab === "support-logs") return "Immutable operational logs, system diagnostics, and emergency dispatch trails.";
+    if (activeTab === "support-logs") return "Track important system and administrative activities.";
     return "Overview of the complete parking management system";
   };
 
@@ -544,6 +551,10 @@ export default function AdminDashboard({ setView }) {
                 availableCount={availableCount}
                 occupiedCount={occupiedCount}
                 reservedCount={reservedCount}
+                chargingCount={chargingCount}
+                maintenanceCount={maintenanceCount}
+                totalCount={slots.length}
+                onRefresh={fetchDashboardData}
               />
             )}
 

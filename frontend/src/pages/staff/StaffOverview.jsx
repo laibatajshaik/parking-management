@@ -287,7 +287,7 @@ export default function StaffOverview({ metrics, recentEntries = [], userEmail, 
                 <span className="pw-legend-val">{metrics.availableSlots} slots</span>
               </div>
               <div className="pw-total-slots-note">
-                Total Capacity: {metrics.totalSlots || 25} active bays
+                Total Capacity: {metrics.totalSlots || 30} active bays
               </div>
             </div>
           </div>
