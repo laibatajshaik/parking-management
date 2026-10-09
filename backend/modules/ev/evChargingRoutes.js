@@ -10,6 +10,7 @@ import {
   getAuditClientIp,
   getAuditUserAgent
 } from "../audit/auditLogger.js";
+import { validateCoupon, recordCouponUsage } from "../coupons/couponService.js";
 
 const router = express.Router();
 
@@ -648,16 +649,40 @@ router.post("/ev-charging/sessions/:id/stop", async (req, res) => {
     const energyConsumed = parseFloat(Math.max(1.8, theoreticalEnergy).toFixed(2));
 
     const rate = parseFloat(session.charging_rate) || 18.00;
-    const totalAmount = parseFloat((energyConsumed * rate).toFixed(2));
+    const theoreticalAmount = parseFloat((energyConsumed * rate).toFixed(2));
+    const originalAmount = theoreticalAmount;
+    let finalAmount = theoreticalAmount;
+    let discountAmount = 0;
+    let appliedCouponCode = null;
+
+    const { coupon_code } = req.body;
+    if (coupon_code && String(coupon_code).trim()) {
+      const couponValidation = await validateCoupon({
+        code: String(coupon_code).trim(),
+        customerEmail: session.customer_email,
+        orderAmount: originalAmount,
+        serviceType: "EV Charging",
+        db: client
+      });
+
+      if (!couponValidation.valid) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: couponValidation.error });
+      }
+
+      discountAmount = couponValidation.discount_amount;
+      finalAmount = couponValidation.final_amount;
+      appliedCouponCode = couponValidation.code;
+    }
 
     const txnId = `TXN-EV-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const paymentRes = await client.query(
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, payment_method, method,
-        payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP)
+        slot_number, entry_time, exit_time, duration, amount, original_amount, discount_amount, coupon_code,
+        payment_method, method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Completed', CURRENT_TIMESTAMP)
       RETURNING *`,
       [
         txnId,
@@ -669,7 +694,10 @@ router.post("/ev-charging/sessions/:id/stop", async (req, res) => {
         startTime,
         endTime,
         durationStr,
-        totalAmount,
+        finalAmount,
+        originalAmount,
+        discountAmount,
+        appliedCouponCode,
         payment_method,
         payment_method
       ]
@@ -677,24 +705,46 @@ router.post("/ev-charging/sessions/:id/stop", async (req, res) => {
 
     const payment = paymentRes.rows[0];
 
+    if (appliedCouponCode && discountAmount > 0) {
+      await recordCouponUsage({
+        client,
+        couponCode: appliedCouponCode,
+        customerEmail: session.customer_email,
+        customerName: session.customer_name,
+        chargingSessionId: session.session_code,
+        paymentId: txnId,
+        originalAmount,
+        discountAmount,
+        finalAmount,
+        serviceType: "EV Charging",
+        req
+      });
+    }
+
     const updateSessionRes = await client.query(
       `UPDATE ev_charging_sessions SET
         end_time = CURRENT_TIMESTAMP,
         duration = $1,
         energy_consumed = $2,
         total_amount = $3,
-        payment_method = $4,
+        original_amount = $4,
+        discount_amount = $5,
+        coupon_code = $6,
+        payment_method = $7,
         payment_status = 'Completed',
         session_status = 'Completed',
-        payment_id = $5,
-        transaction_id = $6,
+        payment_id = $8,
+        transaction_id = $9,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $10
       RETURNING *`,
       [
         durationStr,
         energyConsumed,
-        totalAmount,
+        finalAmount,
+        originalAmount,
+        discountAmount,
+        appliedCouponCode,
         payment_method,
         payment.id,
         txnId,

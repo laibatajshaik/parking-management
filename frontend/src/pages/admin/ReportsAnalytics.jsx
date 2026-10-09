@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw } from "lucide-react";
+import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 
@@ -37,6 +37,7 @@ export default function ReportsAnalytics() {
 
   const summary = analyticsData?.summary || { totalRevenue: 0, totalBookings: 0, avgOccupancy: 0, activeParked: 0 };
   const evStats = analyticsData?.evStats || { sessionsCount: 0, revenue: 0, energyKwh: 0, totalSlots: 6, availableSlots: 5 };
+  const couponStats = analyticsData?.couponStats || { totalCoupons: 0, activeCoupons: 0, totalRedemptions: 0, totalDiscountsGiven: 0, topCoupons: [] };
   const vehicleBreakdown = analyticsData?.vehicleBreakdown || [];
   const paymentBreakdown = analyticsData?.paymentBreakdown || [];
   const zoneStats = analyticsData?.zoneStats || [];
@@ -129,6 +130,10 @@ export default function ReportsAnalytics() {
       csvRows.push(["EV Sessions Count", String(evStats.sessionsCount), "Completed charging sessions"]);
       csvRows.push(["EV Charging Revenue", `₹ ${Math.round(evStats.revenue).toLocaleString("en-IN")}`, "Fast chargers"]);
       csvRows.push(["EV Energy Consumed", `${evStats.energyKwh.toFixed(1)} kWh`, "High-voltage dispensed"]);
+      csvRows.push(["Total Coupons Created", String(couponStats.totalCoupons), "All database coupons"]);
+      csvRows.push(["Active Promo Campaigns", String(couponStats.activeCoupons), "Currently redeemable"]);
+      csvRows.push(["Total Coupon Redemptions", String(couponStats.totalRedemptions), "Completed discounted checkouts"]);
+      csvRows.push(["Total Discounts Provided", `₹ ${Math.round(couponStats.totalDiscountsGiven).toLocaleString("en-IN")}`, "Gross discount subsidy"]);
       csvRows.push([]);
 
       csvRows.push(["HOURLY TRAFFIC & REVENUE HEATMAP"]);
@@ -418,6 +423,64 @@ export default function ReportsAnalytics() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "var(--bg-teal-sub, #f0fdfa)", color: "#0d9488", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Ticket size={16} />
+            </div>
+            <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>
+              Coupons & Promotional Impact ({timeRange})
+            </h4>
+          </div>
+          <span style={{ fontSize: "0.78rem", color: "var(--text-secondary, #64748b)" }}>
+            Database-driven promo code redemptions
+          </span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "12px", marginBottom: "16px" }}>
+          <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #64748b)", fontWeight: 600 }}>Total Coupons</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "var(--text-primary, #0f172a)", marginTop: "2px" }}>{couponStats.totalCoupons}</div>
+            <div style={{ fontSize: "0.7rem", color: "#0d9488", marginTop: "2px", fontWeight: 600 }}>Configured in system</div>
+          </div>
+          <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #64748b)", fontWeight: 600 }}>Active Campaigns</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#16a34a", marginTop: "2px" }}>{couponStats.activeCoupons}</div>
+            <div style={{ fontSize: "0.7rem", color: "#16a34a", marginTop: "2px", fontWeight: 600 }}>Live & redeemable</div>
+          </div>
+          <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #64748b)", fontWeight: 600 }}>Total Redemptions</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#0284c7", marginTop: "2px" }}>{couponStats.totalRedemptions}</div>
+            <div style={{ fontSize: "0.7rem", color: "#0284c7", marginTop: "2px", fontWeight: 600 }}>Orders with discounts</div>
+          </div>
+          <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary, #64748b)", fontWeight: 600 }}>Discounts Provided</div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#d97706", marginTop: "2px" }}>₹{Math.round(couponStats.totalDiscountsGiven).toLocaleString("en-IN")}</div>
+            <div style={{ fontSize: "0.7rem", color: "#d97706", marginTop: "2px", fontWeight: 600 }}>Total customer savings</div>
+          </div>
+        </div>
+
+        {Array.isArray(couponStats.topCoupons) && couponStats.topCoupons.length > 0 && (
+          <div style={{ marginTop: "10px" }}>
+            <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", marginBottom: "8px" }}>Top Performing Promotional Codes</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap: "8px" }}>
+              {couponStats.topCoupons.map((c, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-sub, #f8fafc)", borderRadius: "8px", border: "1px solid var(--border-color, #e2e8f0)" }}>
+                  <div>
+                    <span style={{ fontWeight: 800, color: "#0f766e", fontSize: "0.85rem" }}>{c.coupon_code}</span>
+                    <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)" }}>{c.uses} redemptions</div>
+                  </div>
+                  <span style={{ fontWeight: 800, color: "#16a34a", fontSize: "0.85rem" }}>
+                    -₹{Math.round(parseFloat(c.discounts || 0)).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>

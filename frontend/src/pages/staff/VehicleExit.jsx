@@ -61,12 +61,16 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
     setIsProcessingExit(true);
     if (setStatusActionMessage) setStatusActionMessage("");
 
+    const finalFee = selectedVehicle.is_reservation
+      ? (selectedVehicle.payable_at_exit !== undefined ? `₹${Number(selectedVehicle.payable_at_exit).toFixed(2)}` : (selectedVehicle.is_overstay ? `₹${Number(selectedVehicle.overstay_fee || 0).toFixed(2)}` : "₹0.00"))
+      : (selectedVehicle.calculated_fee || "₹50.00");
+
     const payload = {
       vehicle_number: selectedVehicle.vehicle_number,
       slot_number: selectedVehicle.current_slot,
       exit_time: new Date().toISOString(),
       duration: selectedVehicle.duration || "1h 00m",
-      fee: selectedVehicle.calculated_fee || "₹50.00",
+      fee: finalFee,
       payment_method: paymentMethod,
       customer_name: selectedVehicle.owner_name || "Customer",
       customer_email: selectedVehicle.owner_email || "",
@@ -421,8 +425,28 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
                       <span className="pw-detail-label">Customer Phone</span>
                       <div className="pw-detail-val">{selectedVehicle.owner_phone || "—"}</div>
                     </div>
+                    {selectedVehicle.scheduled_start_time && (
+                      <div className="pw-detail-field-card">
+                        <span className="pw-detail-label">Scheduled Start</span>
+                        <div className="pw-detail-val">{formatDate(selectedVehicle.scheduled_start_time)}</div>
+                      </div>
+                    )}
+                    {selectedVehicle.scheduled_end_time && (
+                      <div className="pw-detail-field-card">
+                        <span className="pw-detail-label">Scheduled Exit</span>
+                        <div className="pw-detail-val" style={selectedVehicle.is_overstay ? { color: "#ef4444", fontWeight: 700 } : {}}>
+                          {formatDate(selectedVehicle.scheduled_end_time)}
+                        </div>
+                      </div>
+                    )}
+                    {selectedVehicle.booked_duration_hours && (
+                      <div className="pw-detail-field-card">
+                        <span className="pw-detail-label">Booked Duration</span>
+                        <div className="pw-detail-val">{selectedVehicle.booked_duration_hours} hr(s)</div>
+                      </div>
+                    )}
                     <div className="pw-detail-field-card">
-                      <span className="pw-detail-label">Entry Timestamp</span>
+                      <span className="pw-detail-label">Actual Entry</span>
                       <div className="pw-detail-val">{formatDate(selectedVehicle.entry_time)}</div>
                     </div>
                     <div className="pw-detail-field-card">
@@ -430,12 +454,10 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
                       <div className="pw-detail-val">{selectedVehicle.duration}</div>
                     </div>
                     <div className="pw-detail-field-card">
-                      <span className="pw-detail-label">Slot Tariff</span>
-                      <div className="pw-detail-val">₹{selectedVehicle.hourly_rate}.00 / hr</div>
-                    </div>
-                    <div className="pw-detail-field-card">
-                      <span className="pw-detail-label">Status</span>
-                      <div className="pw-detail-val" style={{ color: "#0f766e", fontWeight: 700 }}>Ready for Exit</div>
+                      <span className="pw-detail-label">Exit Status</span>
+                      <div className="pw-detail-val" style={{ color: selectedVehicle.is_overstay ? "#ef4444" : "#0f766e", fontWeight: 700 }}>
+                        {selectedVehicle.is_overstay ? `Overstay (${selectedVehicle.overstay_duration})` : (selectedVehicle.is_reservation ? "On Schedule (Pre-paid)" : "Ready for Exit")}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -451,9 +473,23 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
               {selectedVehicle ? (
                 <div style={{ marginTop: "16px" }}>
                   <div className="pw-payment-amount-hero">
-                    <span className="pw-amount-hero-label">Final Payable Fee</span>
-                    <div className="pw-amount-hero-val">{selectedVehicle.calculated_fee}</div>
-                    <span className="pw-amount-hero-sub">Duration: {selectedVehicle.duration} ({selectedVehicle.billed_hours} billed hrs)</span>
+                    <span className="pw-amount-hero-label">
+                      {selectedVehicle.is_reservation
+                        ? (selectedVehicle.is_overstay ? "Overstay Surcharge Due at Exit" : "Amount Due at Exit (Pre-paid)")
+                        : "Final Payable Fee"}
+                    </span>
+                    <div className="pw-amount-hero-val" style={selectedVehicle.is_overstay ? { color: "#ef4444" } : {}}>
+                      {selectedVehicle.is_reservation
+                        ? `₹${Number(selectedVehicle.payable_at_exit !== undefined ? selectedVehicle.payable_at_exit : (selectedVehicle.overstay_fee || 0)).toFixed(2)}`
+                        : selectedVehicle.calculated_fee}
+                    </div>
+                    <span className="pw-amount-hero-sub">
+                      {selectedVehicle.is_reservation
+                        ? (selectedVehicle.is_overstay
+                            ? `Overstay: ${selectedVehicle.overstay_duration} • Booked: ${selectedVehicle.booked_duration_hours || 1}h`
+                            : "Booking was pre-paid online. ₹0.00 additional charge required.")
+                        : `Duration: ${selectedVehicle.duration} (${selectedVehicle.billed_hours || 1} billed hrs)`}
+                    </span>
                   </div>
 
                   <div style={{ marginTop: "18px" }}>

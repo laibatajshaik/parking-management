@@ -324,8 +324,13 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
       </div>
       <div class="item">
         <span class="label">${isEvReceipt ? "Tariff Rate" : "Base Fee"}</span>
-        <span class="val">${isEvReceipt ? "₹18.00 / kWh" : `₹${formattedFee}`}</span>
+        <span class="val">${isEvReceipt ? "₹18.00 / kWh" : (activeReceipt.original_amount ? `₹${parseFloat(activeReceipt.original_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : `₹${formattedFee}`)}</span>
       </div>
+      ${(activeReceipt.coupon_code || parseFloat(activeReceipt.discount_amount) > 0) ? `
+      <div class="item">
+        <span class="label">Coupon Applied</span>
+        <span class="val" style="color: #059669; font-weight: 700;">${activeReceipt.coupon_code || "PROMO"} (-₹${parseFloat(activeReceipt.discount_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })})</span>
+      </div>` : ""}
       <div class="item">
         <span class="label">Payment Status</span>
         <span class="val">${activeReceipt.payment_status || "Completed"}</span>
@@ -605,9 +610,17 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">{isEv(activeReceipt) ? "Tariff Rate" : "Base Fee"}</span>
                   <span className="pw-receipt-value">
-                    {isEv(activeReceipt) ? "₹18.00 / kWh" : `₹${parseFloat(activeReceipt.fee || activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
+                    {isEv(activeReceipt) ? "₹18.00 / kWh" : (activeReceipt.original_amount ? `₹${parseFloat(activeReceipt.original_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : `₹${parseFloat(activeReceipt.fee || activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`)}
                   </span>
                 </div>
+                {(activeReceipt.coupon_code || parseFloat(activeReceipt.discount_amount) > 0) && (
+                  <div className="pw-receipt-row" style={{ color: "#16a34a" }}>
+                    <span className="pw-receipt-label" style={{ color: "#16a34a", fontWeight: 700 }}>Coupon Applied ({activeReceipt.coupon_code})</span>
+                    <span className="pw-receipt-value" style={{ color: "#16a34a", fontWeight: 800 }}>
+                      - ₹{parseFloat(activeReceipt.discount_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Receipt & Payment Date</span>
                   <span className="pw-receipt-value">
@@ -615,7 +628,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                   </span>
                 </div>
                 <div className="pw-receipt-row pw-receipt-total-row">
-                  <span className="pw-receipt-label">{isEv(activeReceipt) ? "Total EV Amount Paid" : "Total Amount Paid"}</span>
+                  <span className="pw-receipt-label">{isEv(activeReceipt) ? "Total EV Amount Paid" : "Total Net Amount Paid"}</span>
                   <span className="pw-receipt-total-value" style={isEv(activeReceipt) ? { color: "#059669" } : undefined}>
                     ₹{parseFloat(activeReceipt.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </span>

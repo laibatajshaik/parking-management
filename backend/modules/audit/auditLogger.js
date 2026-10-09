@@ -1,25 +1,5 @@
 import pool from "../../db.js";
 
-/**
- * Log an audit event into the database.
- * 
- * @param {Object} event
- * @param {number|null} [event.userId]
- * @param {string} [event.userName]
- * @param {string|null} [event.userEmail]
- * @param {string} [event.role]
- * @param {string} [event.action]
- * @param {string} [event.module]
- * @param {string|null} [event.entityType]
- * @param {string|null} [event.entityId]
- * @param {string} [event.description]
- * @param {string} [event.severity]
- * @param {string} [event.status]
- * @param {string} [event.ipAddress]
- * @param {string|null} [event.userAgent]
- * @param {Object|null} [event.client] - Optional transactional pg client
- * @returns {Promise<Object|null>}
- */
 export async function logAuditEvent({
   userId = null,
   userName = "System",
@@ -81,9 +61,6 @@ export async function logAuditEvent({
   }
 }
 
-/**
- * Extract client IP from Express request.
- */
 export function getAuditClientIp(req) {
   if (!req) return "127.0.0.1";
   const forwarded = req.headers["x-forwarded-for"];
@@ -93,9 +70,6 @@ export function getAuditClientIp(req) {
   return req.ip || req.connection?.remoteAddress || "127.0.0.1";
 }
 
-/**
- * Extract User Agent from Express request.
- */
 export function getAuditUserAgent(req) {
   if (!req) return null;
   return req.headers["user-agent"] || null;

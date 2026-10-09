@@ -83,7 +83,7 @@ export default function ParkingRecords() {
   }, 0);
 
   const handleExportCsv = () => {
-    const headers = ["Vehicle Plate", "Model", "Vehicle Type", "Customer Name", "Phone", "Slot Bay", "Entry Time", "Exit Time", "Duration", "Fee", "Status"];
+    const headers = ["Vehicle Plate", "Model", "Vehicle Type", "Customer Name", "Phone", "Slot Bay", "Entry Time", "Exit Time", "Duration", "Fee", "Status", "Booked Duration", "Overstay Duration", "Overstay Fee"];
     const rows = filteredRecords.map((r) => [
       r.vehicle_number,
       r.model,
@@ -92,10 +92,13 @@ export default function ParkingRecords() {
       r.customer_phone || "",
       r.slot_number,
       r.entry_time,
-      r.exit_time || "",
+      ((r.status || "").toLowerCase() === "parked" || !r.exit_time) ? "Ongoing" : (r.exit_time || ""),
       r.duration || "",
       r.fee || "",
-      r.status
+      r.status,
+      r.booked_duration_hours ? `${r.booked_duration_hours}h` : "N/A",
+      r.overstay_duration || "0m",
+      r.overstay_fee ? `₹${r.overstay_fee}` : "₹0.00"
     ]);
     exportToCsv("parking_records.csv", headers, rows);
   };
@@ -422,9 +425,26 @@ export default function ParkingRecords() {
                     </div>
 
                     <div className="pw-user-card-date-col">
-                      <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
-                        {formatDate(r.exit_time)}
-                      </span>
+                      {((r.status || "").toLowerCase() === "parked" || (r.status || "").toLowerCase() === "active" || !r.exit_time) ? (
+                        <span
+                          className="pw-status-pill"
+                          style={{
+                            fontSize: "0.72rem",
+                            background: "var(--bg-teal-sub, #f0fdf4)",
+                            color: "#16a34a",
+                            border: "1px solid #bbf7d0",
+                            width: "fit-content",
+                            padding: "2px 8px",
+                            fontWeight: 700
+                          }}
+                        >
+                          Ongoing
+                        </span>
+                      ) : (
+                        <span className="pw-user-col-value" style={{ fontSize: "0.78rem" }}>
+                          {formatDate(r.exit_time)}
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -432,6 +452,16 @@ export default function ParkingRecords() {
                         <Clock size={11} />
                         <span>{r.duration}</span>
                       </span>
+                      {r.booked_duration_hours && (
+                        <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #64748b)", marginTop: "2px" }}>
+                          {r.booked_duration_hours}h booked
+                        </div>
+                      )}
+                      {r.overstay_fee && parseFloat(r.overstay_fee) > 0 && (
+                        <div style={{ fontSize: "0.68rem", color: "#ef4444", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "1px 5px", borderRadius: "4px", marginTop: "2px", display: "inline-block" }}>
+                          Overstay: {r.overstay_duration || "Yes"} (+₹{r.overstay_fee})
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -545,20 +575,46 @@ export default function ParkingRecords() {
                   <span className="pw-detail-label">Assigned Bay</span>
                   <div className="pw-detail-val">Bay {selectedRecordModal.slot_number} ({selectedRecordModal.zone})</div>
                 </div>
+                {selectedRecordModal.scheduled_start_time && (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Scheduled Start</span>
+                    <div className="pw-detail-val">{formatDate(selectedRecordModal.scheduled_start_time)}</div>
+                  </div>
+                )}
+                {selectedRecordModal.scheduled_end_time && (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Scheduled Exit</span>
+                    <div className="pw-detail-val">{formatDate(selectedRecordModal.scheduled_end_time)}</div>
+                  </div>
+                )}
+                {selectedRecordModal.booked_duration_hours && (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Booked Duration</span>
+                    <div className="pw-detail-val">{selectedRecordModal.booked_duration_hours} hr(s)</div>
+                  </div>
+                )}
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Entry Timestamp</span>
+                  <span className="pw-detail-label">Actual Entry</span>
                   <div className="pw-detail-val">{formatDate(selectedRecordModal.entry_time)}</div>
                 </div>
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Exit Timestamp</span>
+                  <span className="pw-detail-label">Actual Exit</span>
                   <div className="pw-detail-val">{formatDate(selectedRecordModal.exit_time)}</div>
                 </div>
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Total Duration</span>
                   <div className="pw-detail-val">{selectedRecordModal.duration}</div>
                 </div>
+                {selectedRecordModal.overstay_fee && parseFloat(selectedRecordModal.overstay_fee) > 0 && (
+                  <div className="pw-detail-field-card" style={{ border: "1px solid rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.05)" }}>
+                    <span className="pw-detail-label" style={{ color: "#ef4444" }}>Overstay Duration & Fee</span>
+                    <div className="pw-detail-val" style={{ color: "#ef4444", fontWeight: 800 }}>
+                      {selectedRecordModal.overstay_duration || "Active"} (+₹{selectedRecordModal.overstay_fee})
+                    </div>
+                  </div>
+                )}
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Fee / Tariff</span>
+                  <span className="pw-detail-label">Final Fee</span>
                   <div className="pw-detail-val" style={{ color: "#0f766e", fontWeight: 800 }}>
                     {selectedRecordModal.fee}
                   </div>

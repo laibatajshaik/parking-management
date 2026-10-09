@@ -4859,11 +4859,17 @@ img, video, canvas, svg {
 }
 
 .pw-bookings-reservations-grid {
-  grid-template-columns: minmax(95px, 0.95fr) minmax(110px, 1.1fr) minmax(110px, 1.1fr) minmax(75px, 0.75fr) minmax(115px, 1.15fr) minmax(80px, 0.8fr) minmax(90px, 100px) minmax(135px, auto);
+  display: grid;
+  grid-template-columns: 105px minmax(125px, 1.2fr) minmax(120px, 1.1fr) 105px 155px 125px 110px 195px;
   gap: 8px;
   width: 100%;
-  min-width: 860px;
+  padding: 8px 12px;
   box-sizing: border-box;
+  align-items: center;
+}
+
+.pw-bookings-reservations-grid > * {
+  min-width: 0;
 }
 
 .pw-badge-status-completed {

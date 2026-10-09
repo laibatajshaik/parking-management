@@ -9,6 +9,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import notificationRoutes from "./modules/notifications/notificationRoutes.js";
 import evChargingRoutes from "./modules/ev/evChargingRoutes.js";
+import couponRoutes from "./modules/coupons/couponRoutes.js";
+import { recordCouponUsage, validateCoupon } from "./modules/coupons/couponService.js";
 import {
   notifyUser,
   notifyUsers,
@@ -65,6 +67,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/notifications", notificationRoutes);
 app.use("/api", evChargingRoutes);
+app.use("/api", couponRoutes);
 
 const getLocalTimestamp = (d = new Date()) => {
   const date = typeof d === "string" ? new Date(d) : d;
@@ -119,6 +122,124 @@ function parseToLocalTimestampString(inputDateStr, fallbackDate = new Date()) {
     return getLocalTimestamp(parsed);
   }
   return getLocalTimestamp(fallbackDate);
+}
+
+function calculateDurationBetween(startInput, endInput) {
+  const startStr = parseToLocalTimestampString(startInput);
+  const endStr = parseToLocalTimestampString(endInput);
+  const start = new Date(startStr.replace(" ", "T"));
+  const end = new Date(endStr.replace(" ", "T"));
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs <= 0) {
+    return { hours: 0, minutes: 0, totalHours: 0, durationStr: "0m", diffMs, startStr, endStr };
+  }
+  const diffMins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(diffMins / 60);
+  const minutes = diffMins % 60;
+  const totalHours = Math.round((diffMs / 3600000) * 100) / 100;
+  const durationStr = hours > 0 ? (minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h 00m`) : `${minutes}m`;
+  return { hours, minutes, totalHours, durationStr, diffMs, startStr, endStr };
+}
+
+async function calculateBookingFeeFromPlan({ planCode, durationHours, vehicleType, client = pool }) {
+  let plan = null;
+  if (planCode) {
+    const res = await client.query("SELECT * FROM pricing_plans WHERE LOWER(plan_code) = LOWER($1)", [planCode]);
+    if (res.rowCount > 0) plan = res.rows[0];
+  }
+  if (!plan && vehicleType) {
+    const res = await client.query("SELECT * FROM pricing_plans WHERE LOWER(vehicle_type) = LOWER($1) AND is_active = true ORDER BY id ASC LIMIT 1", [vehicleType]);
+    if (res.rowCount > 0) plan = res.rows[0];
+  }
+  if (!plan) {
+    const res = await client.query("SELECT * FROM pricing_plans WHERE is_active = true ORDER BY id ASC LIMIT 1");
+    if (res.rowCount > 0) plan = res.rows[0];
+  }
+  const rate = plan ? parseFloat(plan.rate) : 50;
+  const billingType = (plan?.billing_type || "Hourly").toLowerCase();
+  let baseAmount = 0;
+  const hours = Math.max(0.25, parseFloat(durationHours) || 1);
+  if (billingType === "daily") {
+    const days = Math.max(1, Math.ceil(hours / 24));
+    baseAmount = days * rate;
+  } else if (billingType === "monthly") {
+    baseAmount = rate;
+  } else if (billingType === "flat") {
+    baseAmount = rate;
+  } else {
+    const billedHours = Math.max(1, Math.ceil(hours));
+    baseAmount = billedHours * rate;
+  }
+  return {
+    plan,
+    rate,
+    baseAmount,
+    overstayRate: plan?.overstay_rate ? parseFloat(plan.overstay_rate) : rate
+  };
+}
+
+function calculateOverstayDetails({ scheduledEndTime, actualOrCurrentTime, planOverstayRate, defaultHourlyRate = 50, graceMinutes = 15 }) {
+  if (!scheduledEndTime) {
+    return {
+      isOverstay: false,
+      inGracePeriod: false,
+      overstayMinutes: 0,
+      overstayDuration: "0m",
+      billedOverstayHours: 0,
+      overstayFee: 0,
+      remainingMinutes: 0,
+      remainingDuration: "0m"
+    };
+  }
+  const schedEnd = new Date(typeof scheduledEndTime === "string" ? scheduledEndTime.replace(" ", "T") : scheduledEndTime);
+  const checkTime = actualOrCurrentTime ? new Date(typeof actualOrCurrentTime === "string" ? actualOrCurrentTime.replace(" ", "T") : actualOrCurrentTime) : new Date();
+  const diffMs = checkTime.getTime() - schedEnd.getTime();
+  if (diffMs <= 0) {
+    const remMs = Math.abs(diffMs);
+    const remMins = Math.floor(remMs / 60000);
+    const remH = Math.floor(remMins / 60);
+    const remM = remMins % 60;
+    const remStr = remH > 0 ? (remM > 0 ? `${remH}h ${remM}m` : `${remH}h 00m`) : `${remM}m`;
+    return {
+      isOverstay: false,
+      inGracePeriod: false,
+      overstayMinutes: 0,
+      overstayDuration: "0m",
+      billedOverstayHours: 0,
+      overstayFee: 0,
+      remainingMinutes: remMins,
+      remainingDuration: remStr
+    };
+  }
+  const overstayMinutes = Math.floor(diffMs / 60000);
+  const oH = Math.floor(overstayMinutes / 60);
+  const oM = overstayMinutes % 60;
+  const overstayDuration = oH > 0 ? (oM > 0 ? `${oH}h ${oM}m` : `${oH}h 00m`) : `${oM}m`;
+  if (overstayMinutes <= graceMinutes) {
+    return {
+      isOverstay: true,
+      inGracePeriod: true,
+      overstayMinutes,
+      overstayDuration,
+      billedOverstayHours: 0,
+      overstayFee: 0,
+      remainingMinutes: 0,
+      remainingDuration: "0m"
+    };
+  }
+  const billedOverstayHours = Math.max(1, Math.ceil(overstayMinutes / 60));
+  const rateToUse = parseFloat(planOverstayRate) > 0 ? parseFloat(planOverstayRate) : (parseFloat(defaultHourlyRate) || 50);
+  const overstayFee = billedOverstayHours * rateToUse;
+  return {
+    isOverstay: true,
+    inGracePeriod: false,
+    overstayMinutes,
+    overstayDuration,
+    billedOverstayHours,
+    overstayFee,
+    remainingMinutes: 0,
+    remainingDuration: "0m"
+  };
 }
 
 app.get("/", (req, res) => {
@@ -402,9 +523,28 @@ const initDbSchema = async () => {
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE pricing_plans ADD COLUMN IF NOT EXISTS overstay_rate NUMERIC(10, 2);
       ALTER TABLE reservations ADD COLUMN IF NOT EXISTS plan_code VARCHAR(50);
       ALTER TABLE reservations ADD COLUMN IF NOT EXISTS plan_name VARCHAR(100);
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS actual_entry_time TIMESTAMP;
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS actual_exit_time TIMESTAMP;
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS overstay_hours NUMERIC(5, 2) DEFAULT 0.00;
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS overstay_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS final_total_amount NUMERIC(10, 2);
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS booking_id VARCHAR(50);
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS scheduled_start_time TIMESTAMP;
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS scheduled_end_time TIMESTAMP;
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS booked_duration_hours NUMERIC(5, 2);
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS overstay_duration VARCHAR(50);
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS overstay_fee NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS normal_fee NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE vehicle_history ADD COLUMN IF NOT EXISTS final_fee NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_id VARCHAR(50);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50) DEFAULT 'Parking Fee';
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS base_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS overstay_amount NUMERIC(10, 2) DEFAULT 0.00;
     `);
+    await pool.query("UPDATE pricing_plans SET overstay_rate = rate WHERE overstay_rate IS NULL;");
 
     const planCountRes = await pool.query("SELECT COUNT(*) FROM pricing_plans");
     if (parseInt(planCountRes.rows[0].count) === 0) {
@@ -587,6 +727,79 @@ const initDbSchema = async () => {
     }
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        description TEXT,
+        discount_type VARCHAR(20) NOT NULL,
+        discount_value NUMERIC(10, 2) NOT NULL,
+        minimum_amount NUMERIC(10, 2) DEFAULT 0.00,
+        maximum_discount NUMERIC(10, 2),
+        usage_type VARCHAR(20) NOT NULL,
+        total_usage_limit INT,
+        used_count INT DEFAULT 0,
+        per_customer_limit INT DEFAULT 1,
+        start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+        expiry_date TIMESTAMP WITH TIME ZONE NOT NULL,
+        applicable_to VARCHAR(50) DEFAULT 'All',
+        status VARCHAR(20) DEFAULT 'Active',
+        created_by VARCHAR(100) DEFAULT 'Admin',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS coupon_usage (
+        id SERIAL PRIMARY KEY,
+        coupon_id INT REFERENCES coupons(id) ON DELETE CASCADE,
+        coupon_code VARCHAR(50) NOT NULL,
+        customer_email VARCHAR(150) NOT NULL,
+        customer_name VARCHAR(100),
+        booking_id VARCHAR(50),
+        charging_session_id VARCHAR(50),
+        payment_id VARCHAR(50),
+        original_amount NUMERIC(10, 2) NOT NULL,
+        discount_amount NUMERIC(10, 2) NOT NULL,
+        final_amount NUMERIC(10, 2) NOT NULL,
+        service_type VARCHAR(50) DEFAULT 'Normal Parking',
+        used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS original_amount NUMERIC(10, 2);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50);
+
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS original_amount NUMERIC(10, 2);
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE reservations ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50);
+
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS original_amount NUMERIC(10, 2);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50);
+    `);
+
+    const couponCountRes = await pool.query("SELECT COUNT(*) FROM coupons");
+    if (parseInt(couponCountRes.rows[0].count, 10) === 0) {
+      await pool.query(`
+        INSERT INTO coupons (
+          code, description, discount_type, discount_value, minimum_amount, maximum_discount,
+          usage_type, total_usage_limit, used_count, per_customer_limit,
+          start_date, expiry_date, applicable_to, status, created_by
+        ) VALUES
+          ('PARK20', 'Get 20% off up to ₹50 on parking reservations', 'percentage', 20.00, 100.00, 50.00, 'Limited', 100, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '60 days', 'All', 'Active', 'Admin'),
+          ('WELCOME100', 'Welcome bonus ₹100 off on your first parking or charging session', 'fixed', 100.00, 200.00, NULL, 'One-Time', NULL, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '90 days', 'All', 'Active', 'Admin'),
+          ('EV50', '₹50 instant rebate on electric vehicle fast charging', 'fixed', 50.00, 150.00, NULL, 'Limited', 50, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '45 days', 'EV Charging', 'Active', 'Admin')
+        ON CONFLICT (code) DO NOTHING;
+      `);
+    }
+
+    await pool.query(`
+      UPDATE vehicles 
+      SET owner_email = 'customer@shnoor.com', owner_name = 'Customer'
+      WHERE (REPLACE(UPPER(vehicle_number), ' ', '') = 'TS01AP1310' OR REPLACE(UPPER(vehicle_number), ' ', '') = 'KA01AB1234')
+        AND (owner_email IS NULL OR owner_email = '');
+    `);
+
+    await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email));
       CREATE INDEX IF NOT EXISTS idx_users_role ON users(LOWER(role));
       CREATE INDEX IF NOT EXISTS idx_users_status ON users(LOWER(status));
@@ -609,6 +822,10 @@ const initDbSchema = async () => {
       CREATE INDEX IF NOT EXISTS idx_support_tickets_email ON support_tickets(LOWER(customer_email));
       CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(LOWER(status));
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(UPPER(code));
+      CREATE INDEX IF NOT EXISTS idx_coupons_status ON coupons(LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_coupon_usage_email ON coupon_usage(LOWER(customer_email));
+      CREATE INDEX IF NOT EXISTS idx_coupon_usage_code ON coupon_usage(UPPER(coupon_code));
     `);
 
     await pool.query(`
@@ -2788,6 +3005,20 @@ const handleActiveSessions = async (req, res) => {
       FROM vehicles v
       LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
       LEFT JOIN ev_charging_slots es ON UPPER(v.current_slot) = UPPER(es.slot_number)
+      LEFT JOIN LATERAL (
+        SELECT r.booking_id, r.start_time, r.end_time, r.duration_hours, r.total_amount, r.plan_code
+        FROM reservations r
+        WHERE REPLACE(UPPER(r.vehicle_number), ' ', '') = REPLACE(UPPER(v.vehicle_number), ' ', '')
+          AND LOWER(r.status) IN ('checked in', 'confirmed')
+        ORDER BY r.id DESC
+        LIMIT 1
+      ) res ON true
+      LEFT JOIN LATERAL (
+        SELECT p.overstay_rate
+        FROM pricing_plans p
+        WHERE LOWER(p.plan_code) = LOWER(res.plan_code)
+        LIMIT 1
+      ) plan ON true
       WHERE LOWER(v.status) IN ('parked', 'charging')
     `;
     const params = [];
@@ -2831,7 +3062,13 @@ const handleActiveSessions = async (req, res) => {
           WHERE vehicle_number = v.vehicle_number 
           ORDER BY entry_time DESC 
           LIMIT 1
-        ) as entry_time
+        ) as entry_time,
+        res.booking_id,
+        res.start_time as scheduled_start_time,
+        res.end_time as scheduled_end_time,
+        res.duration_hours as booked_duration_hours,
+        res.total_amount as prepaid_amount,
+        plan.overstay_rate
     `;
 
     let activeVehiclesRes;
@@ -2851,6 +3088,11 @@ const handleActiveSessions = async (req, res) => {
       activeVehiclesRes = await pool.query(`${selectCols} ${baseQuery} ORDER BY v.id DESC`, params);
     }
 
+    const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'general'");
+    const generalSettings = settingsRes.rows[0]?.value || {};
+    const graceMinutes = parseInt(generalSettings.overstayGracePeriodMinutes, 10) || 15;
+    const defaultOverstayRate = parseFloat(generalSettings.defaultOverstayHourlyRate) || 50;
+
     const now = new Date();
     const sessions = activeVehiclesRes.rows.map((row) => {
       const entryDate = row.entry_time ? new Date(row.entry_time) : new Date(row.created_at);
@@ -2858,11 +3100,54 @@ const handleActiveSessions = async (req, res) => {
       const diffMins = Math.floor(diffMs / (1000 * 60));
       const hours = Math.floor(diffMins / 60);
       const mins = diffMins % 60;
-      const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      const durationStr = hours > 0 ? (mins > 0 ? `${hours}h ${mins}m` : `${hours}h 00m`) : `${mins}m`;
       const billedHours = Math.max(1, Math.ceil(diffMins / 60));
-      const rate = parseFloat(row.hourly_rate) || 50;
-      const totalFee = (billedHours * rate).toFixed(2);
+      const slotRate = parseFloat(row.hourly_rate) || 50;
       const isCharging = (row.status || "").toLowerCase() === "charging" || (row.vehicle_type || "").toLowerCase() === "ev";
+
+      const isReservation = !!row.booking_id;
+      const scheduledStart = row.scheduled_start_time ? new Date(row.scheduled_start_time).toISOString() : null;
+      const scheduledEnd = row.scheduled_end_time ? new Date(row.scheduled_end_time).toISOString() : null;
+      const bookedHours = row.booked_duration_hours ? parseFloat(row.booked_duration_hours) : null;
+      const prepaidAmt = row.prepaid_amount ? parseFloat(row.prepaid_amount) : 0;
+
+      let overstayInfo = {
+        isOverstay: false,
+        inGracePeriod: false,
+        overstayMinutes: 0,
+        overstayDuration: "0m",
+        billedOverstayHours: 0,
+        overstayFee: 0,
+        remainingMinutes: 0,
+        remainingDuration: "0m"
+      };
+
+      if (isReservation && row.scheduled_end_time) {
+        overstayInfo = calculateOverstayDetails({
+          scheduledEndTime: row.scheduled_end_time,
+          actualOrCurrentTime: now,
+          planOverstayRate: row.overstay_rate,
+          defaultHourlyRate: defaultOverstayRate || slotRate,
+          graceMinutes
+        });
+      }
+
+      let payableAtExit = 0;
+      let totalEstimatedAmount = 0;
+      let calculatedFeeStr = "";
+
+      if (isReservation) {
+        payableAtExit = overstayInfo.overstayFee;
+        totalEstimatedAmount = prepaidAmt + overstayInfo.overstayFee;
+        calculatedFeeStr = overstayInfo.overstayFee > 0
+          ? `₹${overstayInfo.overstayFee.toFixed(2)} (Overstay)`
+          : `₹0.00 (Prepaid: ₹${prepaidAmt.toFixed(2)})`;
+      } else {
+        const walkInFee = billedHours * slotRate;
+        payableAtExit = walkInFee;
+        totalEstimatedAmount = walkInFee;
+        calculatedFeeStr = `₹${walkInFee.toFixed(2)}`;
+      }
 
       return {
         id: row.id,
@@ -2875,13 +3160,29 @@ const handleActiveSessions = async (req, res) => {
         current_slot: row.current_slot,
         zone: row.zone || "Zone A",
         slot_type: row.slot_type || "Standard",
-        hourly_rate: rate,
+        hourly_rate: slotRate,
         entry_time: entryDate.toISOString(),
         duration: durationStr,
         billed_hours: billedHours,
-        calculated_fee: `₹${totalFee}`,
-        fee_numeric: parseFloat(totalFee),
-        status: isCharging ? "Charging" : "Parked"
+        calculated_fee: calculatedFeeStr,
+        fee_numeric: payableAtExit,
+        status: isCharging ? "Charging" : "Parked",
+        is_reservation: isReservation,
+        booking_id: row.booking_id || null,
+        scheduled_start_time: scheduledStart,
+        scheduled_end_time: scheduledEnd,
+        booked_duration_hours: bookedHours,
+        prepaid_amount: prepaidAmt,
+        is_overstay: overstayInfo.isOverstay,
+        in_grace_period: overstayInfo.inGracePeriod,
+        overstay_minutes: overstayInfo.overstayMinutes,
+        overstay_duration: overstayInfo.overstayDuration,
+        billed_overstay_hours: overstayInfo.billedOverstayHours,
+        overstay_fee: overstayInfo.overstayFee,
+        remaining_minutes: overstayInfo.remainingMinutes,
+        remaining_time: overstayInfo.remainingDuration,
+        payable_at_exit: payableAtExit,
+        total_estimated_amount: totalEstimatedAmount
       };
     });
 
@@ -3104,6 +3405,9 @@ app.get("/api/customer/payments", async (req, res) => {
         p.duration,
         p.amount,
         p.amount AS fee,
+        p.original_amount,
+        p.discount_amount,
+        p.coupon_code,
         p.payment_method,
         COALESCE(p.payment_status, 'Completed') AS payment_status,
         p.created_at AS receipt_date,
@@ -3261,7 +3565,12 @@ app.post("/api/staff/process-payment", async (req, res) => {
     await pool.query(
       `UPDATE vehicle_history 
        SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
-       WHERE vehicle_number = $4 AND (exit_time IS NULL OR status = 'Parked')`,
+       WHERE id = (
+         SELECT id FROM vehicle_history 
+         WHERE UPPER(vehicle_number) = $4 AND (exit_time IS NULL OR LOWER(status) = 'parked')
+         ORDER BY entry_time DESC 
+         LIMIT 1
+       )`,
       [exitDate, dur, `₹${numAmount.toFixed(2)}`, vehicle_number.toUpperCase()]
     );
 
@@ -3338,11 +3647,14 @@ app.post(["/api/payments", "/api/customer/process-payment"], async (req, res) =>
     customer_name,
     customer_email,
     customer_phone,
-    duration
+    duration,
+    coupon_code,
+    original_amount,
+    service_type
   } = req.body;
 
   const numAmount = parseFloat(amount);
-  if (isNaN(numAmount) || numAmount <= 0) {
+  if (isNaN(numAmount) || numAmount < 0) {
     return res.status(400).json({ error: "Valid payment amount is required" });
   }
 
@@ -3356,12 +3668,41 @@ app.post(["/api/payments", "/api/customer/process-payment"], async (req, res) =>
   const txnId = req.body.transaction_id || `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
   const now = new Date();
 
+  const client = await pool.connect();
   try {
-    const insertRes = await pool.query(
+    await client.query("BEGIN");
+
+    const baseAmount = parseFloat(original_amount) || numAmount;
+    let finalAmount = numAmount;
+    let discountAmount = 0;
+    let appliedCouponCode = null;
+
+    if (coupon_code && String(coupon_code).trim()) {
+      const couponValidation = await validateCoupon({
+        code: String(coupon_code).trim(),
+        customerEmail: cEmail,
+        orderAmount: baseAmount,
+        serviceType: service_type || "Normal Parking",
+        db: client
+      });
+
+      if (!couponValidation.valid) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: couponValidation.error });
+      }
+
+      discountAmount = couponValidation.discount_amount;
+      finalAmount = couponValidation.final_amount;
+      appliedCouponCode = couponValidation.code;
+    }
+
+    const insertRes = await client.query(
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
+        slot_number, entry_time, exit_time, duration, amount, original_amount, discount_amount, coupon_code,
+        payment_method, method, payment_status, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
       [
         txnId,
         vPlate,
@@ -3372,36 +3713,69 @@ app.post(["/api/payments", "/api/customer/process-payment"], async (req, res) =>
         new Date(now.getTime() - 3600000),
         now,
         dur,
-        numAmount,
+        finalAmount,
+        baseAmount,
+        discountAmount,
+        appliedCouponCode,
         payMethod,
         payMethod
       ]
     );
 
-    await pool.query(
-      "INSERT INTO audit_logs (log_code, actor, role, action, target, severity, ip, created_at) VALUES ($1, $2, 'Customer', 'Payment Processed', $3, 'Low', '127.0.0.1', CURRENT_TIMESTAMP)",
-      [`LOG-${Date.now().toString().slice(-4)}`, cName, `₹${numAmount.toFixed(2)} via ${payMethod}`]
-    );
+    if (appliedCouponCode && discountAmount > 0) {
+      await recordCouponUsage({
+        client,
+        couponCode: appliedCouponCode,
+        customerEmail: cEmail || "customer@parksafe.in",
+        customerName: cName,
+        paymentId: txnId,
+        originalAmount: baseAmount,
+        discountAmount: discountAmount,
+        finalAmount: finalAmount,
+        serviceType: service_type || "Normal Parking",
+        req
+      });
+    }
+
+    await logAuditEvent({
+      client,
+      userName: cName,
+      userEmail: cEmail || null,
+      role: "Customer",
+      action: "Payment Completed",
+      module: "Payments",
+      entityType: "payment",
+      entityId: txnId,
+      description: `Payment of ₹${finalAmount.toFixed(2)} processed for ${vPlate} via ${payMethod}${discountAmount > 0 ? ` (Coupon: ${appliedCouponCode}, Discount: ₹${discountAmount.toFixed(2)})` : ""}`,
+      status: "Success",
+      ipAddress: getAuditClientIp(req),
+      userAgent: getAuditUserAgent(req)
+    });
+
+    await client.query("COMMIT");
+    client.release();
 
     if (cEmail) {
       await notifyUser(cEmail, {
         title: "Payment Received",
-        message: `Your payment of ₹${numAmount.toFixed(2)} has been processed.`,
+        message: `Your payment of ₹${finalAmount.toFixed(2)} has been processed.`,
         type: "payment"
       });
     }
     await notifyAdmins({
       title: "Payment Received",
-      message: `Payment of ₹${numAmount.toFixed(2)} received for ${vPlate} via ${payMethod}.`,
+      message: `Payment of ₹${finalAmount.toFixed(2)} received for ${vPlate} via ${payMethod}.`,
       type: "payment"
     });
 
     res.status(201).json({
       success: true,
-      message: `Payment of ₹${numAmount.toFixed(2)} processed successfully`,
+      message: `Payment of ₹${finalAmount.toFixed(2)} processed successfully`,
       payment: insertRes.rows[0]
     });
   } catch (err) {
+    await client.query("ROLLBACK");
+    client.release();
     console.error(err);
     res.status(500).json({ error: "Server error processing payment" });
   }
@@ -3414,80 +3788,119 @@ app.get("/api/customer/my-parking", async (req, res) => {
     const cleanName = name ? name.toLowerCase().trim() : null;
 
     if (!cleanEmail && !cleanName) {
-      return res.json({ success: true, session: null, message: "No active parking session found" });
+      return res.json({ success: true, session: null, sessions: [], activeCount: 0, message: "No active parking session found" });
     }
 
     let result = await pool.query(`
       SELECT 
-        vh.id as history_id,
-        vh.vehicle_number,
-        COALESCE(v.vehicle_type, res.vehicle_type, (CASE WHEN UPPER(TRIM(vh.slot_number)) LIKE 'EV%' THEN 'EV' ELSE 'Car' END)) as vehicle_type,
-        COALESCE(v.model, res.model, 'Standard') as model,
-        COALESCE(v.owner_name, res.customer_name, 'Customer') as owner_name,
-        COALESCE(v.owner_email, res.customer_email, '') as owner_email,
-        COALESCE(v.owner_phone, res.customer_phone, '') as owner_phone,
-        COALESCE(vh.status, v.status, 'Parked') as status,
-        COALESCE(vh.slot_number, v.current_slot) as current_slot,
-        COALESCE(vh.entry_time, v.created_at) as entry_time,
-        COALESCE(ps.zone, (CASE WHEN UPPER(TRIM(vh.slot_number)) LIKE 'EV%' THEN 'Zone C (EV Fast)' ELSE 'Zone A' END)) as zone,
-        COALESCE(ps.slot_type, 'Standard') as slot_type,
-        COALESCE(ps.hourly_rate, 50.00) as hourly_rate
-      FROM vehicle_history vh
-      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(vh.vehicle_number)
+        v.id as vehicle_id,
+        v.vehicle_number,
+        COALESCE(v.vehicle_type, (CASE WHEN UPPER(TRIM(COALESCE(v.current_slot, ''))) LIKE 'EV%' THEN 'EV' ELSE 'Car' END)) as vehicle_type,
+        COALESCE(v.model, 'Standard') as model,
+        COALESCE(v.owner_name, 'Customer') as owner_name,
+        COALESCE(v.owner_email, '') as owner_email,
+        COALESCE(v.owner_phone, '') as owner_phone,
+        v.status,
+        v.current_slot,
+        COALESCE(
+          (SELECT entry_time FROM vehicle_history WHERE REPLACE(UPPER(vehicle_number), ' ', '') = REPLACE(UPPER(v.vehicle_number), ' ', '') ORDER BY entry_time DESC LIMIT 1),
+          v.created_at,
+          CURRENT_TIMESTAMP
+        ) as entry_time,
+        COALESCE(ps.zone, es.location_name, (CASE WHEN UPPER(TRIM(COALESCE(v.current_slot, ''))) LIKE 'EV%' THEN 'Zone C (EV Fast)' ELSE 'Zone A' END)) as zone,
+        COALESCE(ps.slot_type, es.charger_type, 'Standard') as slot_type,
+        COALESCE(ps.hourly_rate, es.charging_rate, 50.00) as hourly_rate,
+        res.booking_id,
+        res.start_time as scheduled_start_time,
+        res.end_time as scheduled_end_time,
+        res.duration_hours as booked_duration_hours,
+        res.total_amount as prepaid_amount,
+        plan.overstay_rate
+      FROM vehicles v
+      LEFT JOIN parking_slots ps ON UPPER(TRIM(v.current_slot)) = UPPER(TRIM(ps.slot_number))
+      LEFT JOIN ev_charging_slots es ON UPPER(TRIM(v.current_slot)) = UPPER(TRIM(es.slot_number))
       LEFT JOIN LATERAL (
-        SELECT customer_name, customer_email, customer_phone, vehicle_type, model
-        FROM reservations 
-        WHERE LOWER(vehicle_number) = LOWER(vh.vehicle_number)
-        ORDER BY id DESC LIMIT 1
+        SELECT r.booking_id, r.start_time, r.end_time, r.duration_hours, r.total_amount, r.plan_code
+        FROM reservations r
+        WHERE REPLACE(UPPER(r.vehicle_number), ' ', '') = REPLACE(UPPER(v.vehicle_number), ' ', '')
+          AND LOWER(r.status) IN ('checked in', 'confirmed')
+        ORDER BY r.id DESC
+        LIMIT 1
       ) res ON true
-      LEFT JOIN parking_slots ps ON UPPER(TRIM(vh.slot_number)) = UPPER(TRIM(ps.slot_number))
-      WHERE (vh.exit_time IS NULL OR LOWER(vh.status) = 'parked')
+      LEFT JOIN LATERAL (
+        SELECT p.overstay_rate
+        FROM pricing_plans p
+        WHERE LOWER(p.plan_code) = LOWER(res.plan_code)
+        LIMIT 1
+      ) plan ON true
+      WHERE LOWER(v.status) IN ('parked', 'charging')
         AND (
-          ($1::text IS NOT NULL AND (LOWER(v.owner_email) = $1 OR LOWER(res.customer_email) = $1))
+          ($1::text IS NOT NULL AND (
+            LOWER(v.owner_email) = $1
+            OR EXISTS (SELECT 1 FROM reservations r WHERE REPLACE(UPPER(r.vehicle_number), ' ', '') = REPLACE(UPPER(v.vehicle_number), ' ', '') AND LOWER(r.customer_email) = $1)
+          ))
           OR
-          ($2::text IS NOT NULL AND (LOWER(v.owner_name) LIKE '%' || $2 || '%' OR LOWER(res.customer_name) LIKE '%' || $2 || '%'))
+          ($2::text IS NOT NULL AND LOWER(v.owner_name) LIKE '%' || $2 || '%')
         )
-      ORDER BY vh.entry_time DESC
+      ORDER BY v.id DESC
     `, [cleanEmail, cleanName]);
 
     if (result.rowCount === 0) {
       result = await pool.query(`
         SELECT 
-          v.id,
-          v.vehicle_number,
-          v.vehicle_type,
-          v.model,
-          v.owner_name,
-          v.owner_email,
-          v.owner_phone,
-          v.status,
-          v.current_slot,
-          v.created_at,
-          ps.zone,
-          ps.slot_type,
+          vh.id as history_id,
+          vh.vehicle_number,
+          COALESCE(v.vehicle_type, res.vehicle_type, (CASE WHEN UPPER(TRIM(vh.slot_number)) LIKE 'EV%' THEN 'EV' ELSE 'Car' END)) as vehicle_type,
+          COALESCE(v.model, res.model, 'Standard') as model,
+          COALESCE(v.owner_name, res.customer_name, 'Customer') as owner_name,
+          COALESCE(v.owner_email, res.customer_email, '') as owner_email,
+          COALESCE(v.owner_phone, res.customer_phone, '') as owner_phone,
+          COALESCE(vh.status, v.status, 'Parked') as status,
+          COALESCE(vh.slot_number, v.current_slot) as current_slot,
+          COALESCE(vh.entry_time, v.created_at) as entry_time,
+          COALESCE(ps.zone, (CASE WHEN UPPER(TRIM(vh.slot_number)) LIKE 'EV%' THEN 'Zone C (EV Fast)' ELSE 'Zone A' END)) as zone,
+          COALESCE(ps.slot_type, 'Standard') as slot_type,
           COALESCE(ps.hourly_rate, 50.00) as hourly_rate,
-          (
-            SELECT entry_time 
-            FROM vehicle_history 
-            WHERE LOWER(vehicle_number) = LOWER(v.vehicle_number) 
-            ORDER BY entry_time DESC 
-            LIMIT 1
-          ) as entry_time
-        FROM vehicles v
-        LEFT JOIN parking_slots ps ON v.current_slot = ps.slot_number
-        WHERE LOWER(v.status) = 'parked'
+          res.booking_id,
+          res.start_time as scheduled_start_time,
+          res.end_time as scheduled_end_time,
+          res.duration_hours as booked_duration_hours,
+          res.total_amount as prepaid_amount,
+          plan.overstay_rate
+        FROM vehicle_history vh
+        LEFT JOIN vehicles v ON REPLACE(UPPER(v.vehicle_number), ' ', '') = REPLACE(UPPER(vh.vehicle_number), ' ', '')
+        LEFT JOIN LATERAL (
+          SELECT customer_name, customer_email, customer_phone, vehicle_type, model, booking_id, start_time, end_time, duration_hours, total_amount, plan_code
+          FROM reservations 
+          WHERE REPLACE(UPPER(vehicle_number), ' ', '') = REPLACE(UPPER(vh.vehicle_number), ' ', '')
+            AND LOWER(status) IN ('checked in', 'confirmed')
+          ORDER BY id DESC LIMIT 1
+        ) res ON true
+        LEFT JOIN LATERAL (
+          SELECT p.overstay_rate
+          FROM pricing_plans p
+          WHERE LOWER(p.plan_code) = LOWER(res.plan_code)
+          LIMIT 1
+        ) plan ON true
+        LEFT JOIN parking_slots ps ON UPPER(TRIM(vh.slot_number)) = UPPER(TRIM(ps.slot_number))
+        WHERE (vh.exit_time IS NULL OR LOWER(vh.status) = 'parked')
           AND (
-            ($1::text IS NOT NULL AND LOWER(v.owner_email) = $1)
+            ($1::text IS NOT NULL AND (LOWER(v.owner_email) = $1 OR LOWER(res.customer_email) = $1))
             OR
-            ($2::text IS NOT NULL AND LOWER(v.owner_name) LIKE '%' || $2 || '%')
+            ($2::text IS NOT NULL AND (LOWER(v.owner_name) LIKE '%' || $2 || '%' OR LOWER(res.customer_name) LIKE '%' || $2 || '%'))
           )
-        ORDER BY v.id DESC
+        ORDER BY vh.entry_time DESC
       `, [cleanEmail, cleanName]);
     }
 
     if (result.rowCount === 0) {
       return res.json({ success: true, session: null, sessions: [], activeCount: 0, message: "No active parking session found" });
     }
+
+    const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'general'");
+    const generalSettings = settingsRes.rows[0]?.value || {};
+    const graceMinutes = parseInt(generalSettings.overstayGracePeriodMinutes, 10) || 15;
+    const defaultOverstayRate = parseFloat(generalSettings.defaultOverstayHourlyRate) || 50;
 
     const now = new Date();
     const mappedSessions = result.rows.map((row) => {
@@ -3496,13 +3909,56 @@ app.get("/api/customer/my-parking", async (req, res) => {
       const diffMins = Math.floor(diffMs / (1000 * 60));
       const hours = Math.floor(diffMins / 60);
       const mins = diffMins % 60;
-      const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      const durationStr = hours > 0 ? (mins > 0 ? `${hours}h ${mins}m` : `${hours}h 00m`) : `${mins}m`;
       const billedHours = Math.max(1, Math.ceil(diffMins / 60));
-      const rate = parseFloat(row.hourly_rate) || 50;
-      const totalFee = (billedHours * rate).toFixed(2);
+      const slotRate = parseFloat(row.hourly_rate) || 50;
+
+      const isReservation = !!row.booking_id;
+      const scheduledStart = row.scheduled_start_time ? new Date(row.scheduled_start_time).toISOString() : null;
+      const scheduledEnd = row.scheduled_end_time ? new Date(row.scheduled_end_time).toISOString() : null;
+      const bookedHours = row.booked_duration_hours ? parseFloat(row.booked_duration_hours) : null;
+      const prepaidAmt = row.prepaid_amount ? parseFloat(row.prepaid_amount) : 0;
+
+      let overstayInfo = {
+        isOverstay: false,
+        inGracePeriod: false,
+        overstayMinutes: 0,
+        overstayDuration: "0m",
+        billedOverstayHours: 0,
+        overstayFee: 0,
+        remainingMinutes: 0,
+        remainingDuration: "0m"
+      };
+
+      if (isReservation && row.scheduled_end_time) {
+        overstayInfo = calculateOverstayDetails({
+          scheduledEndTime: row.scheduled_end_time,
+          actualOrCurrentTime: now,
+          planOverstayRate: row.overstay_rate,
+          defaultHourlyRate: defaultOverstayRate || slotRate,
+          graceMinutes
+        });
+      }
+
+      let payableAtExit = 0;
+      let totalEstimatedAmount = 0;
+      let calculatedFeeStr = "";
+
+      if (isReservation) {
+        payableAtExit = overstayInfo.overstayFee;
+        totalEstimatedAmount = prepaidAmt + overstayInfo.overstayFee;
+        calculatedFeeStr = overstayInfo.overstayFee > 0
+          ? `₹${overstayInfo.overstayFee.toFixed(2)} (Overstay)`
+          : `₹0.00 (Prepaid: ₹${prepaidAmt.toFixed(2)})`;
+      } else {
+        const walkInFee = billedHours * slotRate;
+        payableAtExit = walkInFee;
+        totalEstimatedAmount = walkInFee;
+        calculatedFeeStr = `₹${walkInFee.toFixed(2)}`;
+      }
 
       return {
-        id: row.id || row.history_id,
+        id: row.id || row.history_id || row.vehicle_id,
         vehicle_number: row.vehicle_number,
         vehicle_type: row.vehicle_type || (String(row.current_slot || "").toUpperCase().startsWith("EV") ? "EV" : "Car"),
         model: row.model || "Standard",
@@ -3512,13 +3968,29 @@ app.get("/api/customer/my-parking", async (req, res) => {
         current_slot: row.current_slot,
         zone: row.zone || (String(row.current_slot || "").toUpperCase().startsWith("EV") ? "Zone C (EV Fast)" : "Zone A"),
         slot_type: row.slot_type || "Standard",
-        hourly_rate: rate,
+        hourly_rate: slotRate,
         entry_time: entryDate.toISOString(),
         duration: durationStr,
         billed_hours: billedHours,
-        calculated_fee: `₹${totalFee}`,
-        fee_numeric: parseFloat(totalFee),
-        status: "Parked"
+        calculated_fee: calculatedFeeStr,
+        fee_numeric: payableAtExit,
+        status: "Parked",
+        is_reservation: isReservation,
+        booking_id: row.booking_id || null,
+        scheduled_start_time: scheduledStart,
+        scheduled_end_time: scheduledEnd,
+        booked_duration_hours: bookedHours,
+        prepaid_amount: prepaidAmt,
+        is_overstay: overstayInfo.isOverstay,
+        in_grace_period: overstayInfo.inGracePeriod,
+        overstay_minutes: overstayInfo.overstayMinutes,
+        overstay_duration: overstayInfo.overstayDuration,
+        billed_overstay_hours: overstayInfo.billedOverstayHours,
+        overstay_fee: overstayInfo.overstayFee,
+        remaining_minutes: overstayInfo.remainingMinutes,
+        remaining_time: overstayInfo.remainingDuration,
+        payable_at_exit: payableAtExit,
+        total_estimated_amount: totalEstimatedAmount
       };
     });
 
@@ -3610,6 +4082,14 @@ app.get(["/api/admin/parking-records", "/api/staff/parking-records"], async (req
         vh.fee,
         vh.status,
         vh.created_at,
+        vh.booking_id,
+        vh.scheduled_start_time,
+        vh.scheduled_end_time,
+        vh.booked_duration_hours,
+        vh.overstay_duration,
+        vh.overstay_fee,
+        vh.normal_fee,
+        vh.final_fee,
         COALESCE(v.vehicle_type, 'Car') as vehicle_type,
         COALESCE(v.model, 'Standard') as model,
         COALESCE(v.owner_name, p.customer_name, 'Customer') as customer_name,
@@ -3671,11 +4151,16 @@ app.get(["/api/admin/parking-records", "/api/staff/parking-records"], async (req
 
       return {
         ...row,
+        exit_time: isParked ? null : row.exit_time,
         ticket_number: `TKT-${88400 + row.id}`,
         record_id: `REC-${9000 + row.id}`,
         duration: duration || "1h 00m",
         fee: fee || "₹50.00",
-        payment_status: row.payment_status || (isParked ? "Pending" : "Paid")
+        payment_status: row.payment_status || (isParked ? "Pending" : "Paid"),
+        overstay_duration: row.overstay_duration || "0m",
+        overstay_fee: row.overstay_fee ? `₹${parseFloat(row.overstay_fee).toFixed(2)}` : "₹0.00",
+        normal_fee: row.normal_fee ? `₹${parseFloat(row.normal_fee).toFixed(2)}` : fee,
+        booked_duration_hours: row.booked_duration_hours ? parseFloat(row.booked_duration_hours) : null
       };
     });
 
@@ -3704,8 +4189,6 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
     vehicle_number,
     slot_number,
     exit_time,
-    duration,
-    fee,
     payment_method,
     customer_name,
     customer_email,
@@ -3729,8 +4212,12 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       "SELECT * FROM vehicle_history WHERE UPPER(vehicle_number) = $1 AND (exit_time IS NULL OR LOWER(status) = 'parked') ORDER BY entry_time DESC LIMIT 1 FOR UPDATE",
       [vPlate]
     );
+    const resQuery = await client.query(
+      "SELECT * FROM reservations WHERE UPPER(vehicle_number) = $1 AND LOWER(status) IN ('checked in', 'confirmed') ORDER BY id DESC LIMIT 1 FOR UPDATE",
+      [vPlate]
+    );
 
-    if (vehQuery.rowCount === 0 && histQuery.rowCount === 0) {
+    if (vehQuery.rowCount === 0 && histQuery.rowCount === 0 && resQuery.rowCount === 0) {
       await client.query("ROLLBACK");
       client.release();
       return res.status(404).json({ error: `Vehicle ${vPlate} does not have an active parking session` });
@@ -3738,30 +4225,75 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
 
     const veh = vehQuery.rows[0];
     const hist = histQuery.rows[0];
+    const booking = resQuery.rows[0];
 
-    const slotToFree = slot_number || hist?.slot_number || veh?.current_slot || "A-01";
-    const ownerName = customer_name || veh?.owner_name || "Customer";
-    const ownerEmail = (customer_email || veh?.owner_email || "").trim();
-    const ownerPhone = (customer_phone || veh?.owner_phone || "").trim();
-    const entryDate = hist?.entry_time ? new Date(hist.entry_time) : (veh?.created_at ? new Date(veh.created_at) : new Date(Date.now() - 3600000));
+    const slotToFree = slot_number || hist?.slot_number || booking?.slot_number || veh?.current_slot || "A-01";
+    const ownerName = customer_name || booking?.customer_name || veh?.owner_name || "Customer";
+    const ownerEmail = (customer_email || booking?.customer_email || veh?.owner_email || "").trim();
+    const ownerPhone = (customer_phone || booking?.customer_phone || veh?.owner_phone || "").trim();
 
-    const exitDate = exit_time ? new Date(exit_time) : new Date();
-    const diffMs = Math.max(0, exitDate - entryDate);
-    const diffMins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
-    const hours = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    const dur = duration || (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
-    const billedHours = Math.max(1, Math.ceil(diffMins / 60));
+    const actualEntryDate = hist?.entry_time ? new Date(hist.entry_time) : (veh?.created_at ? new Date(veh.created_at) : new Date(Date.now() - 3600000));
+    const actualExitDate = exit_time ? new Date(exit_time) : new Date();
 
-    let rate = 50;
+    const actualDiffMs = Math.max(0, actualExitDate - actualEntryDate);
+    const actualDiffMins = Math.max(1, Math.floor(actualDiffMs / (1000 * 60)));
+    const actH = Math.floor(actualDiffMins / 60);
+    const actM = actualDiffMins % 60;
+    const actualDurationStr = actH > 0 ? (actM > 0 ? `${actH}h ${actM}m` : `${actH}h 00m`) : `${actM}m`;
+    const actualBilledHours = Math.max(1, Math.ceil(actualDiffMins / 60));
+
+    let slotRate = 50;
     if (slotToFree) {
       const slotRes = await client.query("SELECT hourly_rate FROM parking_slots WHERE slot_number = $1", [slotToFree]);
       if (slotRes.rowCount > 0 && slotRes.rows[0].hourly_rate) {
-        rate = parseFloat(slotRes.rows[0].hourly_rate) || 50;
+        slotRate = parseFloat(slotRes.rows[0].hourly_rate) || 50;
       }
     }
-    const calculatedFee = billedHours * rate;
-    const rawFee = fee !== undefined ? (typeof fee === "string" ? parseFloat(fee.replace(/[^0-9.]/g, "")) || calculatedFee : parseFloat(fee) || calculatedFee) : calculatedFee;
+
+    const settingsRes = await client.query("SELECT value FROM system_settings WHERE key = 'general'");
+    const generalSettings = settingsRes.rows[0]?.value || {};
+    const graceMinutes = parseInt(generalSettings.overstayGracePeriodMinutes, 10) || 15;
+    const defaultOverstayRate = parseFloat(generalSettings.defaultOverstayHourlyRate) || slotRate;
+
+    const isReservation = !!booking;
+    let overstayInfo = {
+      isOverstay: false,
+      inGracePeriod: false,
+      overstayMinutes: 0,
+      overstayDuration: "0m",
+      billedOverstayHours: 0,
+      overstayFee: 0,
+      remainingMinutes: 0,
+      remainingDuration: "0m"
+    };
+
+    let planOverstayRate = defaultOverstayRate;
+    if (booking?.plan_code) {
+      const planRes = await client.query("SELECT overstay_rate, rate FROM pricing_plans WHERE LOWER(plan_code) = LOWER($1)", [booking.plan_code]);
+      if (planRes.rowCount > 0) {
+        planOverstayRate = planRes.rows[0].overstay_rate ? parseFloat(planRes.rows[0].overstay_rate) : (parseFloat(planRes.rows[0].rate) || slotRate);
+      }
+    }
+
+    let finalPayableFee = 0;
+    let prepaidFee = 0;
+    let totalSessionFee = 0;
+
+    if (isReservation) {
+      prepaidFee = parseFloat(booking.total_amount) || 0;
+      overstayInfo = calculateOverstayDetails({
+        scheduledEndTime: booking.end_time,
+        actualOrCurrentTime: actualExitDate,
+        planOverstayRate,
+        defaultHourlyRate: defaultOverstayRate,
+        graceMinutes
+      });
+      finalPayableFee = overstayInfo.overstayFee;
+      totalSessionFee = prepaidFee + finalPayableFee;
+    } else {
+      finalPayableFee = actualBilledHours * slotRate;
+      totalSessionFee = finalPayableFee;
+    }
 
     if (slotToFree) {
       await client.query(
@@ -3778,7 +4310,7 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       `UPDATE ev_charging_sessions 
        SET session_status = 'Completed', payment_status = 'Completed', end_time = $1, duration = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP
        WHERE UPPER(vehicle_number) = $4 AND LOWER(session_status) = 'active'`,
-      [exitDate, dur, rawFee, vPlate]
+      [actualExitDate, actualDurationStr, finalPayableFee, vPlate]
     );
 
     await client.query(
@@ -3786,66 +4318,107 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       [vPlate]
     );
 
-    await client.query(
-      `UPDATE vehicle_history 
-       SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
-       WHERE UPPER(vehicle_number) = $4 AND (exit_time IS NULL OR LOWER(status) = 'parked')`,
-      [exitDate, dur, `₹${rawFee.toFixed(2)}`, vPlate]
-    );
+    if (isReservation) {
+      await client.query(
+        `UPDATE reservations 
+         SET status = 'Completed',
+             actual_exit_time = $1,
+             overstay_hours = $2,
+             overstay_amount = $3,
+             final_total_amount = $4
+         WHERE id = $5`,
+        [actualExitDate, overstayInfo.billedOverstayHours, overstayInfo.overstayFee, totalSessionFee, booking.id]
+      );
+    }
 
-    await client.query(
-      `UPDATE reservations 
-       SET status = 'Completed' 
-       WHERE UPPER(vehicle_number) = $1 AND LOWER(status) IN ('checked in', 'confirmed')`,
-      [vPlate]
-    );
+    if (hist?.id) {
+      await client.query(
+        `UPDATE vehicle_history 
+         SET exit_time = $1,
+             duration = $2,
+             fee = $3,
+             status = 'Completed',
+             overstay_duration = $4,
+             overstay_fee = $5,
+             normal_fee = $6,
+             final_fee = $7
+         WHERE id = $8`,
+        [
+          actualExitDate,
+          actualDurationStr,
+          `₹${totalSessionFee.toFixed(2)}`,
+          overstayInfo.overstayDuration,
+          overstayInfo.overstayFee,
+          prepaidFee || finalPayableFee,
+          totalSessionFee,
+          hist.id
+        ]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO vehicle_history (
+          vehicle_number, slot_number, entry_time, exit_time, duration, fee, status,
+          booking_id, scheduled_start_time, scheduled_end_time, booked_duration_hours,
+          overstay_duration, overstay_fee, normal_fee, final_fee
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'Completed', $7, $8, $9, $10, $11, $12, $13, $14)`,
+        [
+          vPlate,
+          slotToFree,
+          actualEntryDate,
+          actualExitDate,
+          actualDurationStr,
+          `₹${totalSessionFee.toFixed(2)}`,
+          booking?.booking_id || null,
+          booking?.start_time || null,
+          booking?.end_time || null,
+          booking?.duration_hours || null,
+          overstayInfo.overstayDuration,
+          overstayInfo.overstayFee,
+          prepaidFee || finalPayableFee,
+          totalSessionFee
+        ]
+      );
+    }
 
-    const paymentInsert = await client.query(
-      `INSERT INTO payments (
-        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
-      [
-        txnId,
-        vPlate,
-        ownerName,
-        ownerEmail,
-        ownerPhone,
-        slotToFree,
-        entryDate,
-        exitDate,
-        dur,
-        rawFee,
-        payMethod,
-        payMethod
-      ]
-    );
+    let paymentRecord = null;
+    if (finalPayableFee > 0) {
+      const paymentInsert = await client.query(
+        `INSERT INTO payments (
+          transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+          slot_number, entry_time, exit_time, duration, amount, original_amount,
+          discount_amount, payment_method, method, payment_status, created_at,
+          booking_id, payment_type, base_amount, overstay_amount
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, 0, $11, $11, 'Completed', CURRENT_TIMESTAMP, $12, $13, $14, $15) RETURNING *`,
+        [
+          txnId,
+          vPlate,
+          ownerName,
+          ownerEmail,
+          ownerPhone,
+          slotToFree,
+          actualEntryDate,
+          actualExitDate,
+          isReservation ? overstayInfo.overstayDuration : actualDurationStr,
+          finalPayableFee,
+          payMethod,
+          booking?.booking_id || null,
+          isReservation ? "Overstay Charge" : "Parking Fee",
+          isReservation ? 0 : finalPayableFee,
+          isReservation ? overstayInfo.overstayFee : 0
+        ]
+      );
+      paymentRecord = paymentInsert.rows[0];
+    }
 
     await logAuditEvent({
       client,
-      userName: ownerName || "Staff Operator",
-      userEmail: ownerEmail || null,
+      userName: req.headers["x-staff-name"] || "Staff Operator",
       role: "Staff",
-      action: "Vehicle Checkout",
-      module: "Vehicles",
-      entityType: "vehicle",
+      action: "Vehicle Exit & Slot Released",
+      module: "Operations",
+      entityType: "vehicle_exit",
       entityId: vPlate,
-      description: `Vehicle ${vPlate} checked out from slot ${slotToFree}, fee: ₹${rawFee.toFixed(2)}`,
-      status: "Success",
-      ipAddress: getAuditClientIp(req),
-      userAgent: getAuditUserAgent(req)
-    });
-
-    await logAuditEvent({
-      client,
-      userName: ownerName || "Customer",
-      userEmail: ownerEmail || null,
-      role: "Customer",
-      action: "Payment Completed",
-      module: "Payments",
-      entityType: "payment",
-      entityId: txnId,
-      description: `Parking payment of ₹${rawFee.toFixed(2)} completed via ${payMethod} for ${vPlate}`,
+      description: `Checkout vehicle ${vPlate} from Bay ${slotToFree}. Fee: ₹${finalPayableFee.toFixed(2)} (${isReservation ? (overstayInfo.overstayFee > 0 ? "Overstay Charge" : "Prepaid Reservation") : "Standard Fee"})`,
       status: "Success",
       ipAddress: getAuditClientIp(req),
       userAgent: getAuditUserAgent(req)
@@ -3881,41 +4454,59 @@ app.post("/api/staff/vehicle-exit", async (req, res) => {
       await sendParkingSessionCompletedEmail({
         vehicleNumber: vPlate,
         slotNumber: slotToFree || "Assigned Bay",
-        entryTime: entryDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-        exitTime: exitDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-        duration: dur,
-        fee: `₹${rawFee.toFixed(2)}`,
+        entryTime: actualEntryDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        exitTime: actualExitDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+        duration: actualDurationStr,
+        fee: `₹${finalPayableFee.toFixed(2)}`,
         paymentMethod: payMethod,
         recipient: ownerEmail
       });
-      await sendDigitalReceiptEmail({
-        receiptNumber: txnId,
-        amount: rawFee,
-        vehicleNumber: vPlate,
-        slotNumber: slotToFree || "Assigned Bay",
-        duration: dur,
-        recipient: ownerEmail
-      });
+      if (finalPayableFee > 0) {
+        await sendDigitalReceiptEmail({
+          receiptNumber: txnId,
+          amount: finalPayableFee,
+          vehicleNumber: vPlate,
+          slotNumber: slotToFree || "Assigned Bay",
+          duration: isReservation ? overstayInfo.overstayDuration : actualDurationStr,
+          recipient: ownerEmail
+        });
+      }
     } catch (e) {
       console.error(e);
     }
 
+    const exitRecord = {
+      transaction_id: paymentRecord?.transaction_id || `REC-${Math.floor(10000 + Math.random() * 90000)}`,
+      vehicle_number: vPlate,
+      slot_number: slotToFree,
+      customer_name: ownerName,
+      customer_email: ownerEmail,
+      customer_phone: ownerPhone,
+      entry_time: actualEntryDate.toISOString(),
+      exit_time: actualExitDate.toISOString(),
+      duration: actualDurationStr,
+      is_reservation: isReservation,
+      booking_id: booking?.booking_id || null,
+      scheduled_start_time: booking?.start_time || null,
+      scheduled_end_time: booking?.end_time || null,
+      booked_duration_hours: booking?.duration_hours || null,
+      prepaid_fee: `₹${prepaidFee.toFixed(2)}`,
+      overstay_duration: overstayInfo.overstayDuration,
+      overstay_fee: `₹${overstayInfo.overstayFee.toFixed(2)}`,
+      final_payable_fee: `₹${finalPayableFee.toFixed(2)}`,
+      total_session_fee: `₹${totalSessionFee.toFixed(2)}`,
+      fee: `₹${finalPayableFee.toFixed(2)}`,
+      payment_method: payMethod,
+      payment_status: "Completed",
+      payment_type: isReservation ? (overstayInfo.overstayFee > 0 ? "Overstay Charge" : "Prepaid Reservation") : "Parking Fee"
+    };
+
     res.status(200).json({
       success: true,
       message: `Vehicle ${vPlate} checked out successfully. Bay ${slotToFree || ''} is now available.`,
-      exitRecord: {
-        transaction_id: txnId,
-        vehicle_number: vPlate,
-        slot_number: slotToFree,
-        customer_name: ownerName,
-        entry_time: entryDate.toISOString(),
-        exit_time: exitDate.toISOString(),
-        duration: dur,
-        fee: `₹${rawFee.toFixed(2)}`,
-        payment_method: payMethod,
-        status: "Completed"
-      },
-      receipt: paymentInsert.rows[0]
+      exitRecord,
+      receipt: exitRecord,
+      payment: paymentRecord
     });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -4087,9 +4678,52 @@ app.get("/api/customer/parking-history", async (req, res) => {
       histRes = await pool.query(`${selectCols} ${baseFromWhere} ORDER BY vh.entry_time DESC`, params);
     }
 
+    let activeReservations = [];
+    if (email || name) {
+      const activeResQuery = `
+        SELECT 
+          CONCAT('res-', r.id) as id,
+          r.vehicle_number,
+          r.slot_number,
+          COALESCE(r.actual_entry_time, r.start_time) as entry_time,
+          NULL as exit_time,
+          CONCAT(COALESCE(r.duration_hours, 1), 'h booked (Ongoing)') as duration,
+          CONCAT('₹', CAST(COALESCE(r.total_amount, 50.00) AS NUMERIC(10,2))) as fee,
+          'Parked' as status,
+          r.created_at,
+          COALESCE(r.vehicle_type, 'Car') as vehicle_type,
+          COALESCE(r.model, 'Standard') as model,
+          COALESCE(r.customer_name, 'Customer') as owner_name,
+          COALESCE(r.customer_email, '') as owner_email,
+          COALESCE(r.zone, 'Zone A') as zone,
+          50.00 as hourly_rate,
+          r.booking_id as transaction_id,
+          'UPI' as payment_method
+        FROM reservations r
+        WHERE LOWER(r.status) IN ('confirmed', 'checked in')
+          AND (
+            ($1::text IS NOT NULL AND LOWER(r.customer_email) = $1)
+            OR ($2::text IS NOT NULL AND LOWER(r.customer_name) LIKE '%' || $2 || '%')
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM vehicle_history vh2 
+            WHERE (vh2.booking_id = r.booking_id OR (UPPER(vh2.vehicle_number) = UPPER(r.vehicle_number) AND vh2.slot_number = r.slot_number AND LOWER(vh2.status) = 'parked'))
+          )
+        ORDER BY r.id DESC
+      `;
+      const cleanEmail = email ? email.trim().toLowerCase() : null;
+      const cleanName = name ? name.trim().toLowerCase() : null;
+      const actRes = await pool.query(activeResQuery, [cleanEmail, cleanName]);
+      activeReservations = actRes.rows;
+    }
+
+    const allRows = (status && status.toUpperCase() === "COMPLETED")
+      ? histRes.rows
+      : [...activeReservations, ...histRes.rows];
+
     const now = new Date();
-    const formattedRows = histRes.rows.map(r => {
-      const isParked = (r.status || "").toLowerCase() === "parked" || !r.exit_time;
+    const formattedRows = allRows.map(r => {
+      const isParked = (r.status || "").toLowerCase() === "parked" || (r.status || "").toLowerCase() === "active" || (r.status || "").toLowerCase() === "checked in" || (r.status || "").toLowerCase() === "confirmed" || !r.exit_time;
       let duration = r.duration;
       let fee = r.fee;
       if (isParked && r.entry_time) {
@@ -4105,6 +4739,7 @@ app.get("/api/customer/parking-history", async (req, res) => {
       }
       return {
         ...r,
+        exit_time: isParked ? null : r.exit_time,
         duration: duration || "1h 00m",
         fee: fee || "₹50.00",
         status: isParked ? "Parked" : "Completed"
@@ -4297,7 +4932,9 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
     duration_hours,
     total_amount,
     plan_code,
-    plan_name
+    plan_name,
+    coupon_code,
+    original_amount
   } = req.body;
 
   if (!customer_name || !vehicle_number || !slot_number) {
@@ -4310,16 +4947,65 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
   const vType = vehicle_type || "Car";
   const vModel = model || "Standard";
   const now = new Date();
-  const durHours = parseFloat(duration_hours) || 2;
-  const sTimeStr = parseToLocalTimestampString(start_time, now);
-  const calculatedEndTime = new Date(new Date(sTimeStr.replace(" ", "T")).getTime() + durHours * 3600000);
-  const eTimeStr = end_time ? parseToLocalTimestampString(end_time, calculatedEndTime) : getLocalTimestamp(calculatedEndTime);
   const createdAtStr = getLocalTimestamp(now);
-  const amountNum = parseFloat(total_amount) || (durHours * 50);
+  const sTimeStr = parseToLocalTimestampString(start_time, now);
+
+  let sTimeFinal = sTimeStr;
+  let eTimeFinal = "";
+  let durHours = 1;
+  let durDisplay = "1h 00m";
+
+  if (end_time) {
+    const durCalc = calculateDurationBetween(sTimeStr, end_time);
+    if (durCalc.diffMs <= 0) {
+      return res.status(400).json({ error: "Exit date and time must be later than entry date and time" });
+    }
+    sTimeFinal = durCalc.startStr;
+    eTimeFinal = durCalc.endStr;
+    durHours = durCalc.totalHours;
+    durDisplay = durCalc.durationStr;
+  } else {
+    durHours = Math.max(0.5, parseFloat(duration_hours) || 1);
+    const calculatedEndTime = new Date(new Date(sTimeStr.replace(" ", "T")).getTime() + durHours * 3600000);
+    eTimeFinal = getLocalTimestamp(calculatedEndTime);
+    durDisplay = `${durHours}h 00m`;
+  }
+
+  const feeCalc = await calculateBookingFeeFromPlan({
+    planCode: plan_code,
+    durationHours: durHours,
+    vehicleType: vType,
+    client: pool
+  });
+  const rawBaseAmount = feeCalc.baseAmount;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    let finalAmount = rawBaseAmount;
+    let discountAmount = 0;
+    let appliedCouponCode = null;
+
+    if (coupon_code && String(coupon_code).trim()) {
+      const couponValidation = await validateCoupon({
+        code: String(coupon_code).trim(),
+        customerEmail: customer_email || "",
+        orderAmount: rawBaseAmount,
+        serviceType: "Normal Parking",
+        db: client
+      });
+
+      if (!couponValidation.valid) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(400).json({ error: couponValidation.error });
+      }
+
+      discountAmount = couponValidation.discount_amount;
+      finalAmount = couponValidation.final_amount;
+      appliedCouponCode = couponValidation.code;
+    }
 
     let isEvSlot = false;
     let slotCheck = await client.query("SELECT * FROM parking_slots WHERE slot_number = $1 FOR UPDATE", [slot_number]);
@@ -4352,8 +5038,9 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       `INSERT INTO reservations (
         booking_id, customer_name, customer_email, customer_phone, vehicle_number,
         vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
-        total_amount, status, validation_code, plan_code, plan_name, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Confirmed', $14, $15, $16, $17) RETURNING *`,
+        total_amount, original_amount, discount_amount, coupon_code,
+        status, validation_code, plan_code, plan_name, created_at, final_total_amount
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'Confirmed', $17, $18, $19, $20, $13) RETURNING *`,
       [
         bookingId,
         customer_name,
@@ -4364,13 +5051,16 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         vModel,
         slot_number,
         targetZone,
-        sTimeStr,
-        eTimeStr,
+        sTimeFinal,
+        eTimeFinal,
         durHours,
-        amountNum,
+        finalAmount,
+        rawBaseAmount,
+        discountAmount,
+        appliedCouponCode,
         valCode,
-        plan_code || "PLAN-STD",
-        plan_name || "Standard Parking",
+        plan_code || (feeCalc.plan?.plan_code || "PLAN-STD"),
+        plan_name || (feeCalc.plan?.plan_name || "Standard Parking"),
         createdAtStr
       ]
     );
@@ -4407,8 +5097,9 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
     await client.query(
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Completed', $13)`,
+        slot_number, entry_time, exit_time, duration, amount, original_amount, discount_amount, coupon_code,
+        payment_method, method, payment_status, created_at, booking_id, payment_type, base_amount
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Completed', $16, $17, 'Parking Fee', $10)`,
       [
         payTxnId,
         vPlate,
@@ -4416,15 +5107,35 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         customer_email || "",
         customer_phone || "",
         slot_number,
-        sTimeStr,
-        eTimeStr,
-        `${durHours}h 00m`,
-        amountNum,
+        sTimeFinal,
+        eTimeFinal,
+        durDisplay,
+        finalAmount,
+        rawBaseAmount,
+        discountAmount,
+        appliedCouponCode,
         payMethod,
         payMethod,
-        createdAtStr
+        createdAtStr,
+        bookingId
       ]
     );
+
+    if (appliedCouponCode && discountAmount > 0) {
+      await recordCouponUsage({
+        client,
+        couponCode: appliedCouponCode,
+        customerEmail: customer_email || "customer@parksafe.in",
+        customerName: customer_name,
+        bookingId: bookingId,
+        paymentId: payTxnId,
+        originalAmount: rawBaseAmount,
+        discountAmount: discountAmount,
+        finalAmount: finalAmount,
+        serviceType: "Normal Parking",
+        req
+      });
+    }
 
     await logAuditEvent({
       client,
@@ -4435,7 +5146,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       module: "Bookings",
       entityType: "booking",
       entityId: bookingId,
-      description: `Slot ${slot_number} reserved for vehicle ${vPlate} (${durHours}h, ₹${amountNum.toFixed(2)})`,
+      description: `Slot ${slot_number} reserved for vehicle ${vPlate} (${durHours}h, ₹${finalAmount.toFixed(2)}${discountAmount > 0 ? ` with ₹${discountAmount.toFixed(2)} coupon discount [${appliedCouponCode}]` : ""})`,
       status: "Success",
       ipAddress: getAuditClientIp(req),
       userAgent: getAuditUserAgent(req)
@@ -4450,7 +5161,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       module: "Payments",
       entityType: "payment",
       entityId: payTxnId,
-      description: `Reservation advance payment of ₹${amountNum.toFixed(2)} via ${payMethod} for ${vPlate}`,
+      description: `Reservation advance payment of ₹${finalAmount.toFixed(2)} via ${payMethod} for ${vPlate}`,
       status: "Success",
       ipAddress: getAuditClientIp(req),
       userAgent: getAuditUserAgent(req)
@@ -4563,7 +5274,7 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
     const nowStr = getLocalTimestamp(now);
     const updatedRes = await client.query(
       `UPDATE reservations 
-       SET status = 'Checked In', validated_at = $1, validated_by = $2 
+       SET status = 'Checked In', validated_at = $1, validated_by = $2, actual_entry_time = $1 
        WHERE id = $3 RETURNING *`,
       [nowStr, validated_by || "Staff Operator", booking.id]
     );
@@ -4589,9 +5300,21 @@ app.post("/api/staff/validate-reservation", async (req, res) => {
     );
 
     await client.query(
-      `INSERT INTO vehicle_history (vehicle_number, slot_number, entry_time, exit_time, duration, fee, status)
-       VALUES ($1, $2, $3, NULL, 'Ongoing', $4, 'Parked')`,
-      [booking.vehicle_number, booking.slot_number, nowStr, `₹${parseFloat(booking.total_amount).toFixed(2)}`]
+      `INSERT INTO vehicle_history (
+        vehicle_number, slot_number, entry_time, exit_time, duration, fee, status,
+        booking_id, scheduled_start_time, scheduled_end_time, booked_duration_hours, normal_fee
+      ) VALUES ($1, $2, $3, NULL, 'Ongoing', $4, 'Parked', $5, $6, $7, $8, $9)`,
+      [
+        booking.vehicle_number,
+        booking.slot_number,
+        nowStr,
+        `₹${parseFloat(booking.total_amount).toFixed(2)}`,
+        booking.booking_id,
+        booking.start_time,
+        booking.end_time,
+        booking.duration_hours,
+        parseFloat(booking.total_amount) || 0
+      ]
     );
 
     await logAuditEvent({
@@ -4820,7 +5543,12 @@ app.put("/api/admin/bookings/:id/status", async (req, res) => {
       await pool.query(
         `UPDATE vehicle_history 
          SET exit_time = $1, duration = $2, fee = $3, status = 'Completed' 
-         WHERE vehicle_number = $4 AND (exit_time IS NULL OR status = 'Parked')`,
+         WHERE id = (
+           SELECT id FROM vehicle_history 
+           WHERE UPPER(vehicle_number) = UPPER($4) AND (exit_time IS NULL OR LOWER(status) = 'parked')
+           ORDER BY entry_time DESC 
+           LIMIT 1
+         )`,
         [exitTime, dur, `₹${parseFloat(updatedBooking.total_amount || 0).toFixed(2)}`, updatedBooking.vehicle_number]
       );
       if (updatedBooking.customer_email) {
@@ -4931,7 +5659,7 @@ app.get("/api/pricing-plans", async (req, res) => {
 });
 
 app.post("/api/pricing-plans", async (req, res) => {
-  const { plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active } = req.body;
+  const { plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active, overstay_rate } = req.body;
 
   if (!plan_name || !rate) {
     return res.status(400).json({ error: "Plan name and rate are required" });
@@ -4939,6 +5667,7 @@ app.post("/api/pricing-plans", async (req, res) => {
 
   const pRate = parseFloat(rate) || 50.00;
   const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
+  const pOverstayRate = overstay_rate !== undefined && overstay_rate !== "" && overstay_rate !== null ? parseFloat(overstay_rate) : pRate;
   const pActive = is_active !== false;
   const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];
 
@@ -4958,9 +5687,9 @@ app.post("/api/pricing-plans", async (req, res) => {
 
   try {
     const insertRes = await pool.query(
-      `INSERT INTO pricing_plans (plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [pCode, plan_name.trim(), vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive]
+      `INSERT INTO pricing_plans (plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active, overstay_rate)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [pCode, plan_name.trim(), vehicle_type || "Car", billing_type || "Hourly", pRate, pDur, description || "", pFeatures, pActive, pOverstayRate]
     );
 
     await logAuditEvent({
@@ -5024,19 +5753,20 @@ app.post("/api/pricing-plans", async (req, res) => {
 
 app.put("/api/pricing-plans/:id", async (req, res) => {
   const { id } = req.params;
-  const { plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active } = req.body;
+  const { plan_code, plan_name, vehicle_type, billing_type, rate, duration_hours, description, features, is_active, overstay_rate } = req.body;
 
   try {
     const pRate = parseFloat(rate) || 50.00;
     const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
+    const pOverstayRate = overstay_rate !== undefined && overstay_rate !== "" && overstay_rate !== null ? parseFloat(overstay_rate) : null;
     const pActive = is_active !== false;
     const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];
 
     const updateRes = await pool.query(
       `UPDATE pricing_plans 
-       SET plan_code = COALESCE($1, plan_code), plan_name = $2, vehicle_type = $3, billing_type = $4, rate = $5, duration_hours = $6, description = $7, features = $8, is_active = $9
-       WHERE id = $10 RETURNING *`,
-      [plan_code || null, plan_name, vehicle_type, billing_type, pRate, pDur, description, pFeatures, pActive, id]
+       SET plan_code = COALESCE($1, plan_code), plan_name = $2, vehicle_type = $3, billing_type = $4, rate = $5, duration_hours = $6, description = $7, features = $8, is_active = $9, overstay_rate = COALESCE($10, overstay_rate)
+       WHERE id = $11 RETURNING *`,
+      [plan_code || null, plan_name, vehicle_type, billing_type, pRate, pDur, description, pFeatures, pActive, pOverstayRate, id]
     );
 
     if (updateRes.rowCount === 0) {
@@ -6277,14 +7007,26 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       ? `SELECT COUNT(*) AS ev_sessions_count, COALESCE(SUM(total_amount), 0) AS ev_revenue, COALESCE(SUM(energy_consumed), 0) AS ev_energy_kwh FROM ev_charging_sessions ${dateFilter}`
       : "SELECT COUNT(*) AS ev_sessions_count, COALESCE(SUM(total_amount), 0) AS ev_revenue, COALESCE(SUM(energy_consumed), 0) AS ev_energy_kwh FROM ev_charging_sessions";
 
-    const [payRes, bookRes, vehTypeRes, payMethodRes, slotsRes, evStatsRes, evSlotsRes] = await Promise.all([
+    const couponQuery = `
+      SELECT 
+        COUNT(*) AS total_coupons,
+        COUNT(*) FILTER (WHERE LOWER(status) = 'active' AND expiry_date >= CURRENT_TIMESTAMP) AS active_coupons,
+        COALESCE(SUM(used_count), 0) AS total_redemptions,
+        COALESCE((SELECT SUM(discount_amount) FROM coupon_usage), 0) AS total_discount_given,
+        COALESCE((SELECT SUM(original_amount) FROM coupon_usage), 0) AS gross_coupon_revenue,
+        COALESCE((SELECT SUM(final_amount) FROM coupon_usage), 0) AS net_coupon_revenue
+      FROM coupons
+    `;
+
+    const [payRes, bookRes, vehTypeRes, payMethodRes, slotsRes, evStatsRes, evSlotsRes, couponAnalyticsRes] = await Promise.all([
       pool.query(payQuery),
       pool.query(bookQuery),
       pool.query("SELECT vehicle_type, COUNT(*) AS count FROM vehicles GROUP BY vehicle_type"),
       pool.query(payMethodQuery),
       pool.query("SELECT zone, COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' OR is_available = false THEN 1 ELSE 0 END) AS occupied FROM parking_slots GROUP BY zone ORDER BY zone ASC"),
       pool.query(evQuery),
-      pool.query("SELECT COUNT(*) AS total, SUM(CASE WHEN LOWER(status) IN ('charging', 'occupied') THEN 1 ELSE 0 END) AS occupied FROM ev_charging_slots")
+      pool.query("SELECT COUNT(*) AS total, SUM(CASE WHEN LOWER(status) IN ('charging', 'occupied') THEN 1 ELSE 0 END) AS occupied FROM ev_charging_slots"),
+      pool.query(couponQuery)
     ]);
 
     const totalRevenue = parseFloat(payRes.rows[0]?.total_revenue || 0);
@@ -6373,6 +7115,14 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
         energyKwh: parseFloat(evStatsRes.rows[0]?.ev_energy_kwh || 0),
         totalSlots: evTotalSlots,
         availableSlots: Math.max(0, evTotalSlots - evOccupiedSlots)
+      },
+      couponStats: {
+        totalCoupons: parseInt(couponAnalyticsRes.rows[0]?.total_coupons || 0, 10),
+        activeCoupons: parseInt(couponAnalyticsRes.rows[0]?.active_coupons || 0, 10),
+        totalRedemptions: parseInt(couponAnalyticsRes.rows[0]?.total_redemptions || 0, 10),
+        totalDiscountGiven: parseFloat(couponAnalyticsRes.rows[0]?.total_discount_given || 0),
+        grossRevenue: parseFloat(couponAnalyticsRes.rows[0]?.gross_coupon_revenue || 0),
+        netRevenue: parseFloat(couponAnalyticsRes.rows[0]?.net_coupon_revenue || 0)
       },
       vehicleBreakdown,
       paymentBreakdown,

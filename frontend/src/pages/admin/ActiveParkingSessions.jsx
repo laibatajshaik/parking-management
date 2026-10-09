@@ -69,7 +69,7 @@ export default function ActiveParkingSessions() {
   const totalAccruedFee = validSessions.reduce((sum, s) => sum + (parseFloat(s.fee_numeric) || 0), 0);
 
   const handleExportCsv = () => {
-    const headers = ["Vehicle Plate", "Type", "Model", "Slot", "Zone", "Owner Name", "Email", "Phone", "Entry Time", "Duration", "Accrued Fee", "Status"];
+    const headers = ["Vehicle Plate", "Type", "Model", "Slot", "Zone", "Owner Name", "Email", "Phone", "Entry Time", "Duration", "Accrued Fee", "Status", "Booked Duration", "Overstay Duration", "Overstay Fee"];
     const rows = (filteredSessions || []).map((s) => [
       s.vehicle_number || "",
       s.vehicle_type || "Car",
@@ -82,7 +82,10 @@ export default function ActiveParkingSessions() {
       formatDate(s.entry_time),
       s.duration || "",
       s.calculated_fee || `₹${s.fee_numeric || 0}`,
-      s.status || "Parked"
+      s.status || "Parked",
+      s.booked_duration_hours ? `${s.booked_duration_hours}h` : "N/A",
+      s.overstay_duration || "0m",
+      s.overstay_fee ? `₹${s.overstay_fee}` : "₹0.00"
     ]);
     exportToCsv("Active_Parking_Sessions", headers, rows);
   };
@@ -258,8 +261,13 @@ export default function ActiveParkingSessions() {
                     </div>
 
                     <div className="pw-user-card-date-col">
-                      <span className="pw-user-col-label">Check-in</span>
-                      <span className="pw-user-col-value">{formatDate(s.entry_time)}</span>
+                      <span className="pw-user-col-label">{s.scheduled_start_time ? "Booked Window" : "Check-in"}</span>
+                      <span className="pw-user-col-value">{formatDate(s.scheduled_start_time || s.entry_time)}</span>
+                      {s.scheduled_end_time && (
+                        <span style={{ fontSize: "0.68rem", color: s.is_overstay ? "#ef4444" : "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>
+                          Exit: {formatDate(s.scheduled_end_time)}
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -267,20 +275,53 @@ export default function ActiveParkingSessions() {
                         <Clock size={12} />
                         <span>{s.duration}</span>
                       </div>
+                      {s.booked_duration_hours && (
+                        <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #64748b)", marginTop: "2px" }}>
+                          {s.booked_duration_hours}h booked
+                        </div>
+                      )}
+                      {s.is_overstay && (
+                        <div style={{ fontSize: "0.7rem", color: "#ef4444", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "1px 6px", borderRadius: "4px", marginTop: "3px", display: "inline-block" }}>
+                          Overstay: {s.overstay_duration}
+                        </div>
+                      )}
                     </div>
 
                     <div>
                       <div className="pw-fee-cell">
-                        <span className="pw-fee-amount">{s.calculated_fee}</span>
-                        <span className="pw-fee-rate">₹{s.hourly_rate}/hr</span>
+                        {s.is_reservation ? (
+                          s.is_overstay ? (
+                            <>
+                              <span className="pw-fee-amount" style={{ color: "#ef4444" }}>+₹{Number(s.overstay_fee || 0).toFixed(2)}</span>
+                              <span className="pw-fee-rate">Overstay charge</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="pw-fee-amount" style={{ color: "#16a34a" }}>₹0.00</span>
+                              <span className="pw-fee-rate">Pre-paid (On-time)</span>
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <span className="pw-fee-amount">{s.calculated_fee}</span>
+                            <span className="pw-fee-rate">₹{s.hourly_rate}/hr</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <div style={{ textAlign: "right" }}>
-                      <span className="pw-veh-status-pill parked">
-                        <span className="pw-status-dot"></span>
-                        <span>Parked</span>
-                      </span>
+                      {s.is_overstay ? (
+                        <span className="pw-veh-status-pill" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}>
+                          <span className="pw-status-dot" style={{ background: "#ef4444" }}></span>
+                          <span>Overstay</span>
+                        </span>
+                      ) : (
+                        <span className="pw-veh-status-pill parked">
+                          <span className="pw-status-dot"></span>
+                          <span>Parked</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

@@ -293,6 +293,11 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                       <span className="pw-fee-amount" style={{ fontSize: "0.95rem" }}>
                         ₹{amt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </span>
+                      {p.coupon_code && (
+                        <div style={{ fontSize: "0.68rem", color: "#16a34a", fontWeight: 700, marginTop: "2px" }}>
+                          🏷️ {p.coupon_code} (-₹{parseFloat(p.discount_amount || 0).toFixed(2)})
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ textAlign: "right" }}>

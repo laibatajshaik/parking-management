@@ -17,7 +17,9 @@ import {
   ArrowRight,
   ShieldCheck,
   Receipt,
-  X
+  X,
+  Ticket,
+  Tag
 } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -52,6 +54,49 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
   const [paymentMethod, setPaymentMethod] = useState("UPI");
   const [isStoppingSession, setIsStoppingSession] = useState(false);
   const [completedSummary, setCompletedSummary] = useState(null);
+
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [availableCouponsList, setAvailableCouponsList] = useState([]);
+
+  const fetchCouponsList = useCallback(async () => {
+    try {
+      let res = await fetch(`${API_BASE_URL}/api/coupons`);
+      let data = null;
+      if (res.ok) {
+        data = await res.json();
+      } else {
+        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        if (fbRes.ok) data = await fbRes.json();
+      }
+      if (data && data.success && Array.isArray(data.coupons)) {
+        setAvailableCouponsList(data.coupons);
+      }
+    } catch {
+      try {
+        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        if (fbRes.ok) {
+          const fbData = await fbRes.json();
+          if (fbData && fbData.success && Array.isArray(fbData.coupons)) {
+            setAvailableCouponsList(fbData.coupons);
+          }
+        }
+      } catch {
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCouponsList();
+  }, [fetchCouponsList]);
+
+  useEffect(() => {
+    if (isPaymentModalOpen) {
+      fetchCouponsList();
+    }
+  }, [isPaymentModalOpen, fetchCouponsList]);
 
   const [historySessions, setHistorySessions] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -198,6 +243,98 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
     }
   };
 
+  const getOriginalEvAmount = () => {
+    return parseFloat(activeSession?.estimatedFee) || 32.4;
+  };
+
+  const getEvDiscountAmount = () => {
+    if (!appliedCoupon) return 0;
+    const discAmt = parseFloat(appliedCoupon.discount_amount);
+    if (!isNaN(discAmt) && discAmt > 0) return discAmt;
+
+    const orig = getOriginalEvAmount();
+    const val = parseFloat(appliedCoupon.discount_value) || 0;
+    if (appliedCoupon.discount_type === "percentage") {
+      let calc = (orig * val) / 100;
+      if (appliedCoupon.maximum_discount) {
+        calc = Math.min(calc, parseFloat(appliedCoupon.maximum_discount));
+      }
+      return Math.max(0, calc);
+    }
+    return Math.max(0, Math.min(orig, val));
+  };
+
+  const getFinalEvPayable = () => {
+    const orig = getOriginalEvAmount();
+    const disc = getEvDiscountAmount();
+    return Math.max(0, orig - disc);
+  };
+
+  const handleApplyCoupon = async (e, codeOverride) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const targetCode = (codeOverride !== undefined ? codeOverride : couponCodeInput) || "";
+    const trimmed = targetCode.trim().toUpperCase();
+    if (!trimmed) {
+      setCouponError("Please enter a coupon code.");
+      return;
+    }
+    setIsApplyingCoupon(true);
+    setCouponError("");
+
+    try {
+      const orderAmt = getOriginalEvAmount();
+      const res = await fetch(`${API_BASE_URL}/api/coupons/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: trimmed,
+          customer_email: userEmail,
+          order_amount: orderAmt,
+          service_type: "EV Charging"
+        })
+      });
+      const data = await res.json();
+      setIsApplyingCoupon(false);
+
+      if (!res.ok || !data.success) {
+        setCouponError(data.error || "Invalid or ineligible coupon code.");
+        setAppliedCoupon(null);
+      } else {
+        const couponPayload = data.coupon || (data.valid ? data : null);
+        setAppliedCoupon(couponPayload);
+        setCouponCodeInput(trimmed);
+        setCouponError("");
+      }
+    } catch {
+      setIsApplyingCoupon(false);
+      setCouponError("Network error while validating coupon.");
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput("");
+    setCouponError("");
+  };
+
+  const handleSelectCouponFromDropdown = (couponCode) => {
+    setCouponCodeInput(couponCode);
+    setCouponError("");
+    if (!couponCode) {
+      if (appliedCoupon) setAppliedCoupon(null);
+      return;
+    }
+    const found = availableCouponsList.find((c) => c.code.toUpperCase() === couponCode.toUpperCase());
+    if (found) {
+      const st = (found.computed_status || found.status || "").toLowerCase();
+      if (st !== "active") {
+        setCouponError(`Notice: Coupon "${found.code}" is disabled and cannot be selected.`);
+        return;
+      }
+      handleApplyCoupon(null, found.code);
+    }
+  };
+
   const handleStopCharging = async (e) => {
     e.preventDefault();
     if (!activeSession) return;
@@ -209,7 +346,8 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
         body: JSON.stringify({
           payment_method: paymentMethod,
           requester_email: userEmail,
-          actor_role: "customer"
+          actor_role: "customer",
+          coupon_code: appliedCoupon ? appliedCoupon.code : null
         })
       });
       const data = await res.json();
@@ -221,6 +359,9 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
           payment: data.payment
         });
         setActiveSession(null);
+        setAppliedCoupon(null);
+        setCouponCodeInput("");
+        setCouponError("");
         fetchSlots();
         fetchActiveSession();
         triggerAlert("Charging completed and payment processed successfully!");
@@ -721,6 +862,14 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)" }}>Duration</span>
                   <div style={{ fontWeight: 800 }}>{completedSummary.session.duration}</div>
                 </div>
+                {(completedSummary.payment?.coupon_code || completedSummary.session?.coupon_code) && (
+                  <div>
+                    <span style={{ fontSize: "0.72rem", color: "#16a34a" }}>Coupon Discount</span>
+                    <div style={{ fontWeight: 800, color: "#16a34a" }}>
+                      {completedSummary.payment?.coupon_code || completedSummary.session?.coupon_code} (-₹{parseFloat(completedSummary.payment?.discount_amount || completedSummary.session?.discount_amount || 0).toFixed(2)})
+                    </div>
+                  </div>
+                )}
                 <div>
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)" }}>Total Paid</span>
                   <div style={{ fontWeight: 900, color: "#16a34a", fontSize: "1.1rem" }}>
@@ -1068,7 +1217,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
               </button>
             </div>
 
-            <div style={{ padding: "14px", background: "var(--bg-sub, #f8fafc)", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "16px", fontSize: "0.84rem" }}>
+            <div style={{ padding: "14px", background: "var(--bg-sub, #f8fafc)", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "14px", fontSize: "0.84rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
                 <span style={{ color: "var(--text-secondary, #64748b)" }}>Vehicle Plate:</span>
                 <span style={{ fontWeight: 800 }}>{activeSession.vehicle_number}</span>
@@ -1085,12 +1234,155 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
                 <span style={{ color: "var(--text-secondary, #64748b)" }}>Energy Delivered:</span>
                 <span style={{ fontWeight: 800, color: "#0d9488" }}>{activeSession.estimatedEnergy || 1.8} kWh</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #e2e8f0)", paddingTop: "8px" }}>
-                <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>Total Amount Due:</span>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #e2e8f0)", paddingTop: "8px", fontSize: "0.82rem" }}>
+                <span style={{ color: "var(--text-secondary, #64748b)" }}>Original Tariff:</span>
+                <span style={{ fontWeight: 700, textDecoration: appliedCoupon ? "line-through" : "none" }}>₹{getOriginalEvAmount().toFixed(2)}</span>
+              </div>
+              {appliedCoupon && (
+                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "4px", fontSize: "0.82rem", color: "#16a34a", fontWeight: 700 }}>
+                  <span>Coupon Discount ({appliedCoupon.code}):</span>
+                  <span>- ₹{getEvDiscountAmount().toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #e2e8f0)", marginTop: "6px", paddingTop: "6px" }}>
+                <span style={{ fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>Final Amount Due:</span>
                 <span style={{ fontWeight: 900, color: "#0f766e", fontSize: "1.2rem" }}>
-                  ₹{(activeSession.estimatedFee || 32.4).toFixed(2)}
+                  ₹{getFinalEvPayable().toFixed(2)}
                 </span>
               </div>
+            </div>
+
+            <div style={{ background: "var(--bg-sub, #f8fafc)", border: "1px dashed var(--border-color, #cbd5e1)", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", fontWeight: 700 }}>
+                  <Ticket size={14} style={{ color: "#0d9488" }} />
+                  <span>Have an EV Promo Code?</span>
+                </div>
+                {appliedCoupon && (
+                  <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#16a34a", background: "#dcfce7", padding: "2px 6px", borderRadius: "4px" }}>
+                    ✓ Applied
+                  </span>
+                )}
+              </div>
+
+              {!appliedCoupon ? (
+                <div>
+                  <div style={{ marginBottom: "8px" }}>
+                    <select
+                      value={couponCodeInput}
+                      onChange={(e) => handleSelectCouponFromDropdown(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border-color, #cbd5e1)",
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
+                        background: "var(--bg-card, #ffffff)",
+                        color: "var(--text-primary, #0f172a)",
+                        outline: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                      <option value="">-- Select a Coupon --</option>
+                      {availableCouponsList.map((c) => {
+                        const st = (c.computed_status || c.status || "Active").toLowerCase();
+                        const isAct = st === "active";
+                        const discLabel = c.discount_type === "percentage" ? `${parseFloat(c.discount_value)}% OFF` : `₹${parseFloat(c.discount_value)} OFF`;
+                        const desc = c.description || (c.applicable_to && c.applicable_to !== "All" ? c.applicable_to : "EV Charging");
+                        return (
+                          <option
+                            key={c.id}
+                            value={c.code}
+                            disabled={!isAct}
+                            style={{ color: isAct ? "#0f172a" : "#94a3b8" }}
+                          >
+                            {isAct ? `${c.code} — ${discLabel} (${desc})` : `${c.code} — ${discLabel} (Disabled)`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="text"
+                      placeholder="Or type promo code..."
+                      value={couponCodeInput}
+                      onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleApplyCoupon(); } }}
+                      style={{
+                        flex: 1,
+                        padding: "8px 10px",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border-color, #cbd5e1)",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        outline: "none",
+                        background: "var(--bg-card, #ffffff)",
+                        color: "var(--text-primary, #0f172a)"
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={isApplyingCoupon || !couponCodeInput.trim()}
+                      onClick={handleApplyCoupon}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: "6px",
+                        background: isApplyingCoupon || !couponCodeInput.trim() ? "#94a3b8" : "#0d9488",
+                        color: "#ffffff",
+                        border: "none",
+                        fontWeight: 800,
+                        fontSize: "0.8rem",
+                        cursor: isApplyingCoupon || !couponCodeInput.trim() ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px"
+                      }}
+                    >
+                      {isApplyingCoupon ? (
+                        <>
+                          <RefreshCw size={12} className="pw-spin" />
+                          <span>Applying...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Tag size={12} />
+                          <span>Apply</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {couponError && (
+                    <div style={{ fontSize: "0.75rem", color: "#dc2626", fontWeight: 700, marginTop: "5px" }}>
+                      ⚠️ {couponError}
+                    </div>
+                  )}
+                  <div style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)", marginTop: "4px" }}>
+                    💡 Pick from the list above or enter any promotional code.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "6px", padding: "8px 10px" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: "#15803d", fontSize: "0.84rem" }}>
+                      {appliedCoupon.code} <span style={{ fontSize: "0.74rem", fontWeight: 600 }}>({appliedCoupon.discount_type === 'percentage' ? `${appliedCoupon.discount_value}% OFF` : `₹${appliedCoupon.discount_value} OFF`})</span>
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 700 }}>
+                      🎉 You saved ₹{getEvDiscountAmount().toFixed(2)}!
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    style={{ background: "none", border: "none", color: "#dc2626", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleStopCharging} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -1123,7 +1415,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
                   className="pw-btn-primary"
                   style={{ flex: 1, padding: "10px", justifyContent: "center" }}
                 >
-                  {isStoppingSession ? "Processing..." : "Pay & Complete Session"}
+                  {isStoppingSession ? "Processing..." : `Pay ₹${getFinalEvPayable().toFixed(2)} & Stop`}
                 </button>
               </div>
             </form>

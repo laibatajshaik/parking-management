@@ -59,7 +59,7 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
   };
 
   const handleExportCsv = () => {
-    const headers = ["Vehicle Number", "Model", "Type", "Slot Bay", "Owner Name", "Phone", "Entry Time", "Duration", "Fee", "Hourly Rate"];
+    const headers = ["Vehicle Number", "Model", "Type", "Slot Bay", "Owner Name", "Phone", "Entry Time", "Duration", "Fee", "Hourly Rate", "Booked Duration", "Overstay Duration", "Overstay Fee"];
     const rows = filteredSessions.map((s) => [
       s.vehicle_number,
       s.model || "Standard",
@@ -70,7 +70,10 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
       s.entry_time,
       s.duration,
       s.calculated_fee,
-      s.hourly_rate
+      s.hourly_rate,
+      s.booked_duration_hours ? `${s.booked_duration_hours}h` : "N/A",
+      s.overstay_duration || "0m",
+      s.overstay_fee ? `₹${s.overstay_fee}` : "₹0.00"
     ]);
     exportToCsv("active_parking_sessions.csv", headers, rows);
   };
@@ -191,8 +194,13 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
                     </div>
 
                     <div className="pw-user-card-date-col">
-                      <span className="pw-user-col-label">Checked In</span>
-                      <span className="pw-user-col-value">{formatDate(s.entry_time)}</span>
+                      <span className="pw-user-col-label">{s.scheduled_start_time ? "Booked Window" : "Checked In"}</span>
+                      <span className="pw-user-col-value">{formatDate(s.scheduled_start_time || s.entry_time)}</span>
+                      {s.scheduled_end_time && (
+                        <span style={{ fontSize: "0.68rem", color: s.is_overstay ? "#ef4444" : "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>
+                          Exit: {formatDate(s.scheduled_end_time)}
+                        </span>
+                      )}
                     </div>
 
                     <div>
@@ -200,12 +208,38 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
                         <Clock size={12} />
                         <span>{s.duration}</span>
                       </div>
+                      {s.booked_duration_hours && (
+                        <div style={{ fontSize: "0.68rem", color: "var(--text-secondary, #64748b)", marginTop: "2px" }}>
+                          {s.booked_duration_hours}h booked
+                        </div>
+                      )}
+                      {s.is_overstay && (
+                        <div style={{ fontSize: "0.7rem", color: "#ef4444", fontWeight: 700, background: "rgba(239, 68, 68, 0.12)", padding: "1px 6px", borderRadius: "4px", marginTop: "3px", display: "inline-block" }}>
+                          Overstay: {s.overstay_duration}
+                        </div>
+                      )}
                     </div>
 
                     <div>
                       <div className="pw-fee-cell">
-                        <span className="pw-fee-amount">{s.calculated_fee}</span>
-                        <span className="pw-fee-rate">₹{s.hourly_rate}/hr</span>
+                        {s.is_reservation ? (
+                          s.is_overstay ? (
+                            <>
+                              <span className="pw-fee-amount" style={{ color: "#ef4444" }}>+₹{Number(s.overstay_fee || 0).toFixed(2)}</span>
+                              <span className="pw-fee-rate">Overstay charge</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="pw-fee-amount" style={{ color: "#16a34a" }}>₹0.00</span>
+                              <span className="pw-fee-rate">Pre-paid (On-time)</span>
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <span className="pw-fee-amount">{s.calculated_fee}</span>
+                            <span className="pw-fee-rate">₹{s.hourly_rate}/hr</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -303,22 +337,55 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
                   <span className="pw-detail-label">Customer Phone</span>
                   <div className="pw-detail-val">{selectedSessionModal.owner_phone || "—"}</div>
                 </div>
+                {selectedSessionModal.scheduled_start_time && (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Scheduled Start</span>
+                    <div className="pw-detail-val">{formatDate(selectedSessionModal.scheduled_start_time)}</div>
+                  </div>
+                )}
+                {selectedSessionModal.scheduled_end_time && (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Scheduled Exit</span>
+                    <div className="pw-detail-val" style={selectedSessionModal.is_overstay ? { color: "#ef4444", fontWeight: 700 } : {}}>
+                      {formatDate(selectedSessionModal.scheduled_end_time)}
+                    </div>
+                  </div>
+                )}
+                {selectedSessionModal.booked_duration_hours && (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Booked Duration</span>
+                    <div className="pw-detail-val">{selectedSessionModal.booked_duration_hours} hr(s)</div>
+                  </div>
+                )}
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Check-in Time</span>
+                  <span className="pw-detail-label">Actual Entry Time</span>
                   <div className="pw-detail-val">{formatDate(selectedSessionModal.entry_time)}</div>
                 </div>
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Current Duration</span>
+                  <span className="pw-detail-label">Elapsed Parking Time</span>
                   <div className="pw-detail-val">{selectedSessionModal.duration}</div>
                 </div>
+                {selectedSessionModal.is_overstay ? (
+                  <div className="pw-detail-field-card" style={{ border: "1px solid rgba(239, 68, 68, 0.4)", background: "rgba(239, 68, 68, 0.05)" }}>
+                    <span className="pw-detail-label" style={{ color: "#ef4444" }}>Overstay Duration & Fee</span>
+                    <div className="pw-detail-val" style={{ color: "#ef4444", fontWeight: 800 }}>
+                      {selectedSessionModal.overstay_duration} (+₹{Number(selectedSessionModal.overstay_fee || 0).toFixed(2)})
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pw-detail-field-card">
+                    <span className="pw-detail-label">Timing Status</span>
+                    <div className="pw-detail-val" style={{ color: "#16a34a", fontWeight: 700 }}>
+                      {selectedSessionModal.scheduled_end_time ? "Within Scheduled Window" : "Standard Parking"}
+                    </div>
+                  </div>
+                )}
                 <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Hourly Tariff</span>
-                  <div className="pw-detail-val">₹{selectedSessionModal.hourly_rate}.00 / hr</div>
-                </div>
-                <div className="pw-detail-field-card">
-                  <span className="pw-detail-label">Accrued Amount</span>
-                  <div className="pw-detail-val" style={{ color: "#0d9488", fontWeight: 700 }}>
-                    {selectedSessionModal.calculated_fee}
+                  <span className="pw-detail-label">Amount Due At Exit</span>
+                  <div className="pw-detail-val" style={{ color: selectedSessionModal.is_overstay ? "#ef4444" : "#0d9488", fontWeight: 800 }}>
+                    {selectedSessionModal.is_reservation
+                      ? `₹${Number(selectedSessionModal.payable_at_exit !== undefined ? selectedSessionModal.payable_at_exit : (selectedSessionModal.overstay_fee || 0)).toFixed(2)}`
+                      : selectedSessionModal.calculated_fee}
                   </div>
                 </div>
               </div>

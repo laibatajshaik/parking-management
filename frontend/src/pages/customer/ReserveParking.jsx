@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
-import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, Sparkles, CreditCard, Smartphone, Layers, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
+import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, Sparkles, CreditCard, Smartphone, Layers, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
 
 export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActive, onActivatePremium, preselectedPlan }) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -21,13 +21,70 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     if (!s) return false;
     const st = (s.status || "").toLowerCase().trim();
     if (st !== "available") return false;
-    if (s.is_available === false) return false;
+    if (s.is_available === false || s.is_available === "false" || s.is_available === 0) return false;
     return true;
   };
 
+  const parseDateString = (str) => {
+    if (!str) return null;
+    const s = String(str).trim();
+    const dmyMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?/i);
+    if (dmyMatch) {
+      const [, d, m, y, h, min, ampm] = dmyMatch;
+      let hour = h ? parseInt(h, 10) : 0;
+      const minute = min ? parseInt(min, 10) : 0;
+      if (ampm) {
+        if (ampm.toUpperCase() === "PM" && hour < 12) hour += 12;
+        if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
+      }
+      return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10), hour, minute);
+    }
+    const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2}))?/);
+    if (isoMatch) {
+      const [, y, m, d, h, min] = isoMatch;
+      return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10), h ? parseInt(h, 10) : 0, min ? parseInt(min, 10) : 0);
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const calculateBookedDuration = (entryStr, exitStr) => {
+    const start = parseDateString(entryStr);
+    const end = parseDateString(exitStr);
+    if (!start || !end) return { hours: 0, minutes: 0, totalHours: 0, text: "Invalid date", isValid: false, diffMs: 0 };
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return { hours: 0, minutes: 0, totalHours: 0, text: "Exit must be after entry", isValid: false, diffMs };
+    const totalMinutes = Math.floor(diffMs / 60000);
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+    const totalHours = Math.round((diffMs / 3600000) * 100) / 100;
+    let parts = [];
+    if (days > 0) parts.push(`${days} day${days > 1 ? "s" : ""}`);
+    if (hours > 0) parts.push(`${hours} hr${hours > 1 ? "s" : ""}`);
+    if (minutes > 0) parts.push(`${minutes} min${minutes > 1 ? "s" : ""}`);
+    if (parts.length === 0) parts.push("0 mins");
+    return {
+      days,
+      hours,
+      minutes,
+      totalHours,
+      text: parts.join(" "),
+      isValid: true,
+      diffMs
+    };
+  };
+
   const [entryDateTime, setEntryDateTime] = useState(() => formatDateTime(new Date()));
-  const [exitDateTime, setExitDateTime] = useState(() => formatDateTime(new Date(Date.now() + 4 * 3600000)));
-  const [duration] = useState("4 hours");
+  const [exitDateTime, setExitDateTime] = useState(() => formatDateTime(new Date(Date.now() + 2 * 3600000)));
+
+  const durationInfo = calculateBookedDuration(entryDateTime, exitDateTime);
+
+  const applyQuickDuration = (hoursToAdd) => {
+    const start = parseDateString(entryDateTime) || new Date();
+    const newEnd = new Date(start.getTime() + hoursToAdd * 3600000);
+    setExitDateTime(formatDateTime(newEnd));
+  };
   const [selectedZone, setSelectedZone] = useState("Zone A (Ground - VIP)");
   const [selectedSlot, setSelectedSlot] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
@@ -40,6 +97,55 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const [selectedPlanObject, setSelectedPlanObject] = useState(preselectedPlan || null);
   const [bookingError, setBookingError] = useState("");
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [availableCouponsList, setAvailableCouponsList] = useState([]);
+  const [isLoadingCoupons, setIsLoadingCoupons] = useState(false);
+
+  const fetchCouponsList = useCallback(async () => {
+    setIsLoadingCoupons(true);
+    try {
+      let res = await fetch(`${API_BASE_URL}/api/coupons`);
+      let data = null;
+      if (res.ok) {
+        data = await res.json();
+      } else {
+        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        if (fbRes.ok) data = await fbRes.json();
+      }
+      setIsLoadingCoupons(false);
+      if (data && data.success && Array.isArray(data.coupons)) {
+        setAvailableCouponsList(data.coupons);
+      }
+    } catch (err) {
+      console.warn("Retrying coupon list with fallback...", err);
+      try {
+        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        if (fbRes.ok) {
+          const fbData = await fbRes.json();
+          if (fbData && fbData.success && Array.isArray(fbData.coupons)) {
+            setAvailableCouponsList(fbData.coupons);
+          }
+        }
+      } catch (fbErr) {
+        console.error("Fallback coupon fetch failed:", fbErr);
+      }
+      setIsLoadingCoupons(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCouponsList();
+  }, [fetchCouponsList]);
+
+  useEffect(() => {
+    if (currentStep === 4) {
+      fetchCouponsList();
+    }
+  }, [currentStep, fetchCouponsList]);
 
   const fetchActivePlans = async () => {
     setIsLoadingPlans(true);
@@ -118,7 +224,6 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
         }
       }
     } catch {
-      // ignore
     }
   }, []);
 
@@ -132,7 +237,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
       ? 30 * 24
       : (plan?.billing_type || "").toLowerCase() === "daily"
       ? 24
-      : (parseFloat(plan?.duration_hours) || 2);
+      : (parseFloat(plan?.duration_hours) || 1);
     setEntryDateTime(formatDateTime(now));
     setExitDateTime(formatDateTime(new Date(now.getTime() + durHours * 3600000)));
   };
@@ -152,14 +257,110 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     return bType === "monthly" || pName.includes("monthly") || pName.includes("vip") || pCode === "plan-monthly";
   };
 
-  const getPlanCost = () => {
-    if (!selectedPlanObject) return 200;
+  const getOriginalCost = () => {
+    if (!selectedPlanObject) return 50;
     const rate = parseFloat(selectedPlanObject.rate) || 50;
     const bType = (selectedPlanObject.billing_type || "").toLowerCase();
     if (bType === "monthly") return rate;
-    if (bType === "daily") return rate;
     if (bType === "flat") return rate;
-    return rate * 4;
+    if (bType === "daily") {
+      const days = Math.max(1, Math.ceil(durationInfo.totalHours / 24));
+      return days * rate;
+    }
+    const billedHours = Math.max(1, Math.ceil(durationInfo.totalHours || 1));
+    return billedHours * rate;
+  };
+
+  const getDiscountAmount = () => {
+    if (!appliedCoupon) return 0;
+    const discAmt = parseFloat(appliedCoupon.discount_amount);
+    if (!isNaN(discAmt) && discAmt > 0) return discAmt;
+
+    const orig = getOriginalCost();
+    const val = parseFloat(appliedCoupon.discount_value) || 0;
+    if (appliedCoupon.discount_type === "percentage") {
+      let calc = (orig * val) / 100;
+      if (appliedCoupon.maximum_discount) {
+        calc = Math.min(calc, parseFloat(appliedCoupon.maximum_discount));
+      }
+      return Math.max(0, calc);
+    }
+    return Math.max(0, Math.min(orig, val));
+  };
+
+  const getFinalPayableCost = () => {
+    const orig = getOriginalCost();
+    const disc = getDiscountAmount();
+    return Math.max(0, orig - disc);
+  };
+
+  const getPlanCost = () => {
+    return getFinalPayableCost();
+  };
+
+  const handleApplyCoupon = async (e, codeOverride) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const targetCode = (codeOverride !== undefined ? codeOverride : couponCodeInput) || "";
+    const trimmed = targetCode.trim().toUpperCase();
+    if (!trimmed) {
+      setCouponError("Please enter a coupon code.");
+      return;
+    }
+    setIsApplyingCoupon(true);
+    setCouponError("");
+
+    try {
+      const orderAmt = getOriginalCost();
+      const res = await fetch(`${API_BASE_URL}/api/coupons/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: trimmed,
+          customer_email: loggedInUser?.email || "",
+          order_amount: orderAmt,
+          service_type: "Normal Parking"
+        })
+      });
+      const data = await res.json();
+      setIsApplyingCoupon(false);
+
+      if (!res.ok || !data.success) {
+        setCouponError(data.error || "Invalid or ineligible coupon code.");
+        setAppliedCoupon(null);
+      } else {
+        const couponPayload = data.coupon || (data.valid ? data : null);
+        setAppliedCoupon(couponPayload);
+        setCouponCodeInput(trimmed);
+        setCouponError("");
+      }
+    } catch {
+      setIsApplyingCoupon(false);
+      setCouponError("Network error while validating coupon.");
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput("");
+    setCouponError("");
+  };
+
+  const handleSelectCouponFromDropdown = (couponCode) => {
+    setCouponCodeInput(couponCode);
+    setCouponError("");
+    if (!couponCode) {
+      if (appliedCoupon) setAppliedCoupon(null);
+      return;
+    }
+    const found = availableCouponsList.find((c) => c.code.toUpperCase() === couponCode.toUpperCase());
+    if (found) {
+      const st = (found.computed_status || found.status || "").toLowerCase();
+      if (st !== "active") {
+        setCouponError(`Notice: Coupon "${found.code}" is disabled and cannot be selected.`);
+        return;
+      }
+      handleApplyCoupon(null, found.code);
+    }
   };
 
   const getPlanRateBannerText = (plan) => {
@@ -174,9 +375,19 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const handleSelectPlan = (plan) => {
     setSelectedPlanObject(plan);
     updateTimesForPlan(plan);
+    if (appliedCoupon) {
+      setAppliedCoupon(null);
+      setCouponError("");
+    }
   };
 
   const handleProceedToSlot = () => {
+    const dur = calculateBookedDuration(entryDateTime, exitDateTime);
+    if (!dur.isValid || dur.diffMs <= 0) {
+      setBookingError("Exit date and time must be later than entry date and time.");
+      return;
+    }
+    setBookingError("");
     setCurrentStep(2);
   };
 
@@ -258,6 +469,10 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     const custEmail = loggedInUser?.email || "";
     const custName = loggedInUser?.name || "Customer";
 
+    const origAmt = getOriginalCost();
+    const discAmt = getDiscountAmount();
+    const finalAmt = getFinalPayableCost();
+
     setIsSubmittingBooking(true);
     setBookingError("");
 
@@ -279,9 +494,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
           duration_hours: (selectedPlanObject?.billing_type || "").toLowerCase() === "monthly"
             ? 720
             : (selectedPlanObject?.billing_type || "").toLowerCase() === "daily"
-            ? 24
-            : (selectedPlanObject?.duration_hours || 2),
-          total_amount: getPlanCost(),
+            ? (durationInfo.totalHours || 24)
+            : (durationInfo.totalHours || 1),
+          original_amount: origAmt,
+          discount_amount: discAmt,
+          total_amount: finalAmt,
+          coupon_code: appliedCoupon ? appliedCoupon.code : null,
           plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
           plan_name: selectedPlanObject?.plan_name || "Standard Parking",
           payment_method: paymentMethod || "UPI"
@@ -549,13 +767,47 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                     selectedPlanObject?.billing_type === "Monthly"
                       ? "30 Days (1 Month)"
                       : selectedPlanObject?.billing_type === "Daily"
-                      ? "24 Hours (1 Day)"
-                      : duration
+                      ? `${Math.max(1, Math.ceil(durationInfo.totalHours / 24))} Day(s) (${durationInfo.text})`
+                      : durationInfo.text
                   }
                   readOnly
                 />
               </div>
             </div>
+
+            <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary, #64748b)" }}>Quick Duration:</span>
+              {[
+                { label: "1 Hour", hours: 1 },
+                { label: "2 Hours", hours: 2 },
+                { label: "4 Hours", hours: 4 },
+                { label: "8 Hours", hours: 8 },
+                { label: "24 Hours (1 Day)", hours: 24 }
+              ].map((btn) => (
+                <button
+                  key={btn.hours}
+                  type="button"
+                  onClick={() => applyQuickDuration(btn.hours)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    border: "1px solid var(--border-color, #cbd5e1)",
+                    background: Math.round(durationInfo.totalHours) === btn.hours ? "var(--accent-teal, #0d9488)" : "var(--bg-card, #ffffff)",
+                    color: Math.round(durationInfo.totalHours) === btn.hours ? "#ffffff" : "var(--text-primary, #0f172a)",
+                    cursor: "pointer"
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+            {!durationInfo.isValid && (
+              <div style={{ marginTop: "8px", color: "#ef4444", fontSize: "0.78rem", fontWeight: 700 }}>
+                {durationInfo.text}
+              </div>
+            )}
 
             <div className={`pw-reserve-cost-summary-box ${isCurrentPlanMonthly() ? "gold-cost-box" : ""}`} style={{ marginTop: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #FEF9C3 0%, #FEF08A 100%)" : "#f0fdfa", border: isCurrentPlanMonthly() ? "1.5px solid #EAB308" : "1px solid #ccfbf1", borderRadius: "10px", padding: "14px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -706,6 +958,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                     fontWeight: 800,
                     fontSize: "0.95rem",
                     cursor: isAvail ? "pointer" : "not-allowed",
+                    pointerEvents: isAvail ? "auto" : "none",
                     opacity: isAvail ? 1 : 0.65,
                     textAlign: "center",
                     position: "relative",
@@ -911,18 +1164,224 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             </div>
           )}
 
-          <div className="pw-reserve-cost-summary-box" style={{ background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #1c1809 0%, #2a200a 100%)" : "var(--bg-sub, #f8fafc)", border: isCurrentPlanMonthly() ? "1.5px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px" }}>
-            <div>
-              <div style={{ fontSize: "0.82rem", color: isCurrentPlanMonthly() ? "#713F12" : "#64748b", fontWeight: 600 }}>Amount Due</div>
-              <div style={{ fontSize: "1.6rem", fontWeight: 900, color: isCurrentPlanMonthly() ? "#713F12" : "#0f766e" }}>
-                ₹ {getPlanCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          <div style={{
+            background: "var(--bg-sub, #f8fafc)",
+            border: "1px dashed var(--border-color, #cbd5e1)",
+            borderRadius: "10px",
+            padding: "16px",
+            marginBottom: "18px"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "0.85rem", fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>
+                <Ticket size={16} style={{ color: "#0d9488" }} />
+                <span>Have a Promo or Discount Coupon?</span>
               </div>
+              {appliedCoupon && (
+                <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#16a34a", background: "#dcfce7", padding: "2px 8px", borderRadius: "6px" }}>
+                  ✓ {appliedCoupon.code} Applied
+                </span>
+              )}
             </div>
-            {isCurrentPlanMonthly() && (
-              <span style={{ background: "#713F12", color: "#FEF08A", fontSize: "0.74rem", fontWeight: 800, padding: "4px 12px", borderRadius: "999px" }}>
-                👑 UNLOCKS GOLD VIP THEME
-              </span>
+
+            {!appliedCoupon ? (
+              <div>
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary, #64748b)", marginBottom: "5px" }}>
+                    <span>Browse Coupons (Select from List):</span>
+                    {isLoadingCoupons && (
+                      <span style={{ fontSize: "0.72rem", color: "#0d9488", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                        <RefreshCw size={11} className="pw-spin" /> Loading...
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    value={couponCodeInput}
+                    onChange={(e) => handleSelectCouponFromDropdown(e.target.value)}
+                    onFocus={() => { if (availableCouponsList.length === 0) fetchCouponsList(); }}
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      border: "1.5px solid var(--border-color, #cbd5e1)",
+                      fontSize: "0.86rem",
+                      fontWeight: 600,
+                      background: "var(--bg-card, #ffffff)",
+                      color: "var(--text-primary, #0f172a)",
+                      outline: "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    <option value="">-- Select a Coupon --</option>
+                    {availableCouponsList.map((c) => {
+                      const st = (c.computed_status || c.status || "Active").toLowerCase();
+                      const isAct = st === "active";
+                      const discLabel = c.discount_type === "percentage" ? `${parseFloat(c.discount_value)}% OFF` : `₹${parseFloat(c.discount_value)} OFF`;
+                      const desc = c.description || (c.applicable_to && c.applicable_to !== "All" ? c.applicable_to : "All Services");
+                      return (
+                        <option
+                          key={c.id}
+                          value={c.code}
+                          disabled={!isAct}
+                          style={{ color: isAct ? "#0f172a" : "#94a3b8" }}
+                        >
+                          {isAct ? `${c.code} — ${discLabel} (${desc})` : `${c.code} — ${discLabel} (Disabled)`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {couponCodeInput && availableCouponsList.find((c) => c.code.toUpperCase() === couponCodeInput.toUpperCase()) && (
+                  (() => {
+                    const selC = availableCouponsList.find((c) => c.code.toUpperCase() === couponCodeInput.toUpperCase());
+                    const discLabel = selC.discount_type === "percentage" ? `${parseFloat(selC.discount_value)}% OFF` : `₹${parseFloat(selC.discount_value)} OFF`;
+                    return (
+                      <div style={{
+                        marginBottom: "12px",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        background: "var(--bg-card, #ffffff)",
+                        border: "1px solid var(--border-color, #cbd5e1)",
+                        fontSize: "0.78rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: "6px"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ fontWeight: 800, color: "#0d9488" }}>{selC.code}</span>
+                          <span style={{ fontWeight: 600, color: "var(--text-primary, #0f172a)" }}>
+                            • {selC.description || `${discLabel} discount`}
+                          </span>
+                        </div>
+                        <span style={{ color: "var(--text-secondary, #64748b)", fontWeight: 600 }}>
+                          Min order: ₹{parseFloat(selC.minimum_amount || 0).toFixed(0)} • {selC.usage_type}
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
+
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    placeholder="Or type promo code manually..."
+                    value={couponCodeInput}
+                    onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyCoupon(); } }}
+                    style={{
+                      flex: 1,
+                      padding: "10px 14px",
+                      borderRadius: "8px",
+                      border: "1.5px solid var(--border-color, #cbd5e1)",
+                      fontSize: "0.88rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                      outline: "none",
+                      background: "var(--bg-card, #ffffff)",
+                      color: "var(--text-primary, #0f172a)"
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={isApplyingCoupon || !couponCodeInput.trim()}
+                    onClick={handleApplyCoupon}
+                    style={{
+                      padding: "10px 20px",
+                      borderRadius: "8px",
+                      background: isApplyingCoupon || !couponCodeInput.trim() ? "#94a3b8" : "#0d9488",
+                      color: "#ffffff",
+                      border: "none",
+                      fontWeight: 800,
+                      fontSize: "0.85rem",
+                      cursor: isApplyingCoupon || !couponCodeInput.trim() ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px"
+                    }}
+                  >
+                    {isApplyingCoupon ? (
+                      <>
+                        <RefreshCw size={14} className="pw-spin" />
+                        <span>Applying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Tag size={14} />
+                        <span>Apply</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                {couponError && (
+                  <div style={{ fontSize: "0.78rem", color: "#dc2626", fontWeight: 700, marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span>⚠️ {couponError}</span>
+                  </div>
+                )}
+                <div style={{ fontSize: "0.74rem", color: "var(--text-secondary, #64748b)", marginTop: "6px" }}>
+                  💡 Select a coupon from the dropdown above or type any promo code to apply instant discounts.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "10px 14px" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontWeight: 800, color: "#15803d", fontSize: "0.88rem" }}>{appliedCoupon.code}</span>
+                    <span style={{ fontSize: "0.75rem", color: "#166534" }}>({appliedCoupon.description || (appliedCoupon.discount_type === 'percentage' ? `${appliedCoupon.discount_value}% OFF` : `₹${appliedCoupon.discount_value} OFF`)})</span>
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "#16a34a", fontWeight: 700, marginTop: "2px" }}>
+                    🎉 You saved ₹{getDiscountAmount().toLocaleString("en-IN", { minimumFractionDigits: 2 })}!
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#dc2626",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    textDecoration: "underline"
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
             )}
+          </div>
+
+          <div className="pw-reserve-cost-summary-box" style={{ background: isCurrentPlanMonthly() ? "linear-gradient(135deg, #1c1809 0%, #2a200a 100%)" : "var(--bg-sub, #f8fafc)", border: isCurrentPlanMonthly() ? "1.5px solid #EAB308" : "1px solid #e2e8f0", borderRadius: "10px", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "8px", marginBottom: "22px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem", color: isCurrentPlanMonthly() ? "#d4d4d8" : "var(--text-secondary, #64748b)" }}>
+              <span>Original Amount</span>
+              <span style={{ fontWeight: 700, textDecoration: appliedCoupon ? "line-through" : "none" }}>₹ {getOriginalCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+            </div>
+
+            {appliedCoupon && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem", color: "#16a34a", fontWeight: 700 }}>
+                <span>Coupon Discount ({appliedCoupon.code})</span>
+                <span>- ₹ {getDiscountAmount().toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+
+            <div style={{ height: "1px", background: "var(--border-color, #e2e8f0)", margin: "4px 0" }} />
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: "0.82rem", color: isCurrentPlanMonthly() ? "#713F12" : "#64748b", fontWeight: 600 }}>Final Amount Due</div>
+                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: isCurrentPlanMonthly() ? "#713F12" : "#0f766e" }}>
+                  ₹ {getFinalPayableCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              {isCurrentPlanMonthly() && (
+                <span style={{ background: "#713F12", color: "#FEF08A", fontSize: "0.74rem", fontWeight: 800, padding: "4px 12px", borderRadius: "999px" }}>
+                  👑 UNLOCKS GOLD VIP THEME
+                </span>
+              )}
+            </div>
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -950,7 +1409,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
               ) : (
                 <>
                   <Sparkles size={16} />
-                  <span>Pay ₹ {getPlanCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })} & Complete</span>
+                  <span>Pay ₹ {getFinalPayableCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })} & Complete</span>
                 </>
               )}
             </button>
@@ -983,9 +1442,15 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                 <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Assigned Slot:</span>
                 <span style={{ fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>Bay {selectedSlot} ({selectedZone})</span>
               </div>
+              {appliedCoupon && (
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", color: "#16a34a" }}>
+                  <span>Coupon Applied:</span>
+                  <span style={{ fontWeight: 700 }}>{appliedCoupon.code} (-₹{getDiscountAmount().toLocaleString("en-IN", { minimumFractionDigits: 2 })})</span>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Amount Paid:</span>
-                <span style={{ fontWeight: 800, color: isCurrentPlanMonthly() ? "#713F12" : "#0d9488" }}>₹ {getPlanCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                <span style={{ color: "var(--text-secondary, #94a3b8)" }}>Net Amount Paid:</span>
+                <span style={{ fontWeight: 800, color: isCurrentPlanMonthly() ? "#713F12" : "#0d9488" }}>₹ {getFinalPayableCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 

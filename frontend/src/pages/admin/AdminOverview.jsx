@@ -1099,23 +1099,24 @@ export default function AdminOverview({
         )}
 
         <div className="pw-users-table-scroll-container" style={{ margin: 0, width: "100%", overflowX: "auto" }}>
-          <div className="pw-users-header-row pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px" }}>
-            <span>Booking Ref</span>
-            <span>Customer Details</span>
-            <span>Vehicle Info</span>
-            <span>Assigned Bay</span>
-            <span>Reserved Window</span>
-            <span>Duration & Fee</span>
-            <span style={{ textAlign: "center" }}>Status</span>
-            <span style={{ textAlign: "center" }}>Actions</span>
-          </div>
+          <div style={{ minWidth: "1120px", width: "100%", display: "flex", flexDirection: "column", gap: "6px", boxSizing: "border-box" }}>
+            <div className="pw-users-header-row pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ padding: "8px 12px" }}>
+              <span>Booking Ref</span>
+              <span>Customer Details</span>
+              <span>Vehicle Info</span>
+              <span>Assigned Bay</span>
+              <span>Reserved Window</span>
+              <span>Duration & Fee</span>
+              <span style={{ textAlign: "center" }}>Status</span>
+              <span style={{ textAlign: "center" }}>Actions</span>
+            </div>
 
-          <div className="pw-user-cards-stack" style={{ minWidth: "860px" }}>
-            {filteredBookings.length > 0 ? (
-              filteredBookings.slice((bookingPage - 1) * bookingLimit, bookingPage * bookingLimit).map((b) => {
-                const amt = parseFloat(b.total_amount) || 0;
-                return (
-                  <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px", padding: "8px 12px" }}>
+            <div className="pw-user-cards-stack" style={{ width: "100%", minWidth: "100%", margin: 0 }}>
+              {filteredBookings.length > 0 ? (
+                filteredBookings.slice((bookingPage - 1) * bookingLimit, bookingPage * bookingLimit).map((b) => {
+                  const amt = parseFloat(b.total_amount) || 0;
+                  return (
+                    <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ padding: "8px 12px" }}>
                     <div>
                       <div className="pw-txn-badge" style={{ background: "var(--bg-teal-sub, #f0fdfa)", color: "#0d9488", borderColor: "var(--border-color, #99f6e4)" }}>
                         <CalendarCheck size={11} />
@@ -1152,6 +1153,13 @@ export default function AdminOverview({
                       <span style={{ fontSize: "0.70rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 600 }}>
                         {b.zone || "Zone A"}
                       </span>
+                      {((b.slot_number || "").startsWith("EV") || (b.vehicle_type || "").toUpperCase() === "EV" || (b.plan_code || "").includes("EV")) && (
+                        <div style={{ marginTop: "2px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", padding: "1px 6px", borderRadius: "4px", fontSize: "0.68rem", fontWeight: 700, background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+                            <Zap size={10} /> EV
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pw-user-card-date-col">
@@ -1171,6 +1179,13 @@ export default function AdminOverview({
                       <div className="pw-duration-chip" style={{ fontSize: "0.68rem", padding: "1px 5px", marginTop: "2px" }}>
                         <span>{b.duration_hours} hrs</span>
                       </div>
+                      {b.coupon_code && parseFloat(b.discount_amount || 0) > 0 && (
+                        <div style={{ marginTop: "2px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "0.68rem", fontWeight: 700, color: "#16a34a", background: "#dcfce7", padding: "1px 6px", borderRadius: "4px" }}>
+                            <Tag size={10} /> {b.coupon_code} (-₹{parseFloat(b.discount_amount).toFixed(0)})
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1240,6 +1255,7 @@ export default function AdminOverview({
             )}
           </div>
         </div>
+      </div>
 
         {filteredBookings.length > 0 && (
           <Pagination

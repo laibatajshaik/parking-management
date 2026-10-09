@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
-import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck, Zap } from "lucide-react";
+import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck, Zap, AlertTriangle, Calendar } from "lucide-react";
 
 export default function MyParking({ loggedInUser, onNavigate }) {
   const [activeSession, setActiveSession] = useState(null);
@@ -65,7 +65,7 @@ export default function MyParking({ loggedInUser, onNavigate }) {
 
   useEffect(() => {
     fetchMyParking();
-    const interval = setInterval(fetchMyParking, 20000);
+    const interval = setInterval(fetchMyParking, 12000);
     return () => clearInterval(interval);
   }, [loggedInUser]);
 
@@ -250,10 +250,17 @@ export default function MyParking({ loggedInUser, onNavigate }) {
                     Vehicle #{sIdx + 1}
                   </span>
                 )}
-                <span className="pw-veh-status-pill parked">
-                  <span className="pw-status-dot"></span>
-                  <span>Currently Parked</span>
-                </span>
+                {sessionItem.is_overstay ? (
+                  <span className="pw-veh-status-pill" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.3)" }}>
+                    <span className="pw-status-dot" style={{ background: "#ef4444" }}></span>
+                    <span>Overstay Active</span>
+                  </span>
+                ) : (
+                  <span className="pw-veh-status-pill parked">
+                    <span className="pw-status-dot"></span>
+                    <span>Currently Parked</span>
+                  </span>
+                )}
               </div>
             </div>
 
@@ -276,25 +283,72 @@ export default function MyParking({ loggedInUser, onNavigate }) {
               </div>
 
               <div className="pw-hero-detail-item">
-                <span className="pw-hero-item-label">Hourly Tariff</span>
-                <span className="pw-hero-item-val">₹{sessionItem.hourly_rate}.00 / hr</span>
+                <span className="pw-hero-item-label">{sessionItem.scheduled_end_time ? "Scheduled Exit Time" : "Hourly Tariff"}</span>
+                <span className="pw-hero-item-val" style={sessionItem.is_overstay ? { color: "#ef4444", fontWeight: 700 } : {}}>
+                  {sessionItem.scheduled_end_time ? formatDate(sessionItem.scheduled_end_time) : `₹${sessionItem.hourly_rate}.00 / hr`}
+                </span>
               </div>
+
+              {sessionItem.booked_duration_hours && (
+                <div className="pw-hero-detail-item">
+                  <span className="pw-hero-item-label">Booked Duration</span>
+                  <span className="pw-hero-item-val" style={{ fontWeight: 700 }}>
+                    {sessionItem.booked_duration_hours} hr(s)
+                  </span>
+                </div>
+              )}
+
+              {sessionItem.scheduled_end_time && (
+                <div className="pw-hero-detail-item">
+                  <span className="pw-hero-item-label">{sessionItem.is_overstay ? "Overstay Duration" : "Remaining Time"}</span>
+                  <span className="pw-hero-item-val" style={{ color: sessionItem.is_overstay ? "#ef4444" : "#0d9488", fontWeight: 800 }}>
+                    {sessionItem.is_overstay ? sessionItem.overstay_duration : (sessionItem.remaining_time || "On Schedule")}
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div className="pw-hero-duration-banner">
+            {sessionItem.is_overstay && (
+              <div style={{ marginTop: "14px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.25)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "10px", color: "#b91c1c" }}>
+                <AlertTriangle size={18} style={{ color: "#ef4444", flexShrink: 0 }} />
+                <div style={{ fontSize: "0.82rem" }}>
+                  <strong>Overstay Notice:</strong> Scheduled exit ({formatDate(sessionItem.scheduled_end_time)}) has elapsed by <strong>{sessionItem.overstay_duration}</strong>. Additional overstay fee: <strong>₹{Number(sessionItem.overstay_fee || 0).toFixed(2)}</strong>.
+                </div>
+              </div>
+            )}
+
+            <div className="pw-hero-duration-banner" style={{ marginTop: "16px" }}>
               <div className="pw-duration-counter-box">
                 <div className="pw-counter-icon">
                   <Clock size={22} />
                 </div>
                 <div>
-                  <span className="pw-counter-label">Elapsed Parking Time</span>
-                  <div className="pw-counter-value">{sessionItem.duration}</div>
+                  <span className="pw-counter-label">{sessionItem.scheduled_end_time ? (sessionItem.is_overstay ? "Overstay Time" : "Remaining Time") : "Elapsed Parking Time"}</span>
+                  <div className="pw-counter-value" style={sessionItem.is_overstay ? { color: "#ef4444" } : {}}>
+                    {sessionItem.scheduled_end_time ? (sessionItem.is_overstay ? sessionItem.overstay_duration : (sessionItem.remaining_time || sessionItem.duration)) : sessionItem.duration}
+                  </div>
                 </div>
               </div>
 
+              {sessionItem.is_overstay && (
+                <div className="pw-duration-counter-box">
+                  <div className="pw-counter-icon" style={{ background: "rgba(239, 68, 68, 0.12)", color: "#ef4444" }}>
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <span className="pw-counter-label">Estimated Overstay Charge</span>
+                    <div className="pw-counter-value" style={{ color: "#ef4444" }}>
+                      ₹{Number(sessionItem.overstay_fee || 0).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="pw-duration-fee-box">
-                <span className="pw-counter-label">Current Fee Accumulation</span>
-                <div className="pw-fee-counter-value">{sessionItem.calculated_fee}</div>
+                <span className="pw-counter-label">Estimated Total Amount</span>
+                <div className="pw-fee-counter-value">
+                  ₹{Number(sessionItem.total_estimated_amount || (parseFloat(String(sessionItem.calculated_fee || 0).replace(/[^0-9.]/g, "")) || 0)).toFixed(2)}
+                </div>
               </div>
             </div>
           </div>

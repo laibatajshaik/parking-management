@@ -39,6 +39,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
   const [vehicleType, setVehicleType] = useState("Car");
   const [billingType, setBillingType] = useState("Hourly");
   const [rate, setRate] = useState("50.00");
+  const [overstayRate, setOverstayRate] = useState("50.00");
   const [durationHours, setDurationHours] = useState("1.00");
   const [description, setDescription] = useState("");
   const [featuresList, setFeaturesList] = useState(["Covered Parking", "CCTV Surveillance", "Automated Gate Access"]);
@@ -105,6 +106,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
     setVehicleType("Car");
     setBillingType("Hourly");
     setRate("50.00");
+    setOverstayRate("50.00");
     setDurationHours("1.00");
     setDescription("");
     setFeaturesList(["Covered Parking", "CCTV Surveillance", "Automated Gate Access"]);
@@ -129,6 +131,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
     setVehicleType(p.vehicle_type || "Car");
     setBillingType(p.billing_type || "Hourly");
     setRate(String(p.rate || "50.00"));
+    setOverstayRate(String(p.overstay_rate || p.rate || "50.00"));
     setDurationHours(String(p.duration_hours || "1.00"));
     setDescription(p.description || "");
     setFeaturesList(Array.isArray(p.features) ? p.features : ["Covered Bay", "CCTV Surveillance"]);
@@ -162,6 +165,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
       vehicle_type: vehicleType,
       billing_type: billingType,
       rate: parseFloat(rate) || 50.00,
+      overstay_rate: parseFloat(overstayRate) || parseFloat(rate) || 50.00,
       duration_hours: parseFloat(durationHours) || (billingType === "Daily" ? 24.00 : 1.00),
       description: description.trim(),
       features: featuresList,
@@ -476,6 +480,9 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 <div className="pw-pricing-badges-row">
                   <span className="pw-badge-vehicle">{plan.vehicle_type}</span>
                   <span className="pw-badge-billing">{plan.billing_type}</span>
+                  <span className="pw-badge-billing" style={{ background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.3)" }}>
+                    Overstay: ₹{parseFloat(plan.overstay_rate || plan.rate).toFixed(2)}/hr
+                  </span>
                 </div>
               </div>
 
@@ -626,7 +633,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
                 </div>
 
                 <div>
-                  <label className="pw-clean-label">Rate (₹) *</label>
+                  <label className="pw-clean-label">Base Rate (₹) *</label>
                   <input
                     type="number"
                     step="0.50"
@@ -636,6 +643,35 @@ export default function PricingPlans({ setStatusActionMessage }) {
                     onChange={(e) => setRate(e.target.value)}
                     placeholder="50.00"
                     required
+                  />
+                </div>
+              </div>
+
+              <div className="pw-form-two-col-grid" style={{ marginTop: "12px" }}>
+                <div>
+                  <label className="pw-clean-label">Overstay Rate (₹/hr) *</label>
+                  <input
+                    type="number"
+                    step="0.50"
+                    min="1"
+                    className="pw-dark-form-input"
+                    value={overstayRate}
+                    onChange={(e) => setOverstayRate(e.target.value)}
+                    placeholder="50.00"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="pw-clean-label">Standard Duration (Hours)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    className="pw-dark-form-input"
+                    value={durationHours}
+                    onChange={(e) => setDurationHours(e.target.value)}
+                    placeholder="1.00"
                   />
                 </div>
               </div>

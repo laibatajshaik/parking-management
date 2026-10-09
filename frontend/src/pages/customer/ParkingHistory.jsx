@@ -100,9 +100,13 @@ export default function ParkingHistory({ loggedInUser }) {
   const isOngoingSession = (item) => {
     if (!item) return false;
     const s = (item.status || "").toLowerCase();
-    const hasExit = item.exit_time && item.exit_time !== "Ongoing" && item.exit_time !== "null";
-    if (hasExit) return false;
-    return s === "parked" || s === "active";
+    if (s === "parked" || s === "active" || s === "ongoing" || s === "charging" || s === "checked in" || s === "confirmed") {
+      return true;
+    }
+    if (s === "completed" || s === "checked out" || s === "cancelled") {
+      return false;
+    }
+    return !item.exit_time || item.exit_time === "Ongoing" || item.exit_time === "null";
   };
 
   const filteredHistory = historyList;
@@ -112,7 +116,7 @@ export default function ParkingHistory({ loggedInUser }) {
     if (!target) return;
 
     const isOngoing = isOngoingSession(target);
-    const exitDisplay = isOngoing ? "Ongoing" : (target.exit_time ? formatDate(target.exit_time) : "Completed");
+    const exitDisplay = isOngoing ? "Ongoing" : (target.exit_time ? formatDate(target.exit_time) : "—");
     const durationDisplay = isOngoing ? (target.duration || "Ongoing") : (target.duration && target.duration !== "Ongoing" ? target.duration : "1h 00m");
     const feeDisplay = target.fee || (isOngoing ? "Pending" : "₹50.00");
     const statusDisplay = isOngoing ? "Parked" : "Completed";
@@ -253,7 +257,7 @@ export default function ParkingHistory({ loggedInUser }) {
     const headers = ["Vehicle Plate", "Model", "Type", "Assigned Bay", "Entry Time", "Exit Time", "Duration", "Amount Paid", "Status"];
     const rows = filteredHistory.map((item) => {
       const isOngoing = isOngoingSession(item);
-      const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "Completed");
+      const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "—");
       const displayDuration = isOngoing
         ? (item.duration || "Ongoing")
         : (item.duration && item.duration !== "Ongoing" ? item.duration : "1h 00m");
@@ -267,7 +271,7 @@ export default function ParkingHistory({ loggedInUser }) {
         displayExit,
         displayDuration,
         displayFee,
-        isOngoing ? "Active" : "Completed"
+        isOngoing ? "Parked" : "Completed"
       ];
     });
     exportToCsv("customer_parking_history.csv", headers, rows);
@@ -348,7 +352,7 @@ export default function ParkingHistory({ loggedInUser }) {
                 filteredHistory.map((item) => {
                   const isOngoing = isOngoingSession(item);
                   const typeKey = (item.vehicle_type || "Car").toLowerCase();
-                  const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "Completed");
+                  const displayExit = isOngoing ? "Ongoing" : (item.exit_time ? formatDate(item.exit_time) : "—");
                   const rawDuration = isOngoing
                     ? (item.duration || "Ongoing")
                     : (item.duration && item.duration !== "Ongoing" ? item.duration : "1h 00m");
@@ -514,7 +518,7 @@ export default function ParkingHistory({ loggedInUser }) {
                 <div className="pw-detail-field-card">
                   <span className="pw-detail-label">Check-out Time</span>
                   <div className="pw-detail-val">
-                    {isOngoingSession(selectedSessionModal) ? "Ongoing" : (selectedSessionModal.exit_time ? formatDate(selectedSessionModal.exit_time) : "Completed")}
+                    {isOngoingSession(selectedSessionModal) ? "Ongoing" : (selectedSessionModal.exit_time ? formatDate(selectedSessionModal.exit_time) : "—")}
                   </div>
                 </div>
                 <div className="pw-detail-field-card">

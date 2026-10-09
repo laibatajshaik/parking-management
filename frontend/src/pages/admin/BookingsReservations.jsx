@@ -369,7 +369,10 @@ export default function BookingsReservations({ setStatusActionMessage }) {
       </div>
     </div>
     <div class="total-banner">
-      <span class="total-label">Reservation Tariff</span>
+      <div>
+        <span class="total-label">Reservation Tariff</span>
+        ${target.coupon_code && parseFloat(target.discount_amount || 0) > 0 ? `<div style="font-size: 11px; color: #15803d; font-weight: 700; margin-top: 2px;">Coupon: ${target.coupon_code} (-₹${parseFloat(target.discount_amount).toFixed(2)})</div>` : ''}
+      </div>
       <span class="total-val">₹${formattedAmount}</span>
     </div>
     <div class="barcode-box">
@@ -564,24 +567,25 @@ export default function BookingsReservations({ setStatusActionMessage }) {
         </div>
 
         <div className="pw-users-table-scroll-container" style={{ width: "100%", overflowX: "auto" }}>
-          <div className="pw-users-header-row pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px" }}>
-            <span>Booking Ref</span>
-            <span>Customer Details</span>
-            <span>Vehicle Info</span>
-            <span>Assigned Bay</span>
-            <span>Reserved Window</span>
-            <span>Duration & Fee</span>
-            <span style={{ textAlign: "center" }}>Status</span>
-            <span style={{ textAlign: "center" }}>Actions</span>
-          </div>
+          <div style={{ minWidth: "1120px", width: "100%", display: "flex", flexDirection: "column", gap: "6px", boxSizing: "border-box" }}>
+            <div className="pw-users-header-row pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ padding: "8px 12px" }}>
+              <span>Booking Ref</span>
+              <span>Customer Details</span>
+              <span>Vehicle Info</span>
+              <span>Assigned Bay</span>
+              <span>Reserved Window</span>
+              <span>Duration & Fee</span>
+              <span style={{ textAlign: "center" }}>Status</span>
+              <span style={{ textAlign: "center" }}>Actions</span>
+            </div>
 
-          <div className="pw-user-cards-stack" style={{ minWidth: "860px" }}>
-            {filteredBookings.length > 0 ? (
-              filteredBookings.map((b) => {
-                const amt = parseFloat(b.total_amount) || 0;
+            <div className="pw-user-cards-stack" style={{ width: "100%", minWidth: "100%", margin: 0 }}>
+              {filteredBookings.length > 0 ? (
+                filteredBookings.map((b) => {
+                  const amt = parseFloat(b.total_amount) || 0;
 
-                return (
-                  <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ minWidth: "860px", padding: "8px 12px" }}>
+                  return (
+                    <div key={b.id || b.booking_id} className="pw-user-card-box pw-mgmt-grid-row pw-bookings-reservations-grid" style={{ padding: "8px 12px" }}>
                     <div>
                       <div className="pw-txn-badge" style={{ background: "var(--bg-teal-sub, #f0fdfa)", color: "#2dd4bf", borderColor: "var(--border-color, #99f6e4)" }}>
                         <CalendarCheck size={12} />
@@ -644,6 +648,13 @@ export default function BookingsReservations({ setStatusActionMessage }) {
                       <div className="pw-duration-chip" style={{ fontSize: "0.70rem", padding: "1px 5px", marginTop: "2px" }}>
                         <span>{b.duration_hours} hrs</span>
                       </div>
+                      {b.coupon_code && parseFloat(b.discount_amount || 0) > 0 && (
+                        <div style={{ marginTop: "3px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "0.68rem", fontWeight: 700, color: "#16a34a", background: "#dcfce7", padding: "1px 6px", borderRadius: "4px" }}>
+                            <Tag size={10} /> {b.coupon_code} (-₹{parseFloat(b.discount_amount).toFixed(0)})
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -714,6 +725,7 @@ export default function BookingsReservations({ setStatusActionMessage }) {
             )}
           </div>
         </div>
+      </div>
 
         <Pagination
           page={page}

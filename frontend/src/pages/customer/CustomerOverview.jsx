@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCard, Zap, QrCode, Crown, Sparkles, Award, KeyRound, RefreshCw } from "lucide-react";
+import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCard, Zap, QrCode, Crown, Sparkles, Award, KeyRound, RefreshCw, AlertTriangle } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
 import { API_BASE_URL } from "../../config/api.js";
 
@@ -328,18 +328,33 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
                 </div>
 
                 <div className="pw-upcoming-vehicle-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
-                  <span className="pw-veh-label">Entry Timestamp</span>
-                  <span className="pw-veh-val" style={{ fontWeight: 700 }}>{formatTime(currentDisplayedSession.entry_time)}</span>
-                  <span style={{ fontSize: "0.72rem", color: isPremiumActive ? "#9A6B18" : "#0d9488", fontWeight: 600 }}>{currentDisplayedSession.duration} elapsed</span>
+                  <span className="pw-veh-label">{currentDisplayedSession.scheduled_end_time ? "Scheduled Exit" : "Entry Timestamp"}</span>
+                  <span className="pw-veh-val" style={{ fontWeight: 700, color: currentDisplayedSession.is_overstay ? "#ef4444" : "inherit" }}>
+                    {currentDisplayedSession.scheduled_end_time ? formatTime(currentDisplayedSession.scheduled_end_time) : formatTime(currentDisplayedSession.entry_time)}
+                  </span>
+                  <span style={{ fontSize: "0.72rem", color: currentDisplayedSession.is_overstay ? "#ef4444" : isPremiumActive ? "#9A6B18" : "#0d9488", fontWeight: 700 }}>
+                    {currentDisplayedSession.is_overstay
+                      ? `Overstay: ${currentDisplayedSession.overstay_duration}`
+                      : currentDisplayedSession.booked_duration_hours
+                        ? `${currentDisplayedSession.booked_duration_hours}h booked (${currentDisplayedSession.remaining_time || "Active"})`
+                        : `${currentDisplayedSession.duration} elapsed`}
+                  </span>
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: isPremiumActive ? "var(--bg-sub, #FBF7EE)" : "var(--bg-teal-sub, #f0fdfa)", borderRadius: "8px", border: isPremiumActive ? "1px solid #F5E7C3" : "1px solid #ccfbf1" }}>
-                <span style={{ fontSize: "0.82rem", color: isPremiumActive ? "#9A6B18" : "#0f766e", fontWeight: 600 }}>
-                  {isPremiumActive ? "VIP Pass Status" : "Accumulated Parking Tariff"}
+              {currentDisplayedSession.is_overstay && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px", color: "#b91c1c", fontSize: "0.78rem" }}>
+                  <AlertTriangle size={15} style={{ color: "#ef4444", flexShrink: 0 }} />
+                  <span>Overstay of <strong>{currentDisplayedSession.overstay_duration}</strong> detected. Additional charge: <strong>₹{Number(currentDisplayedSession.overstay_fee || 0).toFixed(2)}</strong>.</span>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: isPremiumActive ? "var(--bg-sub, #FBF7EE)" : currentDisplayedSession.is_overstay ? "rgba(239, 68, 68, 0.06)" : "var(--bg-teal-sub, #f0fdfa)", borderRadius: "8px", border: isPremiumActive ? "1px solid #F5E7C3" : currentDisplayedSession.is_overstay ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid #ccfbf1" }}>
+                <span style={{ fontSize: "0.82rem", color: isPremiumActive ? "#9A6B18" : currentDisplayedSession.is_overstay ? "#b91c1c" : "#0f766e", fontWeight: 600 }}>
+                  {isPremiumActive ? "VIP Pass Status" : currentDisplayedSession.is_overstay ? "Total Amount (Inc. Overstay)" : "Accumulated Parking Tariff"}
                 </span>
-                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : "#0f766e" }}>
-                  {isPremiumActive ? "Unlimited Included" : `${currentDisplayedSession.calculated_fee} (₹${currentDisplayedSession.hourly_rate}/hr)`}
+                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: isPremiumActive ? "#9A6B18" : currentDisplayedSession.is_overstay ? "#dc2626" : "#0f766e" }}>
+                  {isPremiumActive ? "Unlimited Included" : currentDisplayedSession.total_estimated_amount ? `₹${Number(currentDisplayedSession.total_estimated_amount).toFixed(2)}` : `${currentDisplayedSession.calculated_fee}`}
                 </span>
               </div>
 

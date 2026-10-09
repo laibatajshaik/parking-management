@@ -33,7 +33,6 @@ export default function SupportAuditLogs() {
   const [activeSubTab, setActiveSubTab] = useState("audit");
   const [statusActionMsg, setStatusActionMsg] = useState("");
 
-  // Audit Logs State
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit, setAuditLimit] = useState(5);
@@ -47,7 +46,6 @@ export default function SupportAuditLogs() {
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
 
-  // Summary Metrics State (100% dynamic from PostgreSQL)
   const [summaryMetrics, setSummaryMetrics] = useState({
     totalLogs: 0,
     todayLogs: 0,
@@ -56,7 +54,6 @@ export default function SupportAuditLogs() {
     adminActions: 0
   });
 
-  // Support Tickets State
   const [tickets, setTickets] = useState([]);
   const [ticketPage, setTicketPage] = useState(1);
   const [ticketLimit, setTicketLimit] = useState(5);
@@ -76,7 +73,6 @@ export default function SupportAuditLogs() {
     };
   }, [currentUser]);
 
-  // Fetch Audit Summary
   const fetchAuditSummary = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs/summary`, {
@@ -91,7 +87,6 @@ export default function SupportAuditLogs() {
     }
   }, [getAuthHeaders]);
 
-  // Fetch Audit Logs (Server-Side Filtered & Paginated)
   const fetchAuditLogs = useCallback(async () => {
     setIsLoadingAudit(true);
     try {
@@ -121,7 +116,6 @@ export default function SupportAuditLogs() {
     }
   }, [auditPage, auditLimit, auditSearch, auditRole, auditModule, auditAction, auditStatus, auditDateRange, getAuthHeaders]);
 
-  // Fetch Support Tickets
   const fetchTickets = useCallback(async () => {
     setIsLoadingTickets(true);
     try {
@@ -143,7 +137,6 @@ export default function SupportAuditLogs() {
     }
   }, [ticketPage, ticketLimit, ticketSearch, ticketStatusFilter]);
 
-  // Initial & Dependency Load
   useEffect(() => {
     fetchAuditSummary();
   }, [fetchAuditSummary]);
@@ -156,17 +149,14 @@ export default function SupportAuditLogs() {
     }
   }, [activeSubTab, fetchAuditLogs, fetchTickets]);
 
-  // Reset Audit Page on Filter Change
   useEffect(() => {
     setAuditPage(1);
   }, [auditSearch, auditRole, auditModule, auditAction, auditStatus, auditDateRange]);
 
-  // Reset Ticket Page on Filter Change
   useEffect(() => {
     setTicketPage(1);
   }, [ticketSearch, ticketStatusFilter]);
 
-  // Refresh handler
   const handleRefresh = () => {
     if (activeSubTab === "audit") {
       fetchAuditSummary();
@@ -179,11 +169,9 @@ export default function SupportAuditLogs() {
     setTimeout(() => setStatusActionMsg(""), 3000);
   };
 
-  // Export Audit CSV
   const handleExportCSV = async () => {
     try {
       if (activeSubTab === "audit") {
-        // Fetch full filtered list for export
         const exportParams = new URLSearchParams({
           page: "1",
           limit: "1000",
@@ -252,7 +240,6 @@ export default function SupportAuditLogs() {
 
         setStatusActionMsg(`Exported ${exportRecords.length} audit logs to ${filename}`);
       } else {
-        // Tickets Export
         const csvRows = [];
         csvRows.push(["PARKSAFE - SUPPORT TICKETS REPORT"]);
         csvRows.push([`Exported: ${new Date().toLocaleString("en-IN")}`]);
@@ -306,7 +293,6 @@ export default function SupportAuditLogs() {
     }
   };
 
-  // Ticket status/priority updates
   const handleUpdateTicketPriority = async (ticketId, newPriority) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/priority`, {
@@ -406,7 +392,6 @@ export default function SupportAuditLogs() {
 
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* Top Action Controls */}
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px" }}>
         <button
           type="button"
@@ -430,7 +415,6 @@ export default function SupportAuditLogs() {
         </button>
       </div>
 
-      {/* Dynamic Summary Cards from PostgreSQL */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
         <div className="pw-metric-card">
           <span className="pw-metric-label">Total Logs</span>
@@ -487,7 +471,6 @@ export default function SupportAuditLogs() {
         </div>
       )}
 
-      {/* Subtab Navigation Pills */}
       <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "10px 16px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
@@ -536,13 +519,10 @@ export default function SupportAuditLogs() {
         </div>
       </div>
 
-      {/* AUDIT LOGS TAB CONTENT */}
       {activeSubTab === "audit" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Filters Bar */}
           <div style={{ background: "var(--bg-card, #ffffff)", padding: "16px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
-              {/* Search */}
               <div className="pw-search-box-pill" style={{ flex: "1 1 240px", minWidth: "220px" }}>
                 <Search size={14} className="pw-search-icon" />
                 <input
@@ -555,7 +535,6 @@ export default function SupportAuditLogs() {
                 />
               </div>
 
-              {/* Role Filter */}
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary, #64748b)" }}>Role:</span>
                 <select
@@ -572,7 +551,6 @@ export default function SupportAuditLogs() {
                 </select>
               </div>
 
-              {/* Module Filter */}
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary, #64748b)" }}>Module:</span>
                 <select
@@ -598,7 +576,6 @@ export default function SupportAuditLogs() {
                 </select>
               </div>
 
-              {/* Action Filter */}
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary, #64748b)" }}>Action:</span>
                 <select
@@ -618,7 +595,6 @@ export default function SupportAuditLogs() {
                 </select>
               </div>
 
-              {/* Status Filter */}
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary, #64748b)" }}>Status:</span>
                 <select
@@ -633,7 +609,6 @@ export default function SupportAuditLogs() {
                 </select>
               </div>
 
-              {/* Date Filter */}
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "var(--text-secondary, #64748b)" }}>Date:</span>
                 <select
@@ -652,7 +627,6 @@ export default function SupportAuditLogs() {
             </div>
           </div>
 
-          {/* Audit Table */}
           <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "18px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>
@@ -713,7 +687,6 @@ export default function SupportAuditLogs() {
                       const statusLower = (log.status || "success").toLowerCase();
                       const isSuccess = statusLower === "success";
 
-                      // Badge styles
                       const roleBadgeBg =
                         roleLower === "admin"
                           ? "#f3e8ff"
@@ -849,7 +822,6 @@ export default function SupportAuditLogs() {
               </table>
             </div>
 
-            {/* Server-Side Pagination */}
             <Pagination
               currentPage={auditPage}
               totalItems={auditTotal}
@@ -865,7 +837,6 @@ export default function SupportAuditLogs() {
         </div>
       )}
 
-      {/* SUPPORT TICKETS TAB CONTENT */}
       {activeSubTab === "tickets" && (
         <div className={`pw-admin-support-grid ${selectedTicket ? "has-thread" : ""}`}>
           <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
@@ -1060,7 +1031,6 @@ export default function SupportAuditLogs() {
             />
           </div>
 
-          {/* Ticket Reply Drawer */}
           {selectedTicket && (
             <div style={{ background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", padding: "20px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
@@ -1138,7 +1108,6 @@ export default function SupportAuditLogs() {
         </div>
       )}
 
-      {/* AUDIT LOG DETAILS MODAL */}
       {selectedAuditLog && (
         <div
           style={{
@@ -1166,7 +1135,6 @@ export default function SupportAuditLogs() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
             <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--border-color, #e2e8f0)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <div style={{ background: "#f0fdfa", color: "#0f766e", padding: "8px", borderRadius: "10px" }}>
@@ -1190,9 +1158,7 @@ export default function SupportAuditLogs() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "14px", fontSize: "0.85rem", maxHeight: "75vh", overflowY: "auto" }}>
-              {/* Status Banner */}
               <div
                 style={{
                   display: "flex",
@@ -1212,7 +1178,6 @@ export default function SupportAuditLogs() {
                 </span>
               </div>
 
-              {/* Grid Attributes */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div>
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)", display: "block", marginBottom: "2px" }}>User</span>
@@ -1273,7 +1238,6 @@ export default function SupportAuditLogs() {
                 </div>
               </div>
 
-              {/* Description */}
               <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)", display: "block", marginBottom: "4px" }}>
                   Detailed Description
@@ -1283,7 +1247,6 @@ export default function SupportAuditLogs() {
                 </p>
               </div>
 
-              {/* Security & Network (No sensitive tokens) */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", background: "var(--bg-sub, #f8fafc)", padding: "14px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)" }}>
                 <div>
                   <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #64748b)", display: "block", marginBottom: "2px" }}>IP Address</span>
@@ -1310,7 +1273,6 @@ export default function SupportAuditLogs() {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-color, #e2e8f0)", display: "flex", justifyContent: "flex-end" }}>
               <button
                 type="button"
