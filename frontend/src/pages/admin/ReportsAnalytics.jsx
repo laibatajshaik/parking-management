@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
+import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw, Ticket } from "lucide-react";
 import { API_BASE_URL } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 

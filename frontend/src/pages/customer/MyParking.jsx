@@ -1,6 +1,6 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
-import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck, Zap, AlertTriangle, Calendar } from "lucide-react";
+import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck, Zap, AlertTriangle } from "lucide-react";
 
 export default function MyParking({ loggedInUser, onNavigate }) {
   const [activeSession, setActiveSession] = useState(null);

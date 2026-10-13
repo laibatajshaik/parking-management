@@ -30,6 +30,8 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
   const [recentCalculations, setRecentCalculations] = useState([]);
   const [isWindowValid, setIsWindowValid] = useState(true);
 
+  const getPlanLabel = (p) => `${p.plan_name} (₹${parseFloat(p.rate).toFixed(0)}/${p.billing_type === "Daily" ? "day" : (p.billing_type === "Fixed Duration" || p.billing_type === "Fixed") ? `${parseFloat(p.duration_hours || 2)}h fixed` : "hour"})`;
+
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/pricing-plans?active=true`)
       .then((res) => res.json())
@@ -37,7 +39,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
         if (data.success && Array.isArray(data.plans) && data.plans.length > 0) {
           setDbPlans(data.plans);
           const first = data.plans[0];
-          setSelectedPlan(`${first.plan_name} (₹${parseFloat(first.rate).toFixed(0)}/${first.billing_type === "Daily" ? "day" : "hour"})`);
+          setSelectedPlan(getPlanLabel(first));
         }
       })
       .catch(() => {});
@@ -87,7 +89,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
     const m = totalMinutes % 60;
     const billedHours = Math.max(1, Math.ceil(totalMinutes / 60));
 
-    let text = "";
+    let text;
     if (h > 0 && m > 0) text = `${h} hr ${m} min`;
     else if (h > 0) text = `${h} ${h === 1 ? "hour" : "hours"}`;
     else text = `${m} min`;
@@ -95,6 +97,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
     let matchedPlan = plansList.find((p) => planStr.includes(p.plan_name) || p.plan_name === planStr);
     let rate = matchedPlan ? parseFloat(matchedPlan.rate) : 50;
     let isDaily = matchedPlan ? matchedPlan.billing_type === "Daily" : planStr.includes("Daily");
+    let isFixed = matchedPlan ? (matchedPlan.billing_type === "Fixed Duration" || matchedPlan.billing_type === "Fixed") : planStr.includes("fixed");
 
     if (!matchedPlan) {
       if (planStr.includes("₹20") || planStr.includes("₹25")) rate = 25;
@@ -103,10 +106,14 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
       else if (planStr.includes("₹80")) rate = 80;
     }
 
-    let fee = 0;
+    let fee;
     if (isDaily) {
       const days = Math.max(1, Math.ceil(billedHours / 24));
       fee = days * rate;
+    } else if (isFixed) {
+      const planDur = Math.max(1, parseFloat(matchedPlan?.duration_hours) || 1);
+      const blocks = Math.max(1, Math.ceil(billedHours / planDur));
+      fee = blocks * rate;
     } else {
       fee = billedHours * rate;
     }
@@ -152,7 +159,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
     setExitDateTime(xTime);
     if (dbPlans.length > 0) {
       const first = dbPlans[0];
-      setSelectedPlan(`${first.plan_name} (₹${parseFloat(first.rate).toFixed(0)}/${first.billing_type === "Daily" ? "day" : "hour"})`);
+      setSelectedPlan(getPlanLabel(first));
     } else {
       setSelectedPlan("Hourly Plan (₹50/hour)");
     }
@@ -279,8 +286,8 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
               >
                 {dbPlans.length > 0 ? (
                   dbPlans.map((p) => (
-                    <option key={p.id} value={`${p.plan_name} (₹${parseFloat(p.rate).toFixed(0)}/${p.billing_type === "Daily" ? "day" : "hour"})`}>
-                      {p.plan_name} (₹{parseFloat(p.rate).toFixed(0)}/{p.billing_type === "Daily" ? "day" : "hour"})
+                    <option key={p.id} value={getPlanLabel(p)}>
+                      {getPlanLabel(p)}
                     </option>
                   ))
                 ) : (

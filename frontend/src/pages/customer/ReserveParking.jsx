@@ -1,11 +1,14 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, Sparkles, CreditCard, Smartphone, Layers, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActive, onActivatePremium, preselectedPlan }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [vehicleFilter, setVehicleFilter] = useState("All Vehicle Types");
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [plansPage, setPlansPage] = useState(1);
+  const [plansLimit, setPlansLimit] = useState(3);
   const formatDateTime = (date) => {
     const d = String(date.getDate()).padStart(2, "0");
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -155,6 +158,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
       setIsLoadingPlans(false);
       if (data.success && Array.isArray(data.plans) && data.plans.length > 0) {
         setPlansList(data.plans);
+        setPlansPage(1);
         if (!selectedPlanObject) {
           setSelectedPlanObject(data.plans[0]);
         }
@@ -267,6 +271,11 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
       const days = Math.max(1, Math.ceil(durationInfo.totalHours / 24));
       return days * rate;
     }
+    if (bType === "fixed duration" || bType === "fixed") {
+      const planDur = Math.max(1, parseFloat(selectedPlanObject.duration_hours) || 1);
+      const blocks = Math.max(1, Math.ceil((durationInfo.totalHours || planDur) / planDur));
+      return blocks * rate;
+    }
     const billedHours = Math.max(1, Math.ceil(durationInfo.totalHours || 1));
     return billedHours * rate;
   };
@@ -369,6 +378,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     if (bType === "monthly") return `₹ ${val} / month`;
     if (bType === "daily") return `₹ ${val} / day`;
     if (bType === "flat") return `₹ ${val} / flat pass`;
+    if (bType === "fixed duration" || bType === "fixed") return `₹ ${val} / ${parseFloat(plan.duration_hours || 2)}h fixed`;
     return `₹ ${val} / hour`;
   };
 
@@ -417,6 +427,11 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     const filter = vehicleFilter.toLowerCase();
     return vType === filter || vType === "all";
   });
+
+  const totalFilteredPlans = filteredPlans.length;
+  const totalPlansPages = Math.max(1, Math.ceil(totalFilteredPlans / plansLimit));
+  const currentPlansPage = Math.min(Math.max(1, plansPage), totalPlansPages);
+  const paginatedPlans = filteredPlans.slice((currentPlansPage - 1) * plansLimit, currentPlansPage * plansLimit);
 
   const currentZoneCode = selectedZone.slice(0, 6);
   const zoneSlots = slotsList.filter((s) => s.zone && s.zone.includes(currentZoneCode));
@@ -520,8 +535,9 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     }
 
     if (isMonthly) {
-      const validFromStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      const validUntilStr = new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const nowTime = new Date();
+      const validFromStr = nowTime.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const validUntilStr = new Date(nowTime.getTime() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       if (onActivatePremium) {
         onActivatePremium({
           active: true,
@@ -598,7 +614,15 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
         <>
           <div className="pw-plans-header-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative" }}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Available Plans</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>Available Plans</h2>
+                {selectedPlanObject && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "0.76rem", color: "#0f766e", background: "var(--bg-teal-sub, #f0fdfa)", border: "1px solid #ccfbf1", padding: "3px 10px", borderRadius: "999px", fontWeight: 700 }}>
+                    <Check size={12} />
+                    <span>Selected: {selectedPlanObject.plan_name}</span>
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: "0.82rem", color: "var(--text-secondary, #94a3b8)", margin: "3px 0 0 0" }}>Choose a plan configured for your vehicle type and parking duration.</p>
             </div>
 
@@ -623,6 +647,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                         style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", border: "none", background: vehicleFilter === item ? "var(--bg-teal-sub, #f0fdfa)" : "transparent", color: vehicleFilter === item ? "#0f766e" : "#334155", fontWeight: vehicleFilter === item ? 700 : 500, fontSize: "0.82rem", cursor: "pointer" }}
                         onClick={() => {
                           setVehicleFilter(item);
+                          setPlansPage(1);
                           setIsFilterDropdownOpen(false);
                         }}
                       >
@@ -646,7 +671,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
           </div>
 
           <div className="pw-plans-cards-trio-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: "18px", alignItems: "start", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
-            {filteredPlans.map((p) => {
+            {paginatedPlans.map((p) => {
               const isSelected = selectedPlanObject && (selectedPlanObject.id === p.id || selectedPlanObject.plan_code === p.plan_code);
               const isMonthly = (p.billing_type || "").toLowerCase() === "monthly" || (p.plan_name || "").toLowerCase().includes("monthly") || (p.plan_name || "").toLowerCase().includes("vip");
 
@@ -681,6 +706,10 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                       ) : p.billing_type === "Daily" ? (
                         <span style={{ background: "var(--bg-teal-sub, #f0fdf4)", color: "#16a34a", border: "1px solid var(--border-color, #bbf7d0)", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
                           Full Day
+                        </span>
+                      ) : (p.billing_type === "Fixed Duration" || p.billing_type === "Fixed") ? (
+                        <span style={{ background: "rgba(56, 189, 248, 0.15)", color: "#0284c7", border: "1px solid rgba(56, 189, 248, 0.35)", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
+                          Fixed ({parseFloat(p.duration_hours || 2)}h)
                         </span>
                       ) : (
                         <span style={{ background: "var(--bg-teal-sub, #f0fdfa)", color: "#0f766e", border: "1px solid #ccfbf1", padding: "2px 8px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700 }}>
@@ -720,6 +749,27 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
               );
             })}
           </div>
+
+          {totalFilteredPlans > 0 ? (
+            <div style={{ marginTop: "16px", marginBottom: "8px" }}>
+              <Pagination
+                currentPage={currentPlansPage}
+                totalItems={totalFilteredPlans}
+                limit={plansLimit}
+                onPageChange={setPlansPage}
+                onLimitChange={(newLimit) => {
+                  setPlansLimit(newLimit);
+                  setPlansPage(1);
+                }}
+                limitOptions={[3, 6, 9, 12]}
+              />
+            </div>
+          ) : (
+            <div className="pw-empty-table-state" style={{ margin: "20px 0" }}>
+              <Tag size={36} style={{ margin: "0 auto 10px auto" }} />
+              <p>No parking plans available for the selected vehicle filter.</p>
+            </div>
+          )}
 
           <div className="pw-calc-box-card" style={{ padding: "20px" }}>
             <div className="pw-calc-box-header" style={{ marginBottom: "16px" }}>

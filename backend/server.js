@@ -166,6 +166,10 @@ async function calculateBookingFeeFromPlan({ planCode, durationHours, vehicleTyp
     baseAmount = rate;
   } else if (billingType === "flat") {
     baseAmount = rate;
+  } else if (billingType === "fixed duration" || billingType === "fixed") {
+    const planDur = Math.max(1, parseFloat(plan?.duration_hours) || 1);
+    const blocks = Math.max(1, Math.ceil(hours / planDur));
+    baseAmount = blocks * rate;
   } else {
     const billedHours = Math.max(1, Math.ceil(hours));
     baseAmount = billedHours * rate;
@@ -5666,7 +5670,7 @@ app.post("/api/pricing-plans", async (req, res) => {
   }
 
   const pRate = parseFloat(rate) || 50.00;
-  const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
+  const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : (billing_type === "Fixed Duration" ? 2.00 : 1.00));
   const pOverstayRate = overstay_rate !== undefined && overstay_rate !== "" && overstay_rate !== null ? parseFloat(overstay_rate) : pRate;
   const pActive = is_active !== false;
   const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];
@@ -5757,7 +5761,7 @@ app.put("/api/pricing-plans/:id", async (req, res) => {
 
   try {
     const pRate = parseFloat(rate) || 50.00;
-    const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : 1.00);
+    const pDur = duration_hours ? parseFloat(duration_hours) : (billing_type === "Daily" ? 24.00 : (billing_type === "Fixed Duration" ? 2.00 : 1.00));
     const pOverstayRate = overstay_rate !== undefined && overstay_rate !== "" && overstay_rate !== null ? parseFloat(overstay_rate) : null;
     const pActive = is_active !== false;
     const pFeatures = Array.isArray(features) ? features : ["Covered Parking", "CCTV Surveillance"];

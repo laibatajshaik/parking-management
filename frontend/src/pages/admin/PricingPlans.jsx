@@ -253,7 +253,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
   const totalPlans = totalCount;
   const activePlans = plans.filter((p) => p.is_active).length;
   const hourlyPlans = plans.filter((p) => p.billing_type === "Hourly").length;
-  const dailyPlans = plans.filter((p) => p.billing_type === "Daily").length;
+  const dailyPlans = plans.filter((p) => p.billing_type === "Daily" || p.billing_type === "Fixed Duration" || p.billing_type === "Flat").length;
 
   const getVehicleIcon = (type) => {
     const t = (type || "").toLowerCase();
@@ -384,7 +384,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Billing:</span>
             <div className="pw-filter-pills-row" style={{ display: "inline-flex", gap: "4px" }}>
-              {["All", "Hourly", "Daily", "Flat"].map((b) => (
+              {["All", "Hourly", "Daily", "Fixed Duration", "Flat"].map((b) => (
                 <button
                   key={b}
                   type="button"
@@ -422,13 +422,13 @@ export default function PricingPlans({ setStatusActionMessage }) {
       </div>
 
       {isLoading ? (
-        <div className="pw-loading-state" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-          <RefreshCw size={24} className="pw-spin-icon" style={{ margin: "0 auto 12px auto" }} />
+        <div className="pw-loading-state">
+          <RefreshCw size={28} className="pw-spin-icon" style={{ margin: "0 auto 12px auto" }} />
           <p>Loading pricing plans from database...</p>
         </div>
       ) : filteredPlans.length === 0 ? (
-        <div className="pw-empty-table-state" style={{ padding: "40px", textAlign: "center", color: "#94a3b8" }}>
-          <Tag size={36} style={{ margin: "0 auto 12px auto", opacity: 0.5 }} />
+        <div className="pw-empty-table-state">
+          <Tag size={40} style={{ margin: "0 auto 12px auto" }} />
           <h3>No pricing plans found</h3>
           <p>Try adjusting your search filters or click "Create New Plan" to add one.</p>
         </div>
@@ -474,13 +474,13 @@ export default function PricingPlans({ setStatusActionMessage }) {
                   <span className="pw-currency-symbol">₹</span>
                   <span className="pw-rate-number">{parseFloat(plan.rate).toFixed(2)}</span>
                   <span className="pw-rate-unit">
-                    / {plan.billing_type === "Daily" ? "day (24h)" : plan.billing_type === "Flat" ? "flat pass" : "hour"}
+                    / {plan.billing_type === "Daily" ? "day (24h)" : plan.billing_type === "Flat" ? "flat pass" : plan.billing_type === "Fixed Duration" ? `${parseFloat(plan.duration_hours || 2)}h fixed` : "hour"}
                   </span>
                 </div>
                 <div className="pw-pricing-badges-row">
                   <span className="pw-badge-vehicle">{plan.vehicle_type}</span>
                   <span className="pw-badge-billing">{plan.billing_type}</span>
-                  <span className="pw-badge-billing" style={{ background: "rgba(239, 68, 68, 0.12)", color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.3)" }}>
+                  <span className="pw-badge-overstay">
                     Overstay: ₹{parseFloat(plan.overstay_rate || plan.rate).toFixed(2)}/hr
                   </span>
                 </div>
@@ -624,10 +624,16 @@ export default function PricingPlans({ setStatusActionMessage }) {
                       setBillingType(e.target.value);
                       if (e.target.value === "Daily") setDurationHours("24.00");
                       else if (e.target.value === "Hourly") setDurationHours("1.00");
+                      else if (e.target.value === "Fixed Duration") {
+                        if (!durationHours || durationHours === "1.00" || durationHours === "24.00") {
+                          setDurationHours("2.00");
+                        }
+                      }
                     }}
                   >
                     <option value="Hourly">Hourly Rate</option>
                     <option value="Daily">Daily Pass (24 Hours)</option>
+                    <option value="Fixed Duration">Fixed Duration</option>
                     <option value="Flat">Flat / Event Rate</option>
                   </select>
                 </div>

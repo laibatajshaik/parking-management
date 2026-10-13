@@ -7,12 +7,10 @@ import {
   RefreshCw,
   Download,
   CheckCircle2,
-  AlertTriangle,
   Clock,
   BatteryCharging,
   DollarSign,
   Activity,
-  Car,
   X
 } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";

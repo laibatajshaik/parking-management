@@ -1,12 +1,15 @@
 import { API_BASE_URL } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Search, RefreshCw, Car, Bike, Zap, Crown, CheckCircle2, ArrowRight, Sparkles, Award } from "lucide-react";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
   const [plans, setPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(3);
 
   const fetchPlans = async (initial = false) => {
     if (initial) setIsLoading(true);
@@ -59,12 +62,18 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
     return matchesSearch && matchesVehicle;
   });
 
+  const totalFilteredPlans = filteredPlans.length;
+  const totalPages = Math.max(1, Math.ceil(totalFilteredPlans / limit));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const paginatedPlans = filteredPlans.slice((currentPage - 1) * limit, currentPage * limit);
+
   const getFormattedRate = (plan) => {
     const val = parseFloat(plan.rate).toLocaleString("en-IN", { minimumFractionDigits: 2 });
     const bType = (plan.billing_type || "").toLowerCase();
     if (bType === "monthly") return `₹ ${val} / month`;
     if (bType === "daily") return `₹ ${val} / day`;
     if (bType === "flat") return `₹ ${val} / flat pass`;
+    if (bType === "fixed duration" || bType === "fixed") return `₹ ${val} / ${parseFloat(plan.duration_hours || 2)}h fixed`;
     return `₹ ${val} / hour`;
   };
 
@@ -217,7 +226,10 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
               type="text"
               placeholder="Search plan name, vehicle, feature..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="pw-pill-input"
             />
           </div>
@@ -228,7 +240,10 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
                 key={v}
                 type="button"
                 className={`pw-filter-pill ${vehicleFilter === v ? "active" : ""}`}
-                onClick={() => setVehicleFilter(v)}
+                onClick={() => {
+                  setVehicleFilter(v);
+                  setPage(1);
+                }}
                 style={{
                   background: vehicleFilter === v ? "#0d9488" : "var(--bg-sub, #f1f5f9)",
                   color: vehicleFilter === v ? "#ffffff" : "var(--text-secondary, #475569)",
@@ -249,7 +264,10 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
         <button
           type="button"
           className="pw-btn-action-refresh"
-          onClick={fetchPlans}
+          onClick={() => {
+            fetchPlans();
+            setPage(1);
+          }}
           title="Refresh Plans"
           style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
         >
@@ -259,7 +277,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
       </div>
 
       <div className="pw-plans-cards-trio-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: "20px", alignItems: "start", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
-        {filteredPlans.map((p) => {
+        {paginatedPlans.map((p) => {
           const isMonthly = (p.billing_type || "").toLowerCase() === "monthly" || (p.plan_name || "").toLowerCase().includes("monthly") || (p.plan_name || "").toLowerCase().includes("vip");
 
           return (
@@ -389,6 +407,26 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
           );
         })}
       </div>
+
+      {totalFilteredPlans > 0 ? (
+        <div style={{ marginTop: "16px", marginBottom: "20px" }}>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={totalFilteredPlans}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(newLimit) => {
+              setLimit(newLimit);
+              setPage(1);
+            }}
+            limitOptions={[3, 6, 9, 12]}
+          />
+        </div>
+      ) : (
+        <div className="pw-empty-table-state" style={{ margin: "20px 0" }}>
+          <p>No parking plans match your search and filter criteria.</p>
+        </div>
+      )}
 
       <div className="pw-comparison-matrix-wrapper">
         <div className="pw-comparison-matrix-header">
