@@ -783,10 +783,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
             <div className="pw-date-time-fields-grid">
               <div className="pw-calc-field-group">
-                <label className="pw-calc-label">Entry Date & Time</label>
+                <label className="pw-calc-label" htmlFor="reserve-entry-datetime">Entry Date & Time</label>
                 <div className="pw-calc-icon-input-wrap">
                   <Calendar size={15} className="pw-calc-input-icon" />
                   <input
+                    id="reserve-entry-datetime"
+                    aria-label="Entry Date & Time"
                     type="text"
                     className="pw-calc-input with-icon"
                     value={entryDateTime}
@@ -796,10 +798,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
               </div>
 
               <div className="pw-calc-field-group">
-                <label className="pw-calc-label">Exit Date & Time</label>
+                <label className="pw-calc-label" htmlFor="reserve-exit-datetime">Exit Date & Time</label>
                 <div className="pw-calc-icon-input-wrap">
                   <Calendar size={15} className="pw-calc-input-icon" />
                   <input
+                    id="reserve-exit-datetime"
+                    aria-label="Exit Date & Time"
                     type="text"
                     className="pw-calc-input with-icon"
                     value={exitDateTime}
@@ -809,8 +813,10 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
               </div>
 
               <div className="pw-calc-field-group">
-                <label className="pw-calc-label">Parking Duration</label>
+                <label className="pw-calc-label" htmlFor="reserve-duration">Parking Duration</label>
                 <input
+                  id="reserve-duration"
+                  aria-label="Parking Duration"
                   type="text"
                   className="pw-calc-input disabled-input"
                   value={
@@ -1100,8 +1106,10 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
           <div className="pw-calc-form-grid" style={{ marginBottom: "20px" }}>
             <div className="pw-calc-field-group">
-              <label className="pw-calc-label">Vehicle License Plate</label>
+              <label className="pw-calc-label" htmlFor="reserve-vehicle-plate">Vehicle License Plate</label>
               <input
+                id="reserve-vehicle-plate"
+                aria-label="Vehicle License Plate"
                 type="text"
                 className="pw-calc-input"
                 value={vehiclePlate}
@@ -1110,8 +1118,10 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
             </div>
 
             <div className="pw-calc-field-group">
-              <label className="pw-calc-label">Vehicle Model</label>
+              <label className="pw-calc-label" htmlFor="reserve-vehicle-model">Vehicle Model</label>
               <input
+                id="reserve-vehicle-model"
+                aria-label="Vehicle Model"
                 type="text"
                 className="pw-calc-input"
                 value={vehicleModel}
@@ -1245,6 +1255,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                     )}
                   </label>
                   <select
+                    aria-label="Select an available coupon"
                     value={couponCodeInput}
                     onChange={(e) => handleSelectCouponFromDropdown(e.target.value)}
                     onFocus={() => { if (availableCouponsList.length === 0) fetchCouponsList(); }}
@@ -1315,6 +1326,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
                 <div style={{ display: "flex", gap: "8px" }}>
                   <input
+                    aria-label="Enter promo code manually"
                     type="text"
                     placeholder="Or type promo code manually..."
                     value={couponCodeInput}

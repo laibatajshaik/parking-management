@@ -15,6 +15,10 @@ export default function ParkingLocations() {
   const [modalMode, setModalMode] = useState("create");
   const [editingLocation, setEditingLocation] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [overallStats, setOverallStats] = useState({ totalLocations: 0, totalCapacity: 0, totalOccupied: 0, totalStaff: 0 });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -53,6 +57,9 @@ export default function ParkingLocations() {
         if (data.success && Array.isArray(data.locations)) {
           setLocations(data.locations.map(normalizeLocation));
           setTotalCount(data.total !== undefined ? data.total : data.locations.length);
+          if (data.stats) {
+            setOverallStats(data.stats);
+          }
         }
       })
       .catch(() => {});
@@ -86,6 +93,7 @@ export default function ParkingLocations() {
   const filteredLocations = locations;
 
   const handleOpenCreate = () => {
+    setFormError("");
     setModalMode("create");
     setEditingLocation(null);
     setFormData({
@@ -101,6 +109,7 @@ export default function ParkingLocations() {
   };
 
   const handleOpenEdit = (loc) => {
+    setFormError("");
     setModalMode("edit");
     setEditingLocation(loc);
     setFormData({
@@ -116,13 +125,22 @@ export default function ParkingLocations() {
   };
 
   const handleDelete = (id) => {
+    if (!window.confirm("Are you sure you want to delete this parking facility?")) return;
     fetch(`${API_BASE_URL}/api/parking-locations/${id}`, { method: "DELETE" })
-      .then(() => fetchLocations())
+      .then((res) => {
+        if (res.ok) {
+          setActionSuccess("Location deleted successfully");
+          setTimeout(() => setActionSuccess(""), 4000);
+          fetchLocations();
+        }
+      })
       .catch(() => {});
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError("");
+    setIsSubmitting(true);
     if (modalMode === "create") {
       fetch(`${API_BASE_URL}/api/parking-locations`, {
         method: "POST",
@@ -137,11 +155,26 @@ export default function ParkingLocations() {
           status: formData.status === "Operational" ? "Active" : formData.status
         })
       })
-        .then(() => {
-          fetchLocations();
-          setIsModalOpen(false);
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to create location");
+          }
+          return data;
         })
-        .catch(() => {});
+        .then(() => {
+          setIsModalOpen(false);
+          setIsSubmitting(false);
+          setPage(1);
+          setStatusFilter("All");
+          setActionSuccess("Location created successfully");
+          setTimeout(() => setActionSuccess(""), 4000);
+          fetchLocations();
+        })
+        .catch((err) => {
+          setIsSubmitting(false);
+          setFormError(err.message || "Failed to create location");
+        });
     } else if (editingLocation) {
       fetch(`${API_BASE_URL}/api/parking-locations/${editingLocation.id}`, {
         method: "PUT",
@@ -155,11 +188,26 @@ export default function ParkingLocations() {
           status: formData.status === "Operational" ? "Active" : formData.status
         })
       })
-        .then(() => {
-          fetchLocations();
-          setIsModalOpen(false);
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to update location");
+          }
+          return data;
         })
-        .catch(() => {});
+        .then(() => {
+          setIsModalOpen(false);
+          setIsSubmitting(false);
+          setActionSuccess("Location updated successfully");
+          setTimeout(() => setActionSuccess(""), 4000);
+          fetchLocations();
+        })
+        .catch((err) => {
+          setIsSubmitting(false);
+          setFormError(err.message || "Failed to update location");
+        });
+    } else {
+      setIsSubmitting(false);
     }
   };
 
@@ -167,12 +215,18 @@ export default function ParkingLocations() {
   const totalOccupied = locations.reduce((sum, l) => sum + l.occupiedSlots, 0);
   const totalStaff = locations.reduce((sum, l) => sum + l.activeStaff, 0);
 
+ const displayLocationsCount = overallStats.totalLocations ?? totalCount ?? locations.length;
+ const displayCapacity = overallStats.totalCapacity ?? totalCapacity;
+ const displayOccupied = overallStats.totalOccupied ?? totalOccupied;
+ const displayStaff = overallStats.totalStaff ?? totalStaff;
+ const displayOccRate = Math.round((displayOccupied / (displayCapacity || 1)) * 100);
+
   return (
     <div className="pw-screen-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div className="pw-metrics-four-grid">
         <div className="pw-metric-card">
           <span className="pw-metric-label">Active Locations</span>
-          <span className="pw-metric-value">{locations.length}</span>
+          <span className="pw-metric-value">{displayLocationsCount}</span>
           <span className="pw-metric-trend positive">
             <span>Operational Branches</span>
           </span>
@@ -180,7 +234,7 @@ export default function ParkingLocations() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Total Parking Capacity</span>
-          <span className="pw-metric-value">{totalCapacity}</span>
+          <span className="pw-metric-value">{displayCapacity}</span>
           <span className="pw-metric-trend positive">
             <span>Bays across all sites</span>
           </span>
@@ -188,20 +242,44 @@ export default function ParkingLocations() {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Live Occupancy</span>
-          <span className="pw-metric-value">{totalOccupied}</span>
+          <span className="pw-metric-value">{displayOccupied}</span>
           <span className="pw-metric-trend positive">
-            <span>{Math.round((totalOccupied / (totalCapacity || 1)) * 100)}% Overall Utilization</span>
+            <span>{displayOccRate}% Overall Utilization</span>
           </span>
         </div>
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Staff on Duty</span>
-          <span className="pw-metric-value">{totalStaff}</span>
+          <span className="pw-metric-value">{displayStaff}</span>
           <span className="pw-metric-trend positive">
             <span>Assigned Wardens</span>
           </span>
         </div>
       </div>
+
+      {actionSuccess && (
+        <div style={{
+          background: "var(--bg-teal-sub, #f0fdf4)",
+          color: "#166534",
+          border: "1px solid var(--border-color, #bbf7d0)",
+          borderRadius: "10px",
+          padding: "10px 16px",
+          fontSize: "0.88rem",
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between"
+        }}>
+          <span>{actionSuccess}</span>
+          <button
+            type="button"
+            onClick={() => setActionSuccess("")}
+            style={{ background: "transparent", border: "none", cursor: "pointer", color: "#166534" }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <div className="pw-plans-action-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", background: "var(--bg-card, #ffffff)", padding: "12px 18px", borderRadius: "12px", border: "1px solid var(--border-color, #e2e8f0)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, flexWrap: "wrap" }}>
@@ -307,24 +385,24 @@ export default function ParkingLocations() {
                       <Building size={20} />
                     </div>
                     <div>
-                      <h4 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>{loc.name}</h4>
-                      <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #94a3b8)", fontWeight: 700 }}>{loc.code}</span>
+                      <h2 style={{ fontSize: "1.02rem", fontWeight: 800, color: "var(--text-primary, #0f172a)", margin: 0 }}>{loc.name}</h2>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-secondary, #475569)", fontWeight: 700 }}>{loc.code}</span>
                     </div>
                   </div>
 
-                  <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: loc.status === "Operational" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-sub, #fef2f2)", color: loc.status === "Operational" ? "#16a34a" : "#dc2626", border: loc.status === "Operational" ? "1px solid var(--border-color, #bbf7d0)" : "1px solid var(--border-color, #fecaca)" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: loc.status === "Operational" ? "var(--bg-teal-sub, #f0fdf4)" : "var(--bg-sub, #fef2f2)", color: loc.status === "Operational" ? "#166534" : "#991b1b", border: loc.status === "Operational" ? "1px solid var(--border-color, #bbf7d0)" : "1px solid var(--border-color, #fecaca)" }}>
                     {loc.status}
                   </span>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", marginBottom: "14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.78rem", color: "var(--text-secondary, #475569)", marginBottom: "14px" }}>
                   <MapPin size={14} style={{ color: "#0f766e", flexShrink: 0 }} />
                   <span>{loc.address}</span>
                 </div>
 
                 <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "12px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)", marginBottom: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 700, marginBottom: "6px" }}>
-                    <span style={{ color: "var(--text-secondary, #cbd5e1)" }}>Bay Utilization</span>
+                    <span style={{ color: "var(--text-secondary, #475569)" }}>Bay Utilization</span>
                     <span style={{ color: "#0f766e" }}>{loc.occupiedSlots} / {loc.totalSlots} ({occPct}%)</span>
                   </div>
                   <div style={{ height: "6px", background: "var(--border-color, #e2e8f0)", borderRadius: "999px", overflow: "hidden" }}>
@@ -334,11 +412,11 @@ export default function ParkingLocations() {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "0.78rem" }}>
                   <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "8px 10px", borderRadius: "6px" }}>
-                    <span style={{ color: "var(--text-secondary, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Operating Hours</span>
+                    <span style={{ color: "var(--text-secondary, #475569)", display: "block", fontSize: "0.7rem" }}>Operating Hours</span>
                     <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{loc.openingHours}</span>
                   </div>
                   <div style={{ background: "var(--bg-sub, #f8fafc)", padding: "8px 10px", borderRadius: "6px" }}>
-                    <span style={{ color: "var(--text-secondary, #94a3b8)", display: "block", fontSize: "0.7rem" }}>Active Staff</span>
+                    <span style={{ color: "var(--text-secondary, #475569)", display: "block", fontSize: "0.7rem" }}>Active Staff</span>
                     <span style={{ fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>{loc.activeStaff} Wardens</span>
                   </div>
                 </div>
@@ -352,7 +430,7 @@ export default function ParkingLocations() {
                     </span>
                   ))}
                   {loc.zones.length > 2 && (
-                    <span style={{ fontSize: "0.68rem", background: "var(--bg-sub, #f8fafc)", color: "var(--text-secondary, #94a3b8)", padding: "2px 6px", borderRadius: "4px" }}>
+                    <span style={{ fontSize: "0.68rem", background: "var(--bg-sub, #f8fafc)", color: "var(--text-secondary, #475569)", padding: "2px 6px", borderRadius: "4px" }}>
                       +{loc.zones.length - 2} more
                     </span>
                   )}
@@ -362,7 +440,8 @@ export default function ParkingLocations() {
                   <button
                     type="button"
                     onClick={() => handleOpenEdit(loc)}
-                    style={{ background: "var(--bg-sub, #f8fafc)", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "var(--text-secondary, #cbd5e1)" }}
+                    aria-label="Edit Location"
+                    style={{ background: "var(--bg-sub, #f8fafc)", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "var(--text-secondary, #475569)" }}
                     title="Edit Location"
                   >
                     <Edit2 size={13} />
@@ -370,6 +449,7 @@ export default function ParkingLocations() {
                   <button
                     type="button"
                     onClick={() => handleDelete(loc.id)}
+                    aria-label="Delete Location"
                     style={{ background: "var(--bg-sub, #fef2f2)", border: "1px solid var(--border-color, #fecaca)", borderRadius: "6px", padding: "6px", cursor: "pointer", color: "#ef4444" }}
                     title="Delete Location"
                   >
@@ -380,9 +460,9 @@ export default function ParkingLocations() {
             </div>
           );
         })) : (
-          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", color: "var(--text-secondary, #94a3b8)" }}>
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", background: "var(--bg-card, #ffffff)", borderRadius: "14px", border: "1px solid var(--border-color, #e2e8f0)", color: "var(--text-secondary, #475569)" }}>
             <Building size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-            <h4 style={{ margin: "0 0 6px", color: "var(--text-primary, #0f172a)" }}>No parking locations found</h4>
+            <h2 style={{ margin: "0 0 6px", fontSize: "1.1rem", color: "var(--text-primary, #0f172a)" }}>No parking locations found</h2>
             <p style={{ margin: 0 }}>No locations match your search criteria or none have been added.</p>
           </div>
         )}
@@ -417,6 +497,20 @@ export default function ParkingLocations() {
             </div>
 
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {formError && (
+                <div style={{
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  fontSize: "0.82rem",
+                  fontWeight: 600
+                }}>
+                  {formError}
+                </div>
+              )}
+
               <div className="pw-calc-field-group">
                 <label className="pw-calc-label">Facility Name</label>
                 <input
@@ -478,7 +572,7 @@ export default function ParkingLocations() {
 
                 <div className="pw-calc-field-group">
                   <label className="pw-calc-label">Status</label>
-                  <select
+                  <select aria-label="Location status"
                     className="pw-calc-input"
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
@@ -499,9 +593,11 @@ export default function ParkingLocations() {
                 </button>
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   className="pw-calc-btn-submit"
+                  style={{ opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? "not-allowed" : "pointer" }}
                 >
-                  {modalMode === "create" ? "Create Facility" : "Save Changes"}
+                  {isSubmitting ? (modalMode === "create" ? "Creating..." : "Saving...") : (modalMode === "create" ? "Create Facility" : "Save Changes")}
                 </button>
               </div>
             </form>

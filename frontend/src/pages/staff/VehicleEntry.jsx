@@ -732,6 +732,7 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
           <div className="pw-filter-select-wrap">
             <span className="pw-filter-icon">Type:</span>
             <select
+              aria-label="Filter by vehicle type"
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value);

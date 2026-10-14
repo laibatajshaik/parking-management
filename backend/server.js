@@ -7,6 +7,7 @@ import pool from "./db.js";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import zlib from "zlib";
 import notificationRoutes from "./modules/notifications/notificationRoutes.js";
 import evChargingRoutes from "./modules/ev/evChargingRoutes.js";
 import couponRoutes from "./modules/coupons/couponRoutes.js";
@@ -64,6 +65,32 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors());
+app.use((req, res, next) => {
+  const accept = req.headers["accept-encoding"] || "";
+  if (!accept.includes("gzip")) return next();
+  const originalSend = res.send.bind(res);
+  res.send = (body) => {
+    if (typeof body === "string" || Buffer.isBuffer(body)) {
+      const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+      if (buf.length > 512) {
+        zlib.gzip(buf, (err, compressed) => {
+          if (err) return originalSend(body);
+          res.setHeader("Content-Encoding", "gzip");
+          res.setHeader("Vary", "Accept-Encoding");
+          res.setHeader("Content-Length", compressed.length);
+          return originalSend(compressed);
+        });
+        return;
+      }
+    }
+    return originalSend(body);
+  };
+  res.json = (data) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.send(JSON.stringify(data));
+  };
+  next();
+});
 app.use(express.json());
 app.use("/api/notifications", notificationRoutes);
 app.use("/api", evChargingRoutes);
@@ -6421,13 +6448,31 @@ app.get("/api/parking-locations", async (req, res) => {
       baseWhere += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(address) LIKE $${params.length} OR LOWER(code) LIKE $${params.length})`;
     }
 
-    if (status && status !== "ALL") {
-      params.push(status.toLowerCase());
-      baseWhere += ` AND LOWER(status) = $${params.length}`;
+    if (status && status.trim().toUpperCase() !== "ALL") {
+      const st = status.trim().toLowerCase();
+      if (st === "operational" || st === "active") {
+        baseWhere += ` AND (LOWER(status) = 'active' OR LOWER(status) = 'operational')`;
+      } else {
+        params.push(st);
+        baseWhere += ` AND LOWER(status) = $${params.length}`;
+      }
     }
 
     const countRes = await pool.query(`SELECT COUNT(*) ${baseWhere}`, params);
     const total = parseInt(countRes.rows[0].count, 10) || 0;
+
+    const statsRes = await pool.query(`SELECT
+      COUNT(*) as total_locations,
+      COALESCE(SUM(total_slots), 0) as total_capacity,
+      COALESCE(SUM(occupied_slots), 0) as total_occupied,
+      COALESCE(SUM(active_staff), 0) as total_staff
+      FROM parking_locations`);
+    const stats = {
+      totalLocations: parseInt(statsRes.rows[0].total_locations, 10) || 0,
+      totalCapacity: parseInt(statsRes.rows[0].total_capacity, 10) || 0,
+      totalOccupied: parseInt(statsRes.rows[0].total_occupied, 10) || 0,
+      totalStaff: parseInt(statsRes.rows[0].total_staff, 10) || 0
+    };
 
     let locationsRes;
     let pageNum = 1;
@@ -6439,11 +6484,11 @@ app.get("/api/parking-locations", async (req, res) => {
       const offset = (pageNum - 1) * limitNum;
       const dataParams = [...params, limitNum, offset];
       locationsRes = await pool.query(
-        `SELECT * ${baseWhere} ORDER BY id ASC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
         dataParams
       );
     } else {
-      locationsRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id ASC`, params);
+      locationsRes = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
     }
 
     res.json({
@@ -6451,6 +6496,7 @@ app.get("/api/parking-locations", async (req, res) => {
       locations: locationsRes.rows,
       data: locationsRes.rows,
       total,
+      stats,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -6466,15 +6512,19 @@ app.get("/api/parking-locations", async (req, res) => {
 
 app.post("/api/parking-locations", async (req, res) => {
   const { code, name, address, total_slots, occupied_slots, zones, active_staff, opening_hours, rate_multiplier, status } = req.body;
-  if (!name || !address) {
+  if (!name || !name.trim() || !address || !address.trim()) {
     return res.status(400).json({ error: "Name and address are required" });
   }
-  const locCode = code || `LOC-${Date.now().toString().slice(-4)}`;
+  let locCode = code && code.trim() ? code.trim() : `LOC-${Date.now().toString().slice(-4)}`;
   try {
+    const existingCode = await pool.query(`SELECT id FROM parking_locations WHERE code = $1`, [locCode]);
+    if (existingCode.rows.length > 0) {
+      locCode = `${locCode}-${Date.now().toString().slice(-4)}`;
+    }
     const insertRes = await pool.query(
       `INSERT INTO parking_locations (code, name, address, total_slots, occupied_slots, zones, active_staff, opening_hours, rate_multiplier, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [locCode, name, address, parseInt(total_slots, 10) || 50, parseInt(occupied_slots, 10) || 0, zones || ['Zone A', 'Zone B'], parseInt(active_staff, 10) || 2, opening_hours || '24/7 Access', rate_multiplier || '1.0x (Standard)', status || 'Active']
+      [locCode, name.trim(), address.trim(), parseInt(total_slots, 10) || 50, parseInt(occupied_slots, 10) || 0, zones || ['Zone A', 'Zone B'], parseInt(active_staff, 10) || 2, opening_hours || '24/7 Access', rate_multiplier || '1.0x (Standard)', status || 'Active']
     );
     res.status(201).json({ success: true, location: insertRes.rows[0], message: "Location added successfully" });
   } catch (err) {
