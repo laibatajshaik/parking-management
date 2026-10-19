@@ -1425,6 +1425,11 @@ app.post("/api/reset-password", async (req, res) => {
   }
 });
 
+let cachedDashboardOverview = null;
+let lastDashboardFetch = 0;
+const DASHBOARD_CACHE_TTL = 3000; // 3 second micro-cache for high-concurrency deduplication
+const adminUserAuthCache = new Map(); // normalizedEmail -> { user, expiresAt }
+
 app.get("/api/admin/dashboard-overview", async (req, res) => {
   let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.query.adminEmail || req.query.email || "";
   const authHeader = req.headers["authorization"] || "";
@@ -1437,53 +1442,72 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
   }
 
   try {
-    const adminCheck = await pool.query(
-      "SELECT id, email, role, status FROM users WHERE LOWER(email) = LOWER($1)",
-      [adminEmail.trim()]
-    );
-    if (adminCheck.rowCount === 0 || (adminCheck.rows[0].status && adminCheck.rows[0].status.toLowerCase() === "inactive")) {
+    const normalizedEmail = adminEmail.trim().toLowerCase();
+    let cachedUser = adminUserAuthCache.get(normalizedEmail);
+    if (!cachedUser || cachedUser.expiresAt < Date.now()) {
+      const adminCheck = await pool.query(
+        "SELECT id, email, role, status FROM users WHERE LOWER(email) = LOWER($1)",
+        [normalizedEmail]
+      );
+      if (adminCheck.rowCount === 0) {
+        return res.status(401).json({ error: "Unauthorized: Invalid or inactive account" });
+      }
+      cachedUser = { ...adminCheck.rows[0], expiresAt: Date.now() + 60000 };
+      adminUserAuthCache.set(normalizedEmail, cachedUser);
+    }
+
+    if (cachedUser.status && cachedUser.status.toLowerCase() === "inactive") {
       return res.status(401).json({ error: "Unauthorized: Invalid or inactive account" });
     }
-    if ((adminCheck.rows[0].role || "").toLowerCase() !== "admin") {
+    if ((cachedUser.role || "").toLowerCase() !== "admin") {
       return res.status(403).json({ error: "Forbidden: Administrator privileges required" });
+    }
+
+    const nowTs = Date.now();
+    if (cachedDashboardOverview && (nowTs - lastDashboardFetch < DASHBOARD_CACHE_TTL)) {
+      return res.json(cachedDashboardOverview);
     }
 
     const [
       slotsRes,
       evSlotsRes,
-      usersRes,
-      bookRes,
-      todayPayRes,
-      totalPayRes,
-      activeVehRes,
-      activeEvSessRes,
-      totalVehRes,
-      resvBookingsRes,
-      entriesRes,
-      exitsRes,
-      recentResvRes,
-      recentPayRes,
-      recentVehRes,
-      auditRes,
-      usersActRes
+      metricsRes,
+      activitiesRes,
+      parkedVehicles
     ] = await Promise.all([
       pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
       pool.query("SELECT * FROM ev_charging_slots ORDER BY slot_number ASC"),
-      pool.query("SELECT COUNT(*) FROM users"),
-      pool.query("SELECT COUNT(*) FROM reservations"),
-      pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
-      pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL)"),
-      pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'"),
-      pool.query("SELECT COUNT(*) FROM vehicles"),
-      pool.query("SELECT COUNT(DISTINCT slot_number) FROM reservations WHERE LOWER(status) IN ('confirmed', 'pending') AND (end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)"),
-      pool.query("SELECT id, vehicle_number, slot_number, entry_time AS timestamp, 'Vehicle Entry' AS type, CONCAT('Vehicle ', vehicle_number, ' Entered') AS title, CONCAT(vehicle_number, ' entered Slot ', slot_number) AS description FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC LIMIT 10"),
-      pool.query("SELECT id, vehicle_number, slot_number, exit_time AS timestamp, 'Vehicle Exit' AS type, CONCAT('Vehicle ', vehicle_number, ' Exited') AS title, CONCAT(vehicle_number, ' exited Slot ', slot_number, ' • Duration: ', COALESCE(duration, '1h'), ' • Fee: ', COALESCE(fee, '₹50.00')) AS description FROM vehicle_history WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 10"),
-      pool.query("SELECT id, booking_id, customer_name, vehicle_number, slot_number, total_amount, status, created_at AS timestamp, CASE WHEN LOWER(status) = 'cancelled' THEN 'Reservation Cancelled' ELSE 'New Reservation' END AS type, CASE WHEN LOWER(status) = 'cancelled' THEN CONCAT('Reservation #', booking_id, ' Cancelled') ELSE CONCAT('Reservation #', booking_id, ' Confirmed') END AS title, CONCAT('Reservation for ', vehicle_number, ' at Slot ', slot_number, ' (₹', total_amount, ')') AS description FROM reservations ORDER BY id DESC LIMIT 10"),
-      pool.query("SELECT id, transaction_id, vehicle_number, amount, payment_method, payment_status, created_at AS timestamp, 'Payment Received' AS type, CONCAT('Payment Received: ₹', amount) AS title, CONCAT('₹', amount, ' payment received for ', vehicle_number, ' via ', payment_method) AS description FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) ORDER BY id DESC LIMIT 10"),
-      pool.query("SELECT id, vehicle_number, model, vehicle_type, owner_name, created_at AS timestamp, 'New Vehicle Added' AS type, CONCAT('New Vehicle Added: ', vehicle_number) AS title, CONCAT(vehicle_number, ' (', model, ' ', vehicle_type, ') added by ', owner_name) AS description FROM vehicles ORDER BY id DESC LIMIT 10"),
-      pool.query("SELECT id, log_code, actor, action, target, created_at AS timestamp, CASE WHEN action ILIKE '%slot%' THEN 'Parking Slot Updated' WHEN action ILIKE '%plan%' OR action ILIKE '%tariff%' THEN 'Pricing Plan Updated' ELSE action END AS type, action AS title, CONCAT(target, ' by ', actor) AS description FROM audit_logs ORDER BY id DESC LIMIT 10"),
-      pool.query("SELECT id, name, email, role, created_at AS timestamp, 'User Registered' AS type, CONCAT('New User: ', name) AS title, CONCAT(name, ' registered as ', role, ' (', email, ')') AS description FROM users ORDER BY id DESC LIMIT 10")
+      pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM users) AS users_count,
+          (SELECT COUNT(*) FROM reservations) AS reservations_count,
+          (SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active') AS active_ev_sess,
+          (SELECT COUNT(DISTINCT slot_number) FROM reservations WHERE LOWER(status) IN ('confirmed', 'pending') AND (end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)) AS resv_bookings,
+          (SELECT COUNT(*) FROM vehicles) AS total_vehicles,
+          (SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked') AS parked_count,
+          (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL)) AS total_revenue,
+          (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND created_at >= CURRENT_DATE) AS today_revenue
+      `),
+      pool.query(`
+        SELECT * FROM (
+          (SELECT CONCAT('entry-', id) AS id, 'Vehicle Entry' AS type, CONCAT('Vehicle ', vehicle_number, ' Entered') AS title, CONCAT(vehicle_number, ' entered Slot ', slot_number) AS description, entry_time AS timestamp FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC LIMIT 10)
+          UNION ALL
+          (SELECT CONCAT('exit-', id) AS id, 'Vehicle Exit' AS type, CONCAT('Vehicle ', vehicle_number, ' Exited') AS title, CONCAT(vehicle_number, ' exited Slot ', slot_number, ' • Duration: ', COALESCE(duration, '1h'), ' • Fee: ', COALESCE(fee, '₹50.00')) AS description, exit_time AS timestamp FROM vehicle_history WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 10)
+          UNION ALL
+          (SELECT CONCAT('res-', id) AS id, CASE WHEN LOWER(status) = 'cancelled' THEN 'Reservation Cancelled' ELSE 'New Reservation' END AS type, CASE WHEN LOWER(status) = 'cancelled' THEN CONCAT('Reservation #', booking_id, ' Cancelled') ELSE CONCAT('Reservation #', booking_id, ' Confirmed') END AS title, CONCAT('Reservation for ', vehicle_number, ' at Slot ', slot_number, ' (₹', total_amount, ')') AS description, created_at AS timestamp FROM reservations ORDER BY id DESC LIMIT 10)
+          UNION ALL
+          (SELECT CONCAT('pay-', id) AS id, 'Payment Received' AS type, CONCAT('Payment Received: ₹', amount) AS title, CONCAT('₹', amount, ' payment received for ', vehicle_number, ' via ', payment_method) AS description, created_at AS timestamp FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) ORDER BY id DESC LIMIT 10)
+          UNION ALL
+          (SELECT CONCAT('veh-', id) AS id, 'New Vehicle Added' AS type, CONCAT('New Vehicle Added: ', vehicle_number) AS title, CONCAT(vehicle_number, ' (', model, ' ', vehicle_type, ') added by ', owner_name) AS description, created_at AS timestamp FROM vehicles ORDER BY id DESC LIMIT 10)
+          UNION ALL
+          (SELECT CONCAT('audit-', id) AS id, CASE WHEN action ILIKE '%slot%' THEN 'Parking Slot Updated' WHEN action ILIKE '%plan%' OR action ILIKE '%tariff%' THEN 'Pricing Plan Updated' ELSE action END AS type, action AS title, CONCAT(target, ' by ', actor) AS description, created_at AS timestamp FROM audit_logs ORDER BY id DESC LIMIT 10)
+          UNION ALL
+          (SELECT CONCAT('usr-', id) AS id, 'User Registered' AS type, CONCAT('New User: ', name) AS title, CONCAT(name, ' registered as ', role, ' (', email, ')') AS description, created_at AS timestamp FROM users ORDER BY id DESC LIMIT 10)
+        ) sub
+        ORDER BY timestamp DESC
+        LIMIT 15
+      `),
+      pool.query("SELECT vehicle_number, current_slot AS slot_number, owner_name AS user_name, status, created_at FROM vehicles WHERE LOWER(status) IN ('parked', 'charging') ORDER BY id DESC")
     ]);
 
     const normalSlots = slotsRes.rows;
@@ -1504,14 +1528,16 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
 
     const chargingSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "charging").length;
     const maintenanceSlots = evSlots.filter(s => (s.status || "").toLowerCase() === "maintenance").length;
-    const activeEvSessions = parseInt(activeEvSessRes.rows[0]?.count || 0, 10);
 
-    const activeParkingSessions = parseInt(activeVehRes.rows[0]?.count || 0, 10) + activeEvSessions;
-    const totalVehicles = parseInt(totalVehRes.rows[0]?.count || 0, 10);
-    const todaysRevenue = parseFloat(todayPayRes.rows[0]?.sum || 0);
-    const totalRevenue = parseFloat(totalPayRes.rows[0]?.sum || 0);
-    const totalBookings = parseInt(bookRes.rows[0]?.count || 0, 10);
-    const totalUsers = parseInt(usersRes.rows[0]?.count || 0, 10);
+    const metricsRow = metricsRes.rows[0] || {};
+    const activeEvSessions = parseInt(metricsRow.active_ev_sess || 0, 10);
+    const activeParkedCount = parseInt(metricsRow.parked_count || 0, 10);
+    const activeParkingSessions = activeParkedCount + activeEvSessions;
+    const totalVehicles = parseInt(metricsRow.total_vehicles || 0, 10);
+    const todaysRevenue = parseFloat(metricsRow.today_revenue || 0);
+    const totalRevenue = parseFloat(metricsRow.total_revenue || 0);
+    const totalBookings = parseInt(metricsRow.reservations_count || 0, 10);
+    const totalUsers = parseInt(metricsRow.users_count || 0, 10);
     const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots + chargingSlots) / totalSlots) * 100) : 0;
 
     const allSlots = [
@@ -1532,24 +1558,9 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
       }))
     ];
 
-    const combinedActivities = [
-      ...entriesRes.rows.map(r => ({ id: `entry-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
-      ...exitsRes.rows.map(r => ({ id: `exit-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
-      ...recentResvRes.rows.map(r => ({ id: `res-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
-      ...recentPayRes.rows.map(r => ({ id: `pay-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
-      ...recentVehRes.rows.map(r => ({ id: `veh-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
-      ...auditRes.rows.map(r => ({ id: `audit-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp })),
-      ...usersActRes.rows.map(r => ({ id: `usr-${r.id}`, type: r.type, title: r.title, description: r.description, timestamp: r.timestamp }))
-    ];
+    const recentActivity = activitiesRes.rows;
 
-    combinedActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    const recentActivity = combinedActivities.slice(0, 15);
-
-    const parkedVehicles = await pool.query(
-      "SELECT vehicle_number, current_slot AS slot_number, owner_name AS user_name, status, created_at FROM vehicles WHERE LOWER(status) IN ('parked', 'charging') ORDER BY id DESC"
-    );
-
-    res.json({
+    const responsePayload = {
       success: true,
       totalParkingSlots: totalSlots,
       totalSlots,
@@ -1592,7 +1603,11 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
         available: evAvail,
         total: evSlots.length
       }
-    });
+    };
+
+    cachedDashboardOverview = responsePayload;
+    lastDashboardFetch = nowTs;
+    res.json(responsePayload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching dashboard overview data" });
@@ -3243,8 +3258,10 @@ app.get("/api/staff/active-vehicles", handleActiveSessions);
 
 app.get("/api/payments/today", async (req, res) => {
   try {
-    const todayRes = await pool.query("SELECT * FROM payments WHERE DATE(created_at) = CURRENT_DATE AND vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC");
-    const allRes = await pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC LIMIT 100");
+    const [todayRes, allRes] = await Promise.all([
+      pool.query("SELECT * FROM payments WHERE created_at >= CURRENT_DATE AND vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC"),
+      pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC LIMIT 100")
+    ]);
     const isTodayMode = req.query.range === "today" || (!req.query.range && todayRes.rows.length > 0);
     const paymentsToUse = isTodayMode ? todayRes.rows : allRes.rows;
 
@@ -3377,42 +3394,35 @@ app.get("/api/payments", async (req, res) => {
 app.get("/api/customer/payments", async (req, res) => {
   const { email, name, search, method, status, page, limit } = req.query;
   try {
-    let baseFromWhere = `
-      FROM payments p
-      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
-      LEFT JOIN reservations r ON (
-        LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
-        AND (r.slot_number = p.slot_number OR LOWER(r.customer_email) = LOWER(p.customer_email))
-      )
-      WHERE p.vehicle_number IS NOT NULL AND p.vehicle_number != '' AND p.slot_number IS NOT NULL AND p.transaction_id IS NOT NULL
-    `;
+    let whereClause = "WHERE p.vehicle_number IS NOT NULL AND p.vehicle_number != '' AND p.slot_number IS NOT NULL AND p.transaction_id IS NOT NULL";
     const params = [];
 
     if (email) {
       params.push(`%${email.toLowerCase().trim()}%`);
-      baseFromWhere += ` AND (LOWER(COALESCE(p.customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
+      whereClause += ` AND (LOWER(COALESCE(p.customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
     } else if (name) {
       params.push(`%${name.toLowerCase().trim()}%`);
-      baseFromWhere += ` AND LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length}`;
+      whereClause += ` AND LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length}`;
     }
 
     if (search) {
       params.push(`%${search.toLowerCase().trim()}%`);
-      baseFromWhere += ` AND (LOWER(p.vehicle_number) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(p.slot_number) LIKE $${params.length})`;
+      whereClause += ` AND (LOWER(p.vehicle_number) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(p.slot_number) LIKE $${params.length})`;
     }
 
     if (method && method !== "ALL") {
       params.push(method);
-      baseFromWhere += ` AND p.payment_method = $${params.length}`;
+      whereClause += ` AND p.payment_method = $${params.length}`;
     }
 
     if (status && status !== "ALL") {
       params.push(status.toLowerCase());
-      baseFromWhere += ` AND LOWER(COALESCE(p.payment_status, 'completed')) = $${params.length}`;
+      whereClause += ` AND LOWER(COALESCE(p.payment_status, 'completed')) = $${params.length}`;
     }
 
+    // Direct indexed count and sum without Cartesian joins
     const countRes = await pool.query(
-      `SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount FROM (SELECT DISTINCT p.id, p.amount ${baseFromWhere}) sub`,
+      `SELECT COUNT(*) as count, COALESCE(SUM(p.amount), 0) as total_amount FROM payments p ${whereClause}`,
       params
     );
     const total = parseInt(countRes.rows[0].count, 10) || 0;
@@ -3443,6 +3453,16 @@ app.get("/api/customer/payments", async (req, res) => {
         COALESCE(p.payment_status, 'Completed') AS payment_status,
         p.created_at AS receipt_date,
         p.created_at
+      FROM payments p
+      LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
+      LEFT JOIN LATERAL (
+        SELECT r.booking_id, r.vehicle_type, r.model, r.plan_name
+        FROM reservations r
+        WHERE LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
+        ORDER BY r.created_at DESC
+        LIMIT 1
+      ) r ON true
+      ${whereClause}
     `;
 
     if (page || limit) {
@@ -3451,7 +3471,7 @@ app.get("/api/customer/payments", async (req, res) => {
       const offset = (pageNum - 1) * limitNum;
       const dataParams = [...params, limitNum, offset];
       const paymentsRes = await pool.query(
-        `${selectCols} ${baseFromWhere} ORDER BY p.created_at DESC, p.id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        `${selectCols} ORDER BY p.created_at DESC, p.id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
         dataParams
       );
       return res.json({
@@ -3469,9 +3489,12 @@ app.get("/api/customer/payments", async (req, res) => {
       });
     }
 
+    // Default limit of 50 for unbounded requests to prevent streaming entire database into memory
+    const defaultLimit = 50;
+    const dataParams = [...params, defaultLimit];
     const paymentsRes = await pool.query(
-      `${selectCols} ${baseFromWhere} ORDER BY p.created_at DESC, p.id DESC`,
-      params
+      `${selectCols} ORDER BY p.created_at DESC, p.id DESC LIMIT $${dataParams.length}`,
+      dataParams
     );
     res.json({
       success: true,
@@ -3481,9 +3504,9 @@ app.get("/api/customer/payments", async (req, res) => {
       totalAmount,
       pagination: {
         page: 1,
-        limit: total || 5,
+        limit: defaultLimit,
         total,
-        totalPages: 1
+        totalPages: Math.ceil(total / defaultLimit) || 1
       }
     });
   } catch (err) {
@@ -3519,10 +3542,13 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
         p.created_at
       FROM payments p
       LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
-      LEFT JOIN reservations r ON (
-        LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
-        AND (r.slot_number = p.slot_number OR LOWER(r.customer_email) = LOWER(p.customer_email))
-      )
+      LEFT JOIN LATERAL (
+        SELECT r.booking_id, r.vehicle_type, r.model, r.plan_name
+        FROM reservations r
+        WHERE LOWER(r.vehicle_number) = LOWER(p.vehicle_number)
+        ORDER BY r.created_at DESC
+        LIMIT 1
+      ) r ON true
       WHERE LOWER(p.transaction_id) = LOWER($1) OR p.id::text = $1
       LIMIT 1`,
       [id.trim()]
@@ -4042,8 +4068,8 @@ app.get(["/api/admin/parking-records", "/api/staff/parking-records"], async (req
   try {
     let baseWhere = `
       FROM vehicle_history vh
-      LEFT JOIN vehicles v ON UPPER(TRIM(vh.vehicle_number)) = UPPER(TRIM(v.vehicle_number))
-      LEFT JOIN parking_slots ps ON UPPER(TRIM(vh.slot_number)) = UPPER(TRIM(ps.slot_number))
+      LEFT JOIN vehicles v ON UPPER(vh.vehicle_number) = UPPER(v.vehicle_number)
+      LEFT JOIN parking_slots ps ON UPPER(vh.slot_number) = UPPER(ps.slot_number)
     `;
     const params = [];
     let whereClauses = [];
@@ -4135,10 +4161,7 @@ app.get(["/api/admin/parking-records", "/api/staff/parking-records"], async (req
       LEFT JOIN LATERAL (
         SELECT p2.transaction_id, p2.payment_method, p2.payment_status, p2.customer_name, p2.customer_email, p2.customer_phone
         FROM payments p2
-        WHERE p2.vehicle_number = vh.vehicle_number AND (
-          (vh.exit_time IS NOT NULL AND ABS(EXTRACT(EPOCH FROM (p2.exit_time - vh.exit_time))) < 3600) OR
-          (p2.slot_number = vh.slot_number)
-        )
+        WHERE UPPER(p2.vehicle_number) = UPPER(vh.vehicle_number)
         ORDER BY p2.created_at DESC
         LIMIT 1
       ) p ON true
@@ -4159,7 +4182,10 @@ app.get(["/api/admin/parking-records", "/api/staff/parking-records"], async (req
         dataParams
       );
     } else {
-      histRes = await pool.query(`${selectQuery} ORDER BY vh.entry_time DESC`, params);
+      const defaultLimit = 50;
+      const dataParams = [...params, defaultLimit];
+      histRes = await pool.query(`${selectQuery} ORDER BY vh.entry_time DESC LIMIT $${dataParams.length}`, dataParams);
+      limitNum = defaultLimit;
     }
 
     const now = new Date();
@@ -4622,29 +4648,37 @@ app.get("/api/customer/parking-history", async (req, res) => {
         SELECT p.transaction_id, p.payment_method, p.customer_name, p.customer_email
         FROM payments p
         WHERE UPPER(p.vehicle_number) = UPPER(vh.vehicle_number)
-        ORDER BY ABS(EXTRACT(EPOCH FROM (p.created_at - vh.entry_time))) ASC
+        ORDER BY p.created_at DESC
         LIMIT 1
       ) p_match ON true
       LEFT JOIN LATERAL (
         SELECT r.booking_id, r.customer_name, r.customer_email
         FROM reservations r
         WHERE UPPER(r.vehicle_number) = UPPER(vh.vehicle_number)
-        ORDER BY ABS(EXTRACT(EPOCH FROM (r.created_at - vh.entry_time))) ASC
+        ORDER BY r.created_at DESC
         LIMIT 1
       ) r_match ON true
       WHERE 1=1
     `;
     const params = [];
     if (email) {
-      params.push(email.trim().toLowerCase());
-      baseFromWhere += ` AND (
-        LOWER(COALESCE(v.owner_email, '')) = $${params.length}
-        OR LOWER(COALESCE(p_match.customer_email, '')) = $${params.length}
-        OR LOWER(COALESCE(r_match.customer_email, '')) = $${params.length}
-        OR EXISTS (SELECT 1 FROM vehicles v2 WHERE UPPER(v2.vehicle_number) = UPPER(vh.vehicle_number) AND LOWER(v2.owner_email) = $${params.length})
-        OR EXISTS (SELECT 1 FROM reservations r2 WHERE UPPER(r2.vehicle_number) = UPPER(vh.vehicle_number) AND LOWER(r2.customer_email) = $${params.length})
-        OR EXISTS (SELECT 1 FROM payments p2 WHERE UPPER(p2.vehicle_number) = UPPER(vh.vehicle_number) AND LOWER(p2.customer_email) = $${params.length})
-      )`;
+      const cleanEmail = email.trim().toLowerCase();
+      const userVehiclesRes = await pool.query(`
+        SELECT DISTINCT UPPER(vehicle_number) AS plate FROM (
+          SELECT vehicle_number FROM vehicles WHERE LOWER(owner_email) = $1 AND vehicle_number IS NOT NULL
+          UNION
+          SELECT vehicle_number FROM reservations WHERE LOWER(customer_email) = $1 AND vehicle_number IS NOT NULL
+          UNION
+          SELECT vehicle_number FROM payments WHERE LOWER(customer_email) = $1 AND vehicle_number IS NOT NULL
+        ) u
+      `, [cleanEmail]);
+      const customerPlates = userVehiclesRes.rows.map(r => r.plate).filter(Boolean);
+      if (customerPlates.length > 0) {
+        params.push(customerPlates);
+        baseFromWhere += ` AND UPPER(vh.vehicle_number) = ANY($${params.length})`;
+      } else {
+        baseFromWhere += ` AND 1=0`;
+      }
     } else if (name) {
       params.push(`%${name.trim().toLowerCase()}%`);
       baseFromWhere += ` AND (
@@ -4668,7 +4702,21 @@ app.get("/api/customer/parking-history", async (req, res) => {
       baseFromWhere += ` AND LOWER(vh.status) = $${params.length}`;
     }
 
-    const countRes = await pool.query(`SELECT COUNT(*) ${baseFromWhere}`, params);
+    let countQuery;
+    let countParams = [];
+    if (!email && !name && !search) {
+      if (status && status !== "ALL") {
+        countQuery = "SELECT COUNT(*) FROM vehicle_history vh WHERE LOWER(vh.status) = $1";
+        countParams = [status.trim().toLowerCase()];
+      } else {
+        countQuery = "SELECT COUNT(*) FROM vehicle_history vh";
+        countParams = [];
+      }
+    } else {
+      countQuery = `SELECT COUNT(*) ${baseFromWhere}`;
+      countParams = params;
+    }
+    const countRes = await pool.query(countQuery, countParams);
     const total = parseInt(countRes.rows[0].count, 10) || 0;
 
     const selectCols = `
@@ -4706,7 +4754,10 @@ app.get("/api/customer/parking-history", async (req, res) => {
         dataParams
       );
     } else {
-      histRes = await pool.query(`${selectCols} ${baseFromWhere} ORDER BY vh.entry_time DESC`, params);
+      const defaultLimit = 50;
+      const dataParams = [...params, defaultLimit];
+      histRes = await pool.query(`${selectCols} ${baseFromWhere} ORDER BY vh.entry_time DESC LIMIT $${dataParams.length}`, dataParams);
+      limitNum = defaultLimit;
     }
 
     let activeReservations = [];
@@ -4824,22 +4875,49 @@ app.get("/api/bookings", async (req, res) => {
       limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
       const offset = (pageNum - 1) * limitNum;
       const dataParams = [...params, limitNum, offset];
-      result = await pool.query(
-        `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-        dataParams
-      );
+      const [dataRes, statsRes] = await Promise.all([
+        pool.query(
+          `SELECT * ${baseWhere} ORDER BY id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+          dataParams
+        ),
+        pool.query(`
+          SELECT 
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE LOWER(status) = 'confirmed') AS confirmed,
+            COUNT(*) FILTER (WHERE LOWER(status) = 'pending') AS pending,
+            COUNT(*) FILTER (WHERE LOWER(status) LIKE '%check%' OR LOWER(status) = 'validated') AS checked_in,
+            COALESCE(SUM(total_amount), 0) AS total_revenue
+          FROM reservations
+        `)
+      ]);
+      result = dataRes;
+      const statsRow = statsRes.rows[0] || {};
+      var allTotal = parseInt(statsRow.total || 0, 10);
+      var confirmed = parseInt(statsRow.confirmed || 0, 10);
+      var pending = parseInt(statsRow.pending || 0, 10);
+      var checkedIn = parseInt(statsRow.checked_in || 0, 10);
+      var totalRevenue = parseFloat(statsRow.total_revenue || 0);
     } else {
-      result = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
+      const [dataRes, statsRes] = await Promise.all([
+        pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params),
+        pool.query(`
+          SELECT 
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE LOWER(status) = 'confirmed') AS confirmed,
+            COUNT(*) FILTER (WHERE LOWER(status) = 'pending') AS pending,
+            COUNT(*) FILTER (WHERE LOWER(status) LIKE '%check%' OR LOWER(status) = 'validated') AS checked_in,
+            COALESCE(SUM(total_amount), 0) AS total_revenue
+          FROM reservations
+        `)
+      ]);
+      result = dataRes;
+      const statsRow = statsRes.rows[0] || {};
+      var allTotal = parseInt(statsRow.total || 0, 10);
+      var confirmed = parseInt(statsRow.confirmed || 0, 10);
+      var pending = parseInt(statsRow.pending || 0, 10);
+      var checkedIn = parseInt(statsRow.checked_in || 0, 10);
+      var totalRevenue = parseFloat(statsRow.total_revenue || 0);
     }
-
-    const allRes = await pool.query("SELECT * FROM reservations");
-    const allRows = allRes.rows;
-
-    const allTotal = allRows.length;
-    const confirmed = allRows.filter((r) => (r.status || "").toLowerCase() === "confirmed").length;
-    const pending = allRows.filter((r) => (r.status || "").toLowerCase() === "pending").length;
-    const checkedIn = allRows.filter((r) => (r.status || "").toLowerCase().includes("check") || (r.status || "").toLowerCase() === "validated").length;
-    const totalRevenue = allRows.reduce((sum, r) => sum + (parseFloat(r.total_amount) || 0), 0);
 
     res.json({
       success: true,
@@ -6575,29 +6653,42 @@ app.delete("/api/parking-locations/:id", async (req, res) => {
   }
 });
 
+let cachedSystemSettings = null;
+let lastSettingsFetch = 0;
+const SETTINGS_CACHE_TTL = 30000; // 30 seconds
+
 app.get("/api/system-settings", async (req, res) => {
   try {
+    const now = Date.now();
+    if (cachedSystemSettings && (now - lastSettingsFetch < SETTINGS_CACHE_TTL)) {
+      return res.json({ success: true, settings: cachedSystemSettings });
+    }
     const settingsRes = await pool.query("SELECT value FROM system_settings WHERE key = 'general'");
     if (settingsRes.rowCount > 0) {
-      res.json({ success: true, settings: settingsRes.rows[0].value });
+      cachedSystemSettings = settingsRes.rows[0].value;
+      lastSettingsFetch = now;
+      res.json({ success: true, settings: cachedSystemSettings });
     } else {
+      const defaultSettings = {
+        systemName: "Shnoor Smart Parking Management System",
+        contactEmail: "support@shnoor.com",
+        supportPhone: "+91 80 4567 8900",
+        currency: "INR (₹)",
+        timezone: "Asia/Kolkata (IST +5:30)",
+        operatingHours: "24/7 All Locations",
+        maintenanceMode: false,
+        autoAssignBays: true,
+        overstayGracePeriodMinutes: 15,
+        lostTicketFlatFee: 500,
+        emailAlerts: true,
+        smsAlerts: true,
+        whatsappAlerts: false
+      };
+      cachedSystemSettings = defaultSettings;
+      lastSettingsFetch = now;
       res.json({
         success: true,
-        settings: {
-          systemName: "Shnoor Smart Parking Management System",
-          contactEmail: "support@shnoor.com",
-          supportPhone: "+91 80 4567 8900",
-          currency: "INR (₹)",
-          timezone: "Asia/Kolkata (IST +5:30)",
-          operatingHours: "24/7 All Locations",
-          maintenanceMode: false,
-          autoAssignBays: true,
-          overstayGracePeriodMinutes: 15,
-          lostTicketFlatFee: 500,
-          emailAlerts: true,
-          smsAlerts: true,
-          whatsappAlerts: false
-        }
+        settings: defaultSettings
       });
     }
   } catch (err) {
@@ -6609,6 +6700,8 @@ app.get("/api/system-settings", async (req, res) => {
 app.put("/api/system-settings", async (req, res) => {
   const settings = req.body;
   try {
+    cachedSystemSettings = null;
+    lastSettingsFetch = 0;
     await pool.query(
       `INSERT INTO system_settings (key, value, updated_at)
        VALUES ('general', $1, CURRENT_TIMESTAMP)
@@ -6667,20 +6760,25 @@ app.get("/api/admin/audit-logs/summary", async (req, res) => {
   }
 
   try {
-    const totalRes = await pool.query("SELECT COUNT(*) FROM audit_logs");
-    const todayRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE DATE(created_at) = CURRENT_DATE");
-    const successRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE LOWER(COALESCE(status, 'success')) = 'success'");
-    const failedRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE LOWER(COALESCE(status, '')) = 'failed'");
-    const adminRes = await pool.query("SELECT COUNT(*) FROM audit_logs WHERE LOWER(COALESCE(user_role, role, '')) = 'admin'");
+    const summaryRes = await pool.query(`
+      SELECT 
+        COUNT(*) AS total_logs,
+        COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) AS today_logs,
+        COUNT(*) FILTER (WHERE LOWER(COALESCE(status, 'success')) = 'success') AS successful_actions,
+        COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'failed') AS failed_actions,
+        COUNT(*) FILTER (WHERE LOWER(COALESCE(user_role, role, '')) = 'admin') AS admin_actions
+      FROM audit_logs
+    `);
+    const row = summaryRes.rows[0] || {};
 
     res.json({
       success: true,
       summary: {
-        totalLogs: parseInt(totalRes.rows[0].count, 10) || 0,
-        todayLogs: parseInt(todayRes.rows[0].count, 10) || 0,
-        successfulActions: parseInt(successRes.rows[0].count, 10) || 0,
-        failedActions: parseInt(failedRes.rows[0].count, 10) || 0,
-        adminActions: parseInt(adminRes.rows[0].count, 10) || 0
+        totalLogs: parseInt(row.total_logs, 10) || 0,
+        todayLogs: parseInt(row.today_logs, 10) || 0,
+        successfulActions: parseInt(row.successful_actions, 10) || 0,
+        failedActions: parseInt(row.failed_actions, 10) || 0,
+        adminActions: parseInt(row.admin_actions, 10) || 0
       }
     });
   } catch (err) {
@@ -6906,13 +7004,14 @@ app.put("/api/staff/incidents/:id/status", async (req, res) => {
 
 app.get("/api/staff/dashboard-overview", async (req, res) => {
   try {
-    const [slotsRes, evSlotsRes, todayResCount, todayPaySum, parkedVehicles, activeEvSessRes] = await Promise.all([
+    const [slotsRes, evSlotsRes, todayResCount, todayPaySum, parkedVehicles, activeEvSessRes, recentRes] = await Promise.all([
       pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
       pool.query("SELECT * FROM ev_charging_slots ORDER BY slot_number ASC"),
       pool.query("SELECT COUNT(*) FROM reservations WHERE LOWER(status) != 'cancelled' AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR DATE(start_time) = CURRENT_DATE OR DATE(start_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
       pool.query("SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE (LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success') OR payment_status IS NULL) AND (DATE(created_at) = CURRENT_DATE OR DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata') = DATE(NOW() AT TIME ZONE 'Asia/Kolkata') OR created_at >= CURRENT_DATE)"),
       pool.query("SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked'"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'")
+      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'"),
+      pool.query("SELECT id, vehicle_number, slot_number, entry_time, exit_time, duration, fee, status FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC, id DESC LIMIT 10")
     ]);
 
     const normalSlots = slotsRes.rows;
@@ -6933,10 +7032,6 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
     const todayBookings = parseInt(todayResCount.rows[0]?.count || 0, 10);
     const todayRevenueVal = parseFloat(todayPaySum.rows[0]?.sum || 0);
     const activeVehicles = parseInt(parkedVehicles.rows[0]?.count || 0, 10) + parseInt(activeEvSessRes.rows[0]?.count || 0, 10);
-
-    const recentRes = await pool.query(
-      "SELECT id, vehicle_number, slot_number, entry_time, exit_time, duration, fee, status FROM vehicle_history WHERE entry_time IS NOT NULL ORDER BY entry_time DESC, id DESC LIMIT 10"
-    );
 
     const unifiedSlots = [
       ...normalSlots,
@@ -6980,13 +7075,22 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
 
 app.get("/api/staff/shift-report", async (req, res) => {
   try {
-    const todayCashRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%cash%' AND DATE(created_at) = CURRENT_DATE");
-    const todayUpiRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE LOWER(payment_method) LIKE '%upi%' AND DATE(created_at) = CURRENT_DATE");
-    const todayCardRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE (LOWER(payment_method) LIKE '%card%' OR LOWER(payment_method) LIKE '%net%') AND DATE(created_at) = CURRENT_DATE");
-    const todayTotalRes = await pool.query("SELECT COALESCE(SUM(amount), 0) AS sum, COUNT(*) FROM payments WHERE DATE(created_at) = CURRENT_DATE");
-    const enteredRes = await pool.query("SELECT COUNT(*) FROM vehicle_history WHERE entry_time IS NOT NULL AND DATE(entry_time) = CURRENT_DATE");
-    const exitedRes = await pool.query("SELECT COUNT(*) FROM vehicle_history WHERE exit_time IS NOT NULL AND DATE(exit_time) = CURRENT_DATE");
-    const activeVehRes = await pool.query("SELECT COUNT(*) FROM vehicles WHERE status = 'Parked'");
+    const aggRes = await pool.query(`
+      SELECT 
+        (SELECT COALESCE(SUM(CASE WHEN LOWER(payment_method) LIKE '%cash%' THEN amount ELSE 0 END), 0) FROM payments WHERE created_at >= CURRENT_DATE) AS cash_sum,
+        (SELECT COUNT(*) FILTER (WHERE LOWER(payment_method) LIKE '%cash%') FROM payments WHERE created_at >= CURRENT_DATE) AS cash_count,
+        (SELECT COALESCE(SUM(CASE WHEN LOWER(payment_method) LIKE '%upi%' THEN amount ELSE 0 END), 0) FROM payments WHERE created_at >= CURRENT_DATE) AS upi_sum,
+        (SELECT COUNT(*) FILTER (WHERE LOWER(payment_method) LIKE '%upi%') FROM payments WHERE created_at >= CURRENT_DATE) AS upi_count,
+        (SELECT COALESCE(SUM(CASE WHEN LOWER(payment_method) LIKE '%card%' OR LOWER(payment_method) LIKE '%net%' THEN amount ELSE 0 END), 0) FROM payments WHERE created_at >= CURRENT_DATE) AS card_sum,
+        (SELECT COUNT(*) FILTER (WHERE LOWER(payment_method) LIKE '%card%' OR LOWER(payment_method) LIKE '%net%') FROM payments WHERE created_at >= CURRENT_DATE) AS card_count,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE created_at >= CURRENT_DATE) AS total_sum,
+        (SELECT COUNT(*) FROM payments WHERE created_at >= CURRENT_DATE) AS total_count,
+        (SELECT COUNT(*) FROM vehicle_history WHERE entry_time IS NOT NULL AND entry_time >= CURRENT_DATE) AS entered_count,
+        (SELECT COUNT(*) FROM vehicle_history WHERE exit_time IS NOT NULL AND exit_time >= CURRENT_DATE) AS exited_count,
+        (SELECT COUNT(*) FROM vehicles WHERE LOWER(status) = 'parked') AS active_in_facility
+    `);
+
+    const row = aggRes.rows[0] || {};
 
     const shiftData = {
       shiftId: `SFT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-01`,
@@ -6996,17 +7100,17 @@ app.get("/api/staff/shift-report", async (req, res) => {
       staffName: req.query.staffName || "Staff Supervisor",
       staffRole: "Senior Operations Floor Officer",
       assignedGates: "Gate 1 (Entry), Gate 2 (Exit)",
-      cashCollected: parseFloat(todayCashRes.rows[0]?.sum || 0),
-      cashTransactions: parseInt(todayCashRes.rows[0]?.count || 0, 10),
-      upiCollected: parseFloat(todayUpiRes.rows[0]?.sum || 0),
-      upiTransactions: parseInt(todayUpiRes.rows[0]?.count || 0, 10),
-      cardCollected: parseFloat(todayCardRes.rows[0]?.sum || 0),
-      cardTransactions: parseInt(todayCardRes.rows[0]?.count || 0, 10),
-      totalCollected: parseFloat(todayTotalRes.rows[0]?.sum || 0),
-      totalTransactions: parseInt(todayTotalRes.rows[0]?.count || 0, 10),
-      vehiclesEntered: parseInt(enteredRes.rows[0]?.count || 0, 10),
-      vehiclesExited: parseInt(exitedRes.rows[0]?.count || 0, 10),
-      activeInFacility: parseInt(activeVehRes.rows[0]?.count || 0, 10)
+      cashCollected: parseFloat(row.cash_sum || 0),
+      cashTransactions: parseInt(row.cash_count || 0, 10),
+      upiCollected: parseFloat(row.upi_sum || 0),
+      upiTransactions: parseInt(row.upi_count || 0, 10),
+      cardCollected: parseFloat(row.card_sum || 0),
+      cardTransactions: parseInt(row.card_count || 0, 10),
+      totalCollected: parseFloat(row.total_sum || 0),
+      totalTransactions: parseInt(row.total_count || 0, 10),
+      vehiclesEntered: parseInt(row.entered_count || 0, 10),
+      vehiclesExited: parseInt(row.exited_count || 0, 10),
+      activeInFacility: parseInt(row.active_in_facility || 0, 10)
     };
 
     res.json({ success: true, shiftData });
@@ -7032,13 +7136,22 @@ app.post("/api/staff/close-shift", async (req, res) => {
   }
 });
 
+let cachedReportsAnalytics = {};
+let lastReportsFetch = {};
+const REPORTS_CACHE_TTL = 5000; // 5 seconds cache for heavy analytics aggregation
+
 app.get("/api/admin/reports-analytics", async (req, res) => {
   const { range } = req.query;
   try {
-    let dateFilter = "";
     const selectedRange = (range || "today").toLowerCase();
+    const now = Date.now();
+    if (cachedReportsAnalytics[selectedRange] && (now - (lastReportsFetch[selectedRange] || 0) < REPORTS_CACHE_TTL)) {
+      return res.json(cachedReportsAnalytics[selectedRange]);
+    }
+
+    let dateFilter = "";
     if (selectedRange === "today") {
-      dateFilter = "WHERE (created_at >= CURRENT_DATE OR DATE(created_at) = CURRENT_DATE)";
+      dateFilter = "WHERE created_at >= CURRENT_DATE";
     } else if (selectedRange === "7days" || selectedRange === "week") {
       dateFilter = "WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'";
     } else if (selectedRange === "30days" || selectedRange === "month") {
@@ -7047,19 +7160,19 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       dateFilter = "WHERE created_at >= CURRENT_DATE - INTERVAL '1 year'";
     }
 
-    const payQuery = dateFilter
-      ? `SELECT COALESCE(SUM(amount), 0) AS total_revenue, COUNT(*) AS total_payments FROM payments ${dateFilter}`
-      : "SELECT COALESCE(SUM(amount), 0) AS total_revenue, COUNT(*) AS total_payments FROM payments";
-    const bookQuery = dateFilter
-      ? `SELECT COUNT(*) AS total_bookings FROM reservations ${dateFilter}`
-      : "SELECT COUNT(*) AS total_bookings FROM reservations";
+    const overviewStatsQuery = `
+      SELECT 
+        (SELECT COALESCE(SUM(amount), 0) FROM payments ${dateFilter}) AS total_revenue,
+        (SELECT COUNT(*) FROM payments ${dateFilter}) AS total_payments,
+        (SELECT COUNT(*) FROM reservations ${dateFilter}) AS total_bookings,
+        (SELECT COUNT(*) FROM ev_charging_sessions ${dateFilter}) AS ev_sessions_count,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM ev_charging_sessions ${dateFilter}) AS ev_revenue,
+        (SELECT COALESCE(SUM(energy_consumed), 0) FROM ev_charging_sessions ${dateFilter}) AS ev_energy_kwh
+    `;
+
     const payMethodQuery = dateFilter
       ? `SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments ${dateFilter} GROUP BY payment_method`
       : "SELECT payment_method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount FROM payments GROUP BY payment_method";
-
-    const evQuery = dateFilter
-      ? `SELECT COUNT(*) AS ev_sessions_count, COALESCE(SUM(total_amount), 0) AS ev_revenue, COALESCE(SUM(energy_consumed), 0) AS ev_energy_kwh FROM ev_charging_sessions ${dateFilter}`
-      : "SELECT COUNT(*) AS ev_sessions_count, COALESCE(SUM(total_amount), 0) AS ev_revenue, COALESCE(SUM(energy_consumed), 0) AS ev_energy_kwh FROM ev_charging_sessions";
 
     const couponQuery = `
       SELECT 
@@ -7072,20 +7185,32 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       FROM coupons
     `;
 
-    const [payRes, bookRes, vehTypeRes, payMethodRes, slotsRes, evStatsRes, evSlotsRes, couponAnalyticsRes] = await Promise.all([
-      pool.query(payQuery),
-      pool.query(bookQuery),
+    const hourlyEntryFilter = dateFilter ? `AND entry_time >= CURRENT_DATE` : "";
+    const hourlyQuery = `
+      SELECT 
+        TO_CHAR(entry_time, 'HH12 AM') as hour_label,
+        EXTRACT(HOUR FROM entry_time) as hr,
+        COUNT(*) as vehicle_count
+      FROM vehicle_history
+      WHERE entry_time IS NOT NULL ${hourlyEntryFilter}
+      GROUP BY TO_CHAR(entry_time, 'HH12 AM'), EXTRACT(HOUR FROM entry_time)
+      ORDER BY hr ASC
+    `;
+
+    const [overviewRes, vehTypeRes, payMethodRes, slotsRes, evSlotsRes, couponAnalyticsRes, hourlyRes] = await Promise.all([
+      pool.query(overviewStatsQuery),
       pool.query("SELECT vehicle_type, COUNT(*) AS count FROM vehicles GROUP BY vehicle_type"),
       pool.query(payMethodQuery),
       pool.query("SELECT zone, COUNT(*) AS total, SUM(CASE WHEN status = 'occupied' OR is_available = false THEN 1 ELSE 0 END) AS occupied FROM parking_slots GROUP BY zone ORDER BY zone ASC"),
-      pool.query(evQuery),
       pool.query("SELECT COUNT(*) AS total, SUM(CASE WHEN LOWER(status) IN ('charging', 'occupied') THEN 1 ELSE 0 END) AS occupied FROM ev_charging_slots"),
-      pool.query(couponQuery)
+      pool.query(couponQuery),
+      pool.query(hourlyQuery)
     ]);
 
-    const totalRevenue = parseFloat(payRes.rows[0]?.total_revenue || 0);
-    const totalBookings = parseInt(bookRes.rows[0]?.total_bookings || 0, 10);
-    const totalPayments = parseInt(payRes.rows[0]?.total_payments || 0, 10);
+    const totalRevenue = parseFloat(overviewRes.rows[0]?.total_revenue || 0);
+    const totalBookings = parseInt(overviewRes.rows[0]?.total_bookings || 0, 10);
+    const totalPayments = parseInt(overviewRes.rows[0]?.total_payments || 0, 10);
+    const evStatsRow = overviewRes.rows[0] || {};
 
     const vehicleBreakdown = vehTypeRes.rows.map(r => ({
       type: r.vehicle_type || "Car",
@@ -7122,18 +7247,6 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       rate: evRate
     });
 
-    const hourlyEntryFilter = dateFilter ? `AND (entry_time >= CURRENT_DATE OR DATE(entry_time) = CURRENT_DATE)` : "";
-    const hourlyRes = await pool.query(`
-      SELECT 
-        TO_CHAR(entry_time, 'HH12 AM') as hour_label,
-        EXTRACT(HOUR FROM entry_time) as hr,
-        COUNT(*) as vehicle_count
-      FROM vehicle_history
-      WHERE entry_time IS NOT NULL ${hourlyEntryFilter}
-      GROUP BY TO_CHAR(entry_time, 'HH12 AM'), EXTRACT(HOUR FROM entry_time)
-      ORDER BY hr ASC
-    `);
-
     const hourlyTrends = [
       { hour: "06 AM", vehicles: 0, revenue: 0 },
       { hour: "08 AM", vehicles: 0, revenue: 0 },
@@ -7154,7 +7267,7 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       }
     });
 
-    res.json({
+    const payload = {
       success: true,
       range: selectedRange,
       summary: {
@@ -7164,9 +7277,9 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
         activeParked: zoneStats.reduce((acc, z) => acc + z.occupied, 0)
       },
       evStats: {
-        sessionsCount: parseInt(evStatsRes.rows[0]?.ev_sessions_count || 0, 10),
-        revenue: parseFloat(evStatsRes.rows[0]?.ev_revenue || 0),
-        energyKwh: parseFloat(evStatsRes.rows[0]?.ev_energy_kwh || 0),
+        sessionsCount: parseInt(evStatsRow?.ev_sessions_count || 0, 10),
+        revenue: parseFloat(evStatsRow?.ev_revenue || 0),
+        energyKwh: parseFloat(evStatsRow?.ev_energy_kwh || 0),
         totalSlots: evTotalSlots,
         availableSlots: Math.max(0, evTotalSlots - evOccupiedSlots)
       },
@@ -7182,7 +7295,11 @@ app.get("/api/admin/reports-analytics", async (req, res) => {
       paymentBreakdown,
       zoneStats,
       hourlyTrends
-    });
+    };
+
+    cachedReportsAnalytics[selectedRange] = payload;
+    lastReportsFetch[selectedRange] = now;
+    res.json(payload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching reports analytics" });
@@ -7325,6 +7442,29 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Pre-warm database pool connection, system settings, and admin user cache
+  (async () => {
+    try {
+      const [settingsRes, adminUserRes] = await Promise.all([
+        pool.query("SELECT value FROM system_settings WHERE key = 'general'"),
+        pool.query("SELECT id, email, role, status FROM users WHERE LOWER(email) = 'admin@shnoorparking.com'"),
+        pool.query("SELECT 1"),
+        pool.query("SELECT 1"),
+        pool.query("SELECT 1")
+      ]);
+      if (settingsRes && settingsRes.rowCount > 0) {
+        cachedSystemSettings = settingsRes.rows[0].value;
+        lastSettingsFetch = Date.now();
+      }
+      if (adminUserRes && adminUserRes.rowCount > 0) {
+        adminUserAuthCache.set('admin@shnoorparking.com', { ...adminUserRes.rows[0], expiresAt: Date.now() + 600000 });
+      }
+      console.log("[Pool] Database pool pre-warmed, system settings and admin cache initialized.");
+    } catch (err) {
+      console.warn("[Pool] Database warm-up notice:", err.message);
+    }
+  })();
 });
 
 process.on("unhandledRejection", (reason) => {

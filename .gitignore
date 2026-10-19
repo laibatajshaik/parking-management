@@ -1,4 +1,4 @@
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,19 +7,32 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules/
+**/node_modules/
 
 dist/
 dist-ssr/
 
 *.local
+
 .env
+.env.*
 backend/.env
 database/.env
+
+parking-load-summary.json
+parking-results.json
+k6-results.json
+apply_indexes.js
+parking-k6-report.xlsx
+parking 1.xlsx
+k6.testing.js
+generate-k6-report.js
 
 .vscode/*
 !.vscode/extensions.json
 .idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj

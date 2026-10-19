@@ -14,15 +14,21 @@ pg.types.setTypeParser(1114, (str) => {
   return str || null;
 });
 
+const poolMax = parseInt(process.env.DB_POOL_MAX || "80", 10);
+const poolMin = parseInt(process.env.DB_POOL_MIN || "5", 10);
+const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || "120000", 10);
+const poolConnectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || "20000", 10);
+
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
       ssl: {
         rejectUnauthorized: false
       },
-      max: 10,
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 10000,
+      max: poolMax,
+      min: poolMin,
+      idleTimeoutMillis: poolIdleTimeout,
+      connectionTimeoutMillis: poolConnectionTimeout,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     }
@@ -32,9 +38,10 @@ const poolConfig = process.env.DATABASE_URL
       user: process.env.DB_USER || "postgres",
       password: process.env.DB_PASSWORD || "postgres",
       database: process.env.DB_NAME || "shnoor_parking",
-      max: 10,
-      idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 10000,
+      max: poolMax,
+      min: poolMin,
+      idleTimeoutMillis: poolIdleTimeout,
+      connectionTimeoutMillis: poolConnectionTimeout,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     };
@@ -55,5 +62,14 @@ pool.on("error", (err) => {
     console.error("Postgres pool error:", err.message);
   }
 });
+
+// Lightweight background heartbeat to prevent cloud database (Neon/AWS) idle connection drops
+setInterval(async () => {
+  try {
+    await pool.query("SELECT 1");
+  } catch (err) {
+    // Ignore transient background keepalive errors
+  }
+}, 25000).unref();
 
 export default pool;

@@ -51,45 +51,51 @@ export const getNotificationsByUser = async (email, options = {}) => {
 
   query += " ORDER BY created_at DESC";
 
-  const countRes = await pool.query(countQuery, params);
-  const total = parseInt(countRes.rows[0].count, 10) || 0;
+  const isPaged = Boolean(page || limit);
+  const pageNum = isPaged ? Math.max(1, parseInt(page, 10) || 1) : 1;
+  const limitNum = isPaged ? Math.min(100, Math.max(1, parseInt(limit, 10) || 5)) : 50;
+  const offset = (pageNum - 1) * limitNum;
 
-  const unreadCountRes = await pool.query(
-    "SELECT COUNT(*) FROM notifications WHERE LOWER(user_email) = LOWER($1) AND is_read = FALSE",
-    [email]
-  );
-  const unreadCount = parseInt(unreadCountRes.rows[0].count, 10) || 0;
+  const dataParams = isPaged ? [...params, limitNum, offset] : [...params, limitNum];
+  const dataQuery = isPaged
+    ? `${query} LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`
+    : `${query} LIMIT $${dataParams.length}`;
 
-  if (page || limit) {
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
-    const offset = (pageNum - 1) * limitNum;
-    params.push(limitNum, offset);
-    query += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
-    const result = await pool.query(query, params);
-    return {
-      notifications: result.rows,
-      total,
-      unreadCount,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages: Math.ceil(total / limitNum) || 1
-      }
-    };
+  let countsPromise;
+  if (params.length === 1) {
+    countsPromise = pool.query(
+      "SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_read = FALSE) AS unread_count FROM notifications WHERE LOWER(user_email) = LOWER($1)",
+      [email]
+    );
+  } else {
+    countsPromise = Promise.all([
+      pool.query(countQuery, params),
+      pool.query("SELECT COUNT(*) FROM notifications WHERE LOWER(user_email) = LOWER($1) AND is_read = FALSE", [email])
+    ]).then(([countRes, unreadRes]) => ({
+      rows: [{
+        total: countRes.rows[0]?.count || 0,
+        unread_count: unreadRes.rows[0]?.count || 0
+      }]
+    }));
   }
 
-  const result = await pool.query(query, params);
+  const [countsRes, result] = await Promise.all([
+    countsPromise,
+    pool.query(dataQuery, dataParams)
+  ]);
+
+  const total = parseInt(countsRes.rows[0]?.total || 0, 10);
+  const unreadCount = parseInt(countsRes.rows[0]?.unread_count || 0, 10);
+
   return {
     notifications: result.rows,
     total,
     unreadCount,
     pagination: {
-      page: 1,
-      limit: total || 5,
+      page: pageNum,
+      limit: limitNum,
       total,
-      totalPages: 1
+      totalPages: Math.ceil(total / limitNum) || 1
     }
   };
 };

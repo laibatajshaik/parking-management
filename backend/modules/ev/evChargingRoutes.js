@@ -314,33 +314,35 @@ router.get("/ev-charging/sessions", async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
     const offset = (pageNum - 1) * limitNum;
 
-    let baseQuery = "FROM ev_charging_sessions s LEFT JOIN ev_charging_slots sl ON s.slot_id = sl.id WHERE 1=1";
+    let whereClause = "WHERE 1=1";
     const params = [];
 
     if (search && search.trim()) {
       params.push(`%${search.trim().toLowerCase()}%`);
-      baseQuery += ` AND (LOWER(s.session_code) LIKE $${params.length} OR LOWER(s.customer_name) LIKE $${params.length} OR LOWER(s.customer_email) LIKE $${params.length} OR LOWER(s.vehicle_number) LIKE $${params.length} OR LOWER(s.slot_number) LIKE $${params.length})`;
+      whereClause += ` AND (LOWER(s.session_code) LIKE $${params.length} OR LOWER(s.customer_name) LIKE $${params.length} OR LOWER(s.customer_email) LIKE $${params.length} OR LOWER(s.vehicle_number) LIKE $${params.length} OR LOWER(s.slot_number) LIKE $${params.length})`;
     }
 
     if (status && status !== "ALL") {
       params.push(status);
-      baseQuery += ` AND LOWER(s.session_status) = LOWER($${params.length})`;
+      whereClause += ` AND LOWER(s.session_status) = LOWER($${params.length})`;
     }
 
     if (date) {
       params.push(date);
-      baseQuery += ` AND DATE(s.created_at) = DATE($${params.length})`;
+      whereClause += ` AND DATE(s.created_at) = DATE($${params.length})`;
     }
 
-    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const countQuery = `SELECT COUNT(*) FROM ev_charging_sessions s ${whereClause}`;
+    const dataParams = [...params, limitNum, offset];
+    const dataQuery = `SELECT s.*, sl.charger_type, sl.connector_type, sl.charging_power, sl.power_kw FROM ev_charging_sessions s LEFT JOIN ev_charging_slots sl ON s.slot_id = sl.id ${whereClause} ORDER BY s.id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`;
+
+    const [countRes, dataRes] = await Promise.all([
+      pool.query(countQuery, params),
+      pool.query(dataQuery, dataParams)
+    ]);
+
     const total = parseInt(countRes.rows[0].count, 10);
     const totalPages = Math.ceil(total / limitNum);
-
-    params.push(limitNum);
-    params.push(offset);
-    const dataQuery = `SELECT s.*, sl.charger_type, sl.connector_type, sl.charging_power, sl.power_kw ${baseQuery} ORDER BY s.id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
-
-    const dataRes = await pool.query(dataQuery, params);
 
     res.json({
       success: true,
@@ -939,34 +941,36 @@ router.get("/customer/charging/active", async (req, res) => {
 
 router.get("/admin/ev-charging-overview", async (req, res) => {
   try {
-    const [
-      slotsRes,
-      availSlotsRes,
-      activeSessRes,
-      todaySessRes,
-      todayRevRes,
-      todayEnergyRes,
-      totalEnergyRes,
-      totalRevRes
-    ] = await Promise.all([
-      pool.query("SELECT COUNT(*) FROM ev_charging_slots"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_slots WHERE LOWER(status) = 'available'"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)"),
-      pool.query("SELECT COALESCE(SUM(total_amount), 0) AS sum FROM ev_charging_sessions WHERE (LOWER(payment_status) = 'completed' OR LOWER(session_status) = 'completed') AND (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)"),
-      pool.query("SELECT COALESCE(SUM(energy_consumed), 0) AS sum FROM ev_charging_sessions WHERE (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)"),
-      pool.query("SELECT COALESCE(SUM(energy_consumed), 0) AS sum FROM ev_charging_sessions"),
-      pool.query("SELECT COALESCE(SUM(total_amount), 0) AS sum FROM ev_charging_sessions WHERE LOWER(payment_status) = 'completed' OR LOWER(session_status) = 'completed'")
+    const [slotsRes, sessRes] = await Promise.all([
+      pool.query(`
+        SELECT 
+          COUNT(*) AS total_slots,
+          COUNT(*) FILTER (WHERE LOWER(status) = 'available') AS available_slots
+        FROM ev_charging_slots
+      `),
+      pool.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE LOWER(session_status) = 'active') AS active_sessions,
+          COUNT(*) FILTER (WHERE (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)) AS sessions_today,
+          COALESCE(SUM(CASE WHEN (LOWER(payment_status) = 'completed' OR LOWER(session_status) = 'completed') AND (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE) THEN total_amount ELSE 0 END), 0) AS revenue_today,
+          COALESCE(SUM(CASE WHEN (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE) THEN energy_consumed ELSE 0 END), 0) AS energy_consumed_today,
+          COALESCE(SUM(energy_consumed), 0) AS total_energy,
+          COALESCE(SUM(CASE WHEN LOWER(payment_status) = 'completed' OR LOWER(session_status) = 'completed' THEN total_amount ELSE 0 END), 0) AS total_revenue
+        FROM ev_charging_sessions
+      `)
     ]);
 
-    const totalSlots = parseInt(slotsRes.rows[0].count, 10);
-    const availableSlots = parseInt(availSlotsRes.rows[0].count, 10);
-    const activeSessions = parseInt(activeSessRes.rows[0].count, 10);
-    const sessionsToday = parseInt(todaySessRes.rows[0].count, 10);
-    const revenueToday = parseFloat(todayRevRes.rows[0].sum || 0);
-    const energyConsumedToday = parseFloat(todayEnergyRes.rows[0].sum || 0);
-    const totalEnergy = parseFloat(totalEnergyRes.rows[0].sum || 0);
-    const totalRevenue = parseFloat(totalRevRes.rows[0].sum || 0);
+    const slotRow = slotsRes.rows[0] || {};
+    const sessRow = sessRes.rows[0] || {};
+
+    const totalSlots = parseInt(slotRow.total_slots || 0, 10);
+    const availableSlots = parseInt(slotRow.available_slots || 0, 10);
+    const activeSessions = parseInt(sessRow.active_sessions || 0, 10);
+    const sessionsToday = parseInt(sessRow.sessions_today || 0, 10);
+    const revenueToday = parseFloat(sessRow.revenue_today || 0);
+    const energyConsumedToday = parseFloat(sessRow.energy_consumed_today || 0);
+    const totalEnergy = parseFloat(sessRow.total_energy || 0);
+    const totalRevenue = parseFloat(sessRow.total_revenue || 0);
 
     res.json({
       success: true,
@@ -992,25 +996,30 @@ router.get("/admin/ev-charging-overview", async (req, res) => {
 
 router.get("/staff/ev-charging-overview", async (req, res) => {
   try {
-    const [
-      availSlotsRes,
-      inUseSlotsRes,
-      activeSessRes,
-      todaySessRes,
-      todayRevRes
-    ] = await Promise.all([
-      pool.query("SELECT COUNT(*) FROM ev_charging_slots WHERE LOWER(status) = 'available'"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_slots WHERE LOWER(status) IN ('charging', 'occupied')"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE LOWER(session_status) = 'active'"),
-      pool.query("SELECT COUNT(*) FROM ev_charging_sessions WHERE (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)"),
-      pool.query("SELECT COALESCE(SUM(total_amount), 0) AS sum FROM ev_charging_sessions WHERE (LOWER(payment_status) = 'completed' OR LOWER(session_status) = 'completed') AND (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)")
+    const [slotsRes, sessRes] = await Promise.all([
+      pool.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE LOWER(status) = 'available') AS available_slots,
+          COUNT(*) FILTER (WHERE LOWER(status) IN ('charging', 'occupied')) AS slots_in_use
+        FROM ev_charging_slots
+      `),
+      pool.query(`
+        SELECT 
+          COUNT(*) FILTER (WHERE LOWER(session_status) = 'active') AS active_sessions,
+          COUNT(*) FILTER (WHERE (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE)) AS today_sessions,
+          COALESCE(SUM(CASE WHEN (LOWER(payment_status) = 'completed' OR LOWER(session_status) = 'completed') AND (DATE(created_at) = CURRENT_DATE OR created_at >= CURRENT_DATE) THEN total_amount ELSE 0 END), 0) AS today_revenue
+        FROM ev_charging_sessions
+      `)
     ]);
 
-    const availableSlots = parseInt(availSlotsRes.rows[0].count, 10);
-    const slotsInUse = parseInt(inUseSlotsRes.rows[0].count, 10);
-    const activeSessions = parseInt(activeSessRes.rows[0].count, 10);
-    const todaySessions = parseInt(todaySessRes.rows[0].count, 10);
-    const todayRevenueVal = parseFloat(todayRevRes.rows[0].sum || 0);
+    const slotRow = slotsRes.rows[0] || {};
+    const sessRow = sessRes.rows[0] || {};
+
+    const availableSlots = parseInt(slotRow.available_slots || 0, 10);
+    const slotsInUse = parseInt(slotRow.slots_in_use || 0, 10);
+    const activeSessions = parseInt(sessRow.active_sessions || 0, 10);
+    const todaySessions = parseInt(sessRow.today_sessions || 0, 10);
+    const todayRevenueVal = parseFloat(sessRow.today_revenue || 0);
 
     res.json({
       success: true,

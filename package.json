@@ -12,9 +12,16 @@
     "start": "npm run dev --workspace=frontend",
     "dev": "npm run dev --workspace=frontend",
     "build": "npm run build --workspace=frontend",
-    "lint": "npm run lint --workspace=frontend"
+    "lint": "npm run lint --workspace=frontend",
+    "test:k6": "node generate-k6-report.js",
+    "test:k6:smoke": "node generate-k6-report.js --scenario=smoke",
+    "test:k6:load": "node generate-k6-report.js --scenario=load"
   },
   "dependencies": {
     "react-router-dom": "^7.18.3"
+  },
+  "devDependencies": {
+    "exceljs": "^4.4.0",
+    "xlsx": "^0.18.5"
   }
 }
