@@ -326,11 +326,17 @@ const initDbSchema = async () => {
         is_available BOOLEAN DEFAULT true,
         hourly_rate NUMERIC(10, 2) DEFAULT 50.00
       );
+
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS zone VARCHAR(50) DEFAULT 'Zone A';
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS slot_type VARCHAR(50) DEFAULT 'Standard';
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'available';
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT true;
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC(10, 2) DEFAULT 50.00;
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     `);
 
     const slotsCountRes = await pool.query("SELECT COUNT(*) FROM parking_slots");
     if (parseInt(slotsCountRes.rows[0].count) < 24) {
-      await pool.query("TRUNCATE TABLE parking_slots RESTART IDENTITY;");
       const initialSlots = [
         ['A-01', 'Zone A', 'Standard', 'available', true, 50.00],
         ['A-02', 'Zone A', 'Standard', 'occupied', false, 50.00],
@@ -672,6 +678,104 @@ const initDbSchema = async () => {
     }
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS ev_charging_slots (
+        id SERIAL PRIMARY KEY,
+        slot_number VARCHAR(50) UNIQUE NOT NULL,
+        location_id INTEGER REFERENCES parking_locations(id) ON DELETE SET NULL,
+        location_name VARCHAR(150) DEFAULT 'Central Parking Garage',
+        parking_slot_id INTEGER REFERENCES parking_slots(id) ON DELETE SET NULL,
+        charger_type VARCHAR(100) DEFAULT 'DC Fast Charger',
+        connector_type VARCHAR(50) DEFAULT 'CCS2',
+        charging_power VARCHAR(50) DEFAULT '60 kW',
+        power_kw NUMERIC(6, 2) DEFAULT 60.00,
+        charging_rate NUMERIC(10, 2) DEFAULT 18.00,
+        status VARCHAR(50) DEFAULT 'Available',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ev_charging_sessions (
+        id SERIAL PRIMARY KEY,
+        session_code VARCHAR(100) UNIQUE NOT NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        customer_name VARCHAR(150),
+        customer_email VARCHAR(150),
+        customer_phone VARCHAR(50),
+        vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+        vehicle_number VARCHAR(50) NOT NULL,
+        vehicle_model VARCHAR(100),
+        vehicle_type VARCHAR(50),
+        slot_id INTEGER REFERENCES ev_charging_slots(id) ON DELETE SET NULL,
+        slot_number VARCHAR(50) NOT NULL,
+        location_name VARCHAR(150),
+        start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        end_time TIMESTAMP,
+        duration VARCHAR(100),
+        charging_rate NUMERIC(10, 2) DEFAULT 18.00,
+        energy_consumed NUMERIC(10, 2) DEFAULT 0.00,
+        total_amount NUMERIC(10, 2) DEFAULT 0.00,
+        session_status VARCHAR(50) DEFAULT 'Active',
+        payment_status VARCHAR(50) DEFAULT 'Pending',
+        payment_method VARCHAR(50),
+        payment_id INTEGER,
+        transaction_id VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS location_id INTEGER;
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS location_name VARCHAR(150);
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS parking_slot_id INTEGER;
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS charger_type VARCHAR(100) DEFAULT 'DC Fast Charger';
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS connector_type VARCHAR(50) DEFAULT 'CCS2';
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS charging_power VARCHAR(50) DEFAULT '60 kW';
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS power_kw NUMERIC(6, 2) DEFAULT 60.00;
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS charging_rate NUMERIC(10, 2) DEFAULT 18.00;
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Available';
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE ev_charging_slots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS session_code VARCHAR(100);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS user_id INTEGER;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS customer_name VARCHAR(150);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS customer_email VARCHAR(150);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS vehicle_id INTEGER;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS vehicle_number VARCHAR(50);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS vehicle_model VARCHAR(100);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(50);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS slot_id INTEGER;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS slot_number VARCHAR(50);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS location_name VARCHAR(150);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS start_time TIMESTAMP;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS end_time TIMESTAMP;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS duration VARCHAR(100);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS charging_rate NUMERIC(10, 2) DEFAULT 18.00;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS energy_consumed NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS original_amount NUMERIC(10, 2);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS session_status VARCHAR(50) DEFAULT 'Active';
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Pending';
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS payment_id INTEGER;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(100);
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE ev_charging_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_slots_number ON ev_charging_slots (UPPER(slot_number));
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_slots_status ON ev_charging_slots (LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_slots_location ON ev_charging_slots (location_id);
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_sessions_slot ON ev_charging_sessions (slot_id);
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_sessions_customer_email ON ev_charging_sessions (LOWER(customer_email));
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_sessions_vehicle ON ev_charging_sessions (UPPER(vehicle_number));
+      CREATE INDEX IF NOT EXISTS idx_ev_charging_sessions_status ON ev_charging_sessions (LOWER(session_status));
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS system_settings (
         key VARCHAR(100) PRIMARY KEY,
         value JSONB NOT NULL,
@@ -712,8 +816,46 @@ const initDbSchema = async () => {
         target VARCHAR(150) NOT NULL,
         severity VARCHAR(50) DEFAULT 'info',
         ip VARCHAR(50) DEFAULT '192.168.1.101',
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        user_name VARCHAR(150),
+        user_email VARCHAR(150),
+        user_role VARCHAR(50),
+        module VARCHAR(100) DEFAULT 'System',
+        description TEXT,
+        entity_type VARCHAR(100),
+        entity_id VARCHAR(200),
+        ip_address VARCHAR(50),
+        user_agent TEXT,
+        status VARCHAR(50) DEFAULT 'Success',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_id INTEGER;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_name VARCHAR(150);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_email VARCHAR(150);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_role VARCHAR(50);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS module VARCHAR(100) DEFAULT 'System';
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS description TEXT;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type VARCHAR(100);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id VARCHAR(200);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(50);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Success';
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'audit_logs_user_id_fk'
+        ) THEN
+          ALTER TABLE audit_logs
+            ADD CONSTRAINT audit_logs_user_id_fk
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
     `);
 
     const auditCountRes = await pool.query("SELECT COUNT(*) FROM audit_logs");

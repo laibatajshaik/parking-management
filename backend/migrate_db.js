@@ -55,12 +55,13 @@ async function migrate() {
         is_available BOOLEAN DEFAULT true,
         hourly_rate NUMERIC(10, 2) DEFAULT 50.00
       );
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS zone VARCHAR(50) DEFAULT 'Zone A';
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS slot_type VARCHAR(50) DEFAULT 'Standard';
       ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'available';
       ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC(10, 2) DEFAULT 50.00;
       ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT true;
+      ALTER TABLE parking_slots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     `);
-
-    await pool.query("TRUNCATE TABLE parking_slots RESTART IDENTITY;");
 
     const initialSlots = [
       ['A-01', 'Zone A', 'Standard', 'available', true, 50.00],
@@ -94,7 +95,7 @@ async function migrate() {
 
     for (const slot of initialSlots) {
       await pool.query(
-        "INSERT INTO parking_slots (slot_number, zone, slot_type, status, is_available, hourly_rate) VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO parking_slots (slot_number, zone, slot_type, status, is_available, hourly_rate) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (slot_number) DO UPDATE SET zone = EXCLUDED.zone, slot_type = EXCLUDED.slot_type, status = EXCLUDED.status, is_available = EXCLUDED.is_available, hourly_rate = EXCLUDED.hourly_rate",
         slot
       );
     }

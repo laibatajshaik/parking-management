@@ -22,9 +22,9 @@ const poolConnectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || "200
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false
-      },
+      ssl: process.env.DB_SSL === "true"
+  ? { rejectUnauthorized: false }
+  : false,
       max: poolMax,
       min: poolMin,
       idleTimeoutMillis: poolIdleTimeout,
@@ -46,6 +46,12 @@ const poolConfig = process.env.DATABASE_URL
       keepAliveInitialDelayMillis: 10000
     };
 
+console.log("Database connection config:", {
+  host: poolConfig.host || "from DATABASE_URL",
+  port: poolConfig.port || "from DATABASE_URL",
+  database: poolConfig.database || "from DATABASE_URL"
+});
+   
 const pool = new Pool(poolConfig);
 
 pool.on("error", (err) => {
@@ -63,12 +69,12 @@ pool.on("error", (err) => {
   }
 });
 
-// Lightweight background heartbeat to prevent cloud database (Neon/AWS) idle connection drops
+
 setInterval(async () => {
   try {
     await pool.query("SELECT 1");
   } catch (err) {
-    // Ignore transient background keepalive errors
+   
   }
 }, 25000).unref();
 
