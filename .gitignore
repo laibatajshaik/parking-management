@@ -41,3 +41,9 @@ Thumbs.db
 
 .postman/
 postman/
+
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+service-account*.json
+*-firebase-adminsdk-*.json
