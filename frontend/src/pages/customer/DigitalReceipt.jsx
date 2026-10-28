@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import { Printer, Download, Receipt, ShieldCheck, Calendar, Search, RefreshCw, BookmarkPlus, Zap } from "lucide-react";
 import Pagination from "../../components/Pagination.jsx";
@@ -53,7 +53,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
       return;
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}`);
       const data = await res.json();
       setIsLoading(false);
       if (data && data.success && Array.isArray(data.payments)) {

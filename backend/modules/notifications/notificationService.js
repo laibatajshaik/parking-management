@@ -100,13 +100,13 @@ export const getNotificationsByUser = async (email, options = {}) => {
   };
 };
 
-export const markNotificationAsRead = async (id) => {
+export const markNotificationAsRead = async (id, email) => {
   const result = await pool.query(
     `UPDATE notifications
      SET is_read = TRUE
-     WHERE id = $1
+     WHERE id = $1 AND LOWER(user_email) = LOWER($2)
      RETURNING *`,
-    [id]
+    [id, email]
   );
   return result.rows[0] || null;
 };
@@ -291,5 +291,4 @@ export default {
   getActiveStaffEmails,
   getActiveCustomerEmails
 };
-
 

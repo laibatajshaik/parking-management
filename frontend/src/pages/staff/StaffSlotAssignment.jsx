@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, Search, ArrowRight, RefreshCw, Download } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function StaffSlotAssignment({ onNavigateToEntry }) {
@@ -13,8 +13,8 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
 
   const fetchBays = () => {
     Promise.all([
-      fetch(`${API_BASE_URL}/api/parking-slots`).then((r) => r.json()),
-      fetch(`${API_BASE_URL}/api/admin/vehicles`).then((r) => r.json())
+      apiFetch(`${API_BASE_URL}/api/parking-slots`).then((r) => r.json()),
+      apiFetch(`${API_BASE_URL}/api/admin/vehicles`).then((r) => r.json())
     ])
       .then(([slotsData, vehData]) => {
         if (slotsData.success && slotsData.slots) {
@@ -78,7 +78,7 @@ export default function StaffSlotAssignment({ onNavigateToEntry }) {
   };
 
   const handleToggleStatus = (slotNumber, newStatus) => {
-    fetch(`${API_BASE_URL}/api/parking-slots/${encodeURIComponent(slotNumber)}/status`, {
+    apiFetch(`${API_BASE_URL}/api/parking-slots/${encodeURIComponent(slotNumber)}/status`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus })

@@ -1,6 +1,8 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../../components/firebase.js";
 import {
   LayoutDashboard,
   Calculator,
@@ -95,7 +97,7 @@ export default function StaffDashboard({ setView }) {
   const [recentEntries, setRecentEntries] = useState([]);
 
   const fetchStaffDashboard = () => {
-    fetch(`${API_BASE_URL}/api/staff/dashboard-overview`)
+    apiFetch(`${API_BASE_URL}/api/staff/dashboard-overview`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -234,7 +236,12 @@ export default function StaffDashboard({ setView }) {
     fetchStaffDashboard();
   }, [navigate, setView]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Firebase sign-out failed:", error);
+    }
     try {
       localStorage.removeItem("shnoor_current_user");
       localStorage.removeItem("shnoor_auth_state");

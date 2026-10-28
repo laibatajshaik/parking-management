@@ -1,6 +1,8 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../../components/firebase.js";
 import {
   LayoutDashboard,
   Car,
@@ -172,7 +174,7 @@ export default function AdminDashboard({ setView }) {
   const [overviewError, setOverviewError] = useState("");
 
   const fetchUsers = () => {
-    fetch(`${API_BASE_URL}/api/admin/users`)
+    apiFetch(`${API_BASE_URL}/api/admin/users`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.users)) {
@@ -192,7 +194,7 @@ export default function AdminDashboard({ setView }) {
   };
 
   const fetchVehicles = () => {
-    fetch(`${API_BASE_URL}/api/admin/vehicles`)
+    apiFetch(`${API_BASE_URL}/api/admin/vehicles`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.vehicles)) {
@@ -218,7 +220,7 @@ export default function AdminDashboard({ setView }) {
       "x-admin-email": emailToUse || "admin@shnoor.com",
       "Authorization": `Bearer ${emailToUse || "admin@shnoor.com"}`
     };
-    fetch(`${API_BASE_URL}/api/admin/dashboard-overview`, { headers })
+    apiFetch(`${API_BASE_URL}/api/admin/dashboard-overview`, { headers })
       .then((res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -296,7 +298,12 @@ export default function AdminDashboard({ setView }) {
     };
   }, [navigate, setView]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Firebase sign-out failed:", error);
+    }
     try {
       localStorage.removeItem("shnoor_current_user");
       localStorage.removeItem("shnoor_auth_state");
@@ -325,7 +332,7 @@ export default function AdminDashboard({ setView }) {
 
   const handleSlotStatusChange = (slotId, newStatus) => {
     const isAvail = newStatus === "available";
-    fetch(`${API_BASE_URL}/api/admin/slots/${slotId}`, {
+    apiFetch(`${API_BASE_URL}/api/admin/slots/${slotId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

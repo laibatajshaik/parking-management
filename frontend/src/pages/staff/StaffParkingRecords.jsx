@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search, Printer, X, RefreshCw, Download } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -73,7 +73,7 @@ export default function StaffParkingRecords() {
       search: searchQuery || "",
       status: statusFilter
     });
-    fetch(`${API_BASE_URL}/api/admin/parking-records?${params}`)
+    apiFetch(`${API_BASE_URL}/api/admin/parking-records?${params}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.records) {

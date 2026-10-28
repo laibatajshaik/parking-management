@@ -14,35 +14,22 @@ async function migrate() {
     const staffPass = await bcrypt.hash("staff", 10);
     const customerPass = await bcrypt.hash("customer", 10);
 
-    await pool.query(
-      "UPDATE users SET name = 'Taj', role = 'admin', password = $1, status = 'Active' WHERE email = 'admin@shnoor.com'",
-      [adminPass]
-    );
-    await pool.query(
-      "UPDATE users SET name = 'Laiba Taj', role = 'staff', password = $1, status = 'Active' WHERE email = 'staff@shnoor.com'",
-      [staffPass]
-    );
-    await pool.query(
-      "UPDATE users SET name = 'Laiba', role = 'customer', password = $1, status = 'Active' WHERE email = 'customer@shnoor.com'",
-      [customerPass]
-    );
-
     await pool.query(`
       INSERT INTO users (name, email, password, phone, role, status, created_at)
       VALUES ('Taj', 'admin@shnoor.com', $1, '+91 98765 43212', 'admin', 'Active', '2026-04-01 08:00:00')
-      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, role = EXCLUDED.role, status = 'Active'
+      ON CONFLICT (email) DO NOTHING
     `, [adminPass]);
 
     await pool.query(`
       INSERT INTO users (name, email, password, phone, role, status, created_at)
       VALUES ('Laiba Taj', 'staff@shnoor.com', $1, '+91 98765 43211', 'staff', 'Active', '2026-05-14 11:20:00')
-      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, role = EXCLUDED.role, status = 'Active'
+      ON CONFLICT (email) DO NOTHING
     `, [staffPass]);
 
     await pool.query(`
       INSERT INTO users (name, email, password, phone, role, status, created_at)
       VALUES ('Laiba', 'customer@shnoor.com', $1, '+91 98765 43210', 'customer', 'Active', '2026-05-10 10:30:00')
-      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, role = EXCLUDED.role, status = 'Active'
+      ON CONFLICT (email) DO NOTHING
     `, [customerPass]);
 
     await pool.query(`

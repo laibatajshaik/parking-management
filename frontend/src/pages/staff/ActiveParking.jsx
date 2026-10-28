@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, Phone, CreditCard, Zap, Eye, X, Download } from "lucide-react";
@@ -23,7 +23,7 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
         search: searchQuery || "",
         type: typeFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/parking/active-sessions?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.sessions) {

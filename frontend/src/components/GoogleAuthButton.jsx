@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { API_BASE_URL, GOOGLE_CLIENT_ID } from "../config/api.js";
+import { API_BASE_URL, GOOGLE_CLIENT_ID, apiFetch } from "../config/api.js";
+import { GoogleAuthProvider, signInWithCredential, signOut } from "firebase/auth";
+import { auth } from "./firebase.js";
 
 export default function GoogleAuthButton({
   onSuccess,
   onError,
   text = "continue",
-  role = "customer",
   disabled = false
 }) {
   const containerRef = useRef(null);
@@ -15,21 +16,51 @@ export default function GoogleAuthButton({
   const handleAuthExchange = async (authPayload) => {
     setIsAuthenticating(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...authPayload, role })
-      });
+      const googleCredential = authPayload.credential
+        ? GoogleAuthProvider.credential(authPayload.credential)
+        : GoogleAuthProvider.credential(null, authPayload.access_token);
+      await signInWithCredential(auth, googleCredential);
+      const firebaseUser = auth.currentUser;
+
+if (!firebaseUser) {
+  throw new Error("Firebase user not found. Please try Google login again.");
+}
+
+const idToken = await firebaseUser.getIdToken();
+
+const res = await apiFetch(`${API_BASE_URL}/api/auth/google`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    idToken
+  })
+});
       const data = await res.json();
-      setIsAuthenticating(false);
       if (res.ok && data && data.success && data.user) {
         if (onSuccess) onSuccess(data.user, data.isNewUser);
       } else {
+        try {
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error("Firebase sign-out after Google rejection failed:", signOutError);
+        }
         if (onError) onError(data?.error || "Google authentication failed");
       }
-    } catch {
+    } catch (error) {
+      if (auth.currentUser) {
+        try {
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error("Firebase sign-out after Google failure failed:", signOutError);
+        }
+      }
+      if (onError) {
+        onError(error?.message || "Google authentication failed. Please try again.");
+      }
+    } finally {
       setIsAuthenticating(false);
-      if (onError) onError("Cannot connect to server for Google authentication");
     }
   };
 
@@ -96,7 +127,7 @@ export default function GoogleAuthButton({
     return () => {
       if (checkInterval) clearInterval(checkInterval);
     };
-  }, [text, role, GOOGLE_CLIENT_ID]);
+  }, [text, GOOGLE_CLIENT_ID]);
 
   const handleCustomGoogleClick = () => {
     if (disabled || isAuthenticating) return;

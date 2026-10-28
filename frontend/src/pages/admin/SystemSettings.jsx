@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Settings, Save, Sliders, HardDrive, Cpu, Receipt, CheckCircle2, Database } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 
 export default function SystemSettings() {
   const [settings, setSettings] = useState({
@@ -25,7 +25,7 @@ export default function SystemSettings() {
   const [backupMsg, setBackupMsg] = useState("");
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/system-settings`)
+    apiFetch(`${API_BASE_URL}/api/system-settings`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.settings) {
@@ -37,7 +37,7 @@ export default function SystemSettings() {
 
   const handleSave = (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    fetch(`${API_BASE_URL}/api/system-settings`, {
+    apiFetch(`${API_BASE_URL}/api/system-settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings)

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -84,7 +84,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
 
   const fetchOverview = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/ev-charging-overview`);
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/ev-charging-overview`);
       const data = await res.json();
       if (data.success && data.stats) {
         setOverviewStats(data.stats);
@@ -104,7 +104,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
         status: slotStatusFilter,
         charger_type: slotTypeFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots?${params}`);
       const data = await res.json();
       setIsLoadingSlots(false);
       if (data.success && Array.isArray(data.slots)) {
@@ -125,7 +125,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
         search: sessionSearch || "",
         status: sessionStatusFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging/sessions?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging/sessions?${params}`);
       const data = await res.json();
       setIsLoadingSessions(false);
       if (data.success && Array.isArray(data.sessions)) {
@@ -163,7 +163,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
     if (!addFormData.slot_number.trim()) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addFormData)
@@ -198,7 +198,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
     if (!editingSlot) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots/${editingSlot.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots/${editingSlot.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editFormData)
@@ -222,7 +222,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
   const handleToggleStatus = async (slot) => {
     const nextStatus = slot.status === "Available" ? "Maintenance" : slot.status === "Maintenance" ? "Inactive" : "Available";
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots/${slot.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots/${slot.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus })
@@ -244,7 +244,7 @@ export default function EVChargingManagement({ setStatusActionMessage }) {
     if (!slotToDelete) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots/${slotToDelete.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots/${slotToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

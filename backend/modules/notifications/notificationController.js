@@ -2,16 +2,9 @@ import notificationService from "./notificationService.js";
 
 export const getNotifications = async (req, res) => {
   try {
-    const email = req.query.email || req.query.user_email;
-    if (!email || !email.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: "User email is required"
-      });
-    }
-
+    const email = req.authUser.email;
     const { page, limit, type, is_read, search } = req.query;
-    const result = await notificationService.getNotificationsByUser(email.trim(), { page, limit, type, is_read, search });
+    const result = await notificationService.getNotificationsByUser(email, { page, limit, type, is_read, search });
 
     res.json({
       success: true,
@@ -70,7 +63,7 @@ export const markAsRead = async (req, res) => {
       });
     }
 
-    const updated = await notificationService.markNotificationAsRead(id);
+    const updated = await notificationService.markNotificationAsRead(id, req.authUser.email);
     if (!updated) {
       return res.status(404).json({
         success: false,
@@ -93,15 +86,7 @@ export const markAsRead = async (req, res) => {
 
 export const markAllAsRead = async (req, res) => {
   try {
-    const email = req.body.user_email || req.body.email || req.query.email;
-    if (!email || !email.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: "User email is required"
-      });
-    }
-
-    const updated = await notificationService.markAllNotificationsAsRead(email.trim());
+    const updated = await notificationService.markAllNotificationsAsRead(req.authUser.email);
 
     res.json({
       success: true,

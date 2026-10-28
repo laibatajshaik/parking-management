@@ -24,7 +24,9 @@ import CustomerOverview from "./CustomerOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
+import { signOut } from "firebase/auth";
+import { auth } from "../../components/firebase.js";
 
 const MyParking = lazy(() => import("./MyParking.jsx"));
 const Payments = lazy(() => import("./Payments.jsx"));
@@ -205,7 +207,7 @@ export default function CustomerDashboard({ setView }) {
       const email = currentUser?.email || "";
       if (email) {
         localStorage.setItem(`shnoor_premium_${email}`, JSON.stringify(info));
-        fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
+        apiFetch(`${API_BASE_URL}/api/customer/activate-premium`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -235,7 +237,7 @@ export default function CustomerDashboard({ setView }) {
     if (!currentUser?.email) return;
     setIsDashboardRefreshing(true);
     try {
-      const histRes = await fetch(`${API_BASE_URL}/api/customer/parking-history?email=${encodeURIComponent(currentUser.email)}`);
+      const histRes = await apiFetch(`${API_BASE_URL}/api/customer/parking-history?email=${encodeURIComponent(currentUser.email)}`);
       const histData = await histRes.json();
       if (histData.success && Array.isArray(histData.history)) {
         setTotalVisits(histData.total !== undefined ? histData.total : histData.history.length);
@@ -271,7 +273,7 @@ export default function CustomerDashboard({ setView }) {
     }
 
     try {
-      const payRes = await fetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(currentUser.email)}`);
+      const payRes = await apiFetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(currentUser.email)}`);
       const payData = await payRes.json();
       if (payData.success && Array.isArray(payData.payments)) {
         const sum = payData.payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
@@ -284,7 +286,7 @@ export default function CustomerDashboard({ setView }) {
     }
 
     try {
-      const sessRes = await fetch(`${API_BASE_URL}/api/customer/my-parking?email=${encodeURIComponent(currentUser.email)}`);
+      const sessRes = await apiFetch(`${API_BASE_URL}/api/customer/my-parking?email=${encodeURIComponent(currentUser.email)}`);
       const sessData = await sessRes.json();
       if (sessData.success && (sessData.session || (Array.isArray(sessData.sessions) && sessData.sessions.length > 0))) {
         setActiveSession(sessData.session || sessData.sessions[0]);
@@ -299,7 +301,7 @@ export default function CustomerDashboard({ setView }) {
     }
 
     try {
-      const slotsRes = await fetch(`${API_BASE_URL}/api/parking-slots`);
+      const slotsRes = await apiFetch(`${API_BASE_URL}/api/parking-slots`);
       const slotsData = await slotsRes.json();
       if (slotsData.success && Array.isArray(slotsData.slots)) {
         const avail = slotsData.slots.filter((s) => s.status === "Available").length;
@@ -318,9 +320,15 @@ export default function CustomerDashboard({ setView }) {
     fetchUserData();
   }, [fetchUserData]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Firebase sign-out failed:", error);
+    }
     try {
       localStorage.removeItem("shnoor_current_user");
+      localStorage.removeItem("shnoor_auth_state");
     } catch {
       void 0;
     }

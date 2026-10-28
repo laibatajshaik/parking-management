@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Car,
@@ -43,7 +43,7 @@ export default function ParkingOccupancy({
   const fetchUnifiedOccupancy = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/occupancy`);
+      const res = await apiFetch(`${API_BASE_URL}/api/occupancy`);
       const data = await res.json();
       if (data.success) {
         setOccupancyData(data);
@@ -90,7 +90,7 @@ export default function ParkingOccupancy({
     try {
       if (slot.is_ev || slot.raw_ev_id || String(slot.id).startsWith("ev-")) {
         const rawId = slot.raw_ev_id || String(slot.id).replace("ev-", "");
-        const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots/${rawId}`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots/${rawId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: newStatus })
@@ -107,7 +107,7 @@ export default function ParkingOccupancy({
           propHandleSlotStatusChange(slot.id, newStatus);
           setSelectedSlotModal((prev) => (prev ? { ...prev, status: newStatus, is_available: isAvail } : null));
         } else {
-          const res = await fetch(`${API_BASE_URL}/api/admin/slots/${slot.id}`, {
+          const res = await apiFetch(`${API_BASE_URL}/api/admin/slots/${slot.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: newStatus, is_available: isAvail })

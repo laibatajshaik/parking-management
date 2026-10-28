@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -75,7 +75,7 @@ export default function SupportAuditLogs() {
 
   const fetchAuditSummary = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs/summary`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/audit-logs/summary`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -101,7 +101,7 @@ export default function SupportAuditLogs() {
         dateRange: auditDateRange
       });
 
-      const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs?${params}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/audit-logs?${params}`, {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -125,7 +125,7 @@ export default function SupportAuditLogs() {
         search: ticketSearch || "",
         status: ticketStatusFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets?${params}`);
       const data = await res.json();
       setIsLoadingTickets(false);
       if (data.success && Array.isArray(data.tickets)) {
@@ -183,7 +183,7 @@ export default function SupportAuditLogs() {
           dateRange: auditDateRange
         });
 
-        const res = await fetch(`${API_BASE_URL}/api/admin/audit-logs?${exportParams}`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/admin/audit-logs?${exportParams}`, {
           headers: getAuthHeaders()
         });
         const data = await res.json();
@@ -295,7 +295,7 @@ export default function SupportAuditLogs() {
 
   const handleUpdateTicketPriority = async (ticketId, newPriority) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/priority`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/priority`, {
         method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({ priority: newPriority })
@@ -318,7 +318,7 @@ export default function SupportAuditLogs() {
 
   const handleUpdateTicketStatus = async (ticketId, newStatus) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets/${ticketId}/status`, {
         method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({ status: newStatus })
@@ -341,7 +341,7 @@ export default function SupportAuditLogs() {
 
   const handleDeleteTicket = async (ticketId) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${ticketId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets/${ticketId}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -365,7 +365,7 @@ export default function SupportAuditLogs() {
 
     try {
       const targetId = selectedTicket.id || selectedTicket.ticket_code;
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets/${targetId}/reply`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets/${targetId}/reply`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({

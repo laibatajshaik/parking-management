@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -68,7 +68,7 @@ export default function UserManagement({
         role: roleFilter,
         status: statusFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/admin/users?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/users?${params}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
         setUsersList(data.users);
@@ -129,7 +129,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editFormData)
@@ -178,7 +178,7 @@ export default function UserManagement({
       }
 
       const endpoint = addFormData.role === "staff" ? `${API_BASE_URL}/api/admin/staff` : `${API_BASE_URL}/api/admin/users`;
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -221,7 +221,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users/${user.id}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/users/${user.id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
@@ -269,7 +269,7 @@ export default function UserManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userToDelete.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/users/${userToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

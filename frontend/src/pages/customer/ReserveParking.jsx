@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, Sparkles, CreditCard, Smartphone, Layers, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
 import Pagination from "../../components/Pagination.jsx";
@@ -111,12 +111,12 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const fetchCouponsList = useCallback(async () => {
     setIsLoadingCoupons(true);
     try {
-      let res = await fetch(`${API_BASE_URL}/api/coupons`);
+      let res = await apiFetch(`${API_BASE_URL}/api/coupons`);
       let data = null;
       if (res.ok) {
         data = await res.json();
       } else {
-        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        const fbRes = await apiFetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
         if (fbRes.ok) data = await fbRes.json();
       }
       setIsLoadingCoupons(false);
@@ -126,7 +126,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     } catch (err) {
       console.warn("Retrying coupon list with fallback...", err);
       try {
-        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        const fbRes = await apiFetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
         if (fbRes.ok) {
           const fbData = await fbRes.json();
           if (fbData && fbData.success && Array.isArray(fbData.coupons)) {
@@ -153,7 +153,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const fetchActivePlans = async () => {
     setIsLoadingPlans(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
+      const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
       const data = await res.json();
       setIsLoadingPlans(false);
       if (data.success && Array.isArray(data.plans) && data.plans.length > 0) {
@@ -175,7 +175,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   useEffect(() => {
     const custEmail = loggedInUser?.email;
     if (custEmail) {
-      fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(custEmail)}`)
+      apiFetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(custEmail)}`)
         .then((r) => r.json())
         .then((d) => {
           if (d.success && Array.isArray(d.vehicles) && d.vehicles.length > 0) {
@@ -191,8 +191,8 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const fetchSlotsList = useCallback(async () => {
     try {
       const [d, evD] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/parking-slots`).then((r) => r.json()).catch(() => ({})),
-        fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`).then((r) => r.json()).catch(() => ({}))
+        apiFetch(`${API_BASE_URL}/api/parking-slots`).then((r) => r.json()).catch(() => ({})),
+        apiFetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`).then((r) => r.json()).catch(() => ({}))
       ]);
       let combined = [];
       if (d && d.success && Array.isArray(d.slots)) {
@@ -320,7 +320,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
     try {
       const orderAmt = getOriginalCost();
-      const res = await fetch(`${API_BASE_URL}/api/coupons/apply`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/coupons/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -492,7 +492,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     setBookingError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/customer/reserve-slot`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/reserve-slot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -552,7 +552,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
         });
       }
       try {
-        await fetch(`${API_BASE_URL}/api/customer/activate-premium`, {
+        await apiFetch(`${API_BASE_URL}/api/customer/activate-premium`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

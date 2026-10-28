@@ -15,7 +15,7 @@ import {
   User,
   HelpCircle
 } from "lucide-react";
-import { API_BASE_URL } from "../config/api.js";
+import { API_BASE_URL, apiFetch } from "../config/api.js";
 
 function formatExactTime(dateString) {
   if (!dateString) return "";
@@ -110,7 +110,7 @@ export default function DashboardNotifications({ userEmail = "", maxItems = 5, t
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications?email=${encodeURIComponent(email)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications?email=${encodeURIComponent(email)}`);
       const data = await res.json();
       if (res.ok && data && data.success && Array.isArray(data.notifications)) {
         setNotifications(data.notifications);
@@ -142,7 +142,7 @@ export default function DashboardNotifications({ userEmail = "", maxItems = 5, t
   const handleMarkAsRead = async (id, e) => {
     if (e) e.stopPropagation();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
         method: "PUT"
       });
       if (res.ok) {
@@ -162,7 +162,7 @@ export default function DashboardNotifications({ userEmail = "", maxItems = 5, t
     if (!email) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications/read-all`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email })

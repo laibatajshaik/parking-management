@@ -1,9 +1,11 @@
-import { API_BASE_URL } from "./config/api.js";
+import { API_BASE_URL, apiFetch } from "./config/api.js";
 import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 import GoogleAuthButton from "./components/GoogleAuthButton.jsx";
+import { signInWithCustomToken, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth } from "./components/firebase.js";
 
 export default function Login({ setView }) {
   const [email, setEmail] = useState("");
@@ -45,13 +47,29 @@ export default function Login({ setView }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/login`, {
+      const passwordLoginResponse = await fetch(`${API_BASE_URL}/api/auth/password-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password })
       });
+      const passwordLoginData = await passwordLoginResponse.json();
+
+      if (passwordLoginResponse.ok && passwordLoginData?.customToken) {
+        await signInWithCustomToken(auth, passwordLoginData.customToken);
+      } else if (
+        passwordLoginResponse.status === 409 &&
+        passwordLoginData?.code === "CUSTOMER_LOGIN_REQUIRED"
+      ) {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      } else {
+        throw new Error(passwordLoginData?.error || "Invalid email or password.");
+      }
+
+      const response = await apiFetch(`${API_BASE_URL}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
       const data = await response.json();
-      setIsLoading(false);
 
       if (response.ok && data && data.success && data.user) {
         localStorage.setItem("shnoor_current_user", JSON.stringify(data.user));
@@ -70,18 +88,31 @@ export default function Login({ setView }) {
         }, 800);
       } else {
         try {
-          localStorage.removeItem("shnoor_current_user");
-          localStorage.removeItem("shnoor_auth_state");
-        } catch {
-          void 0;
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error("Firebase sign-out after login rejection failed:", signOutError);
         }
         setIsError(true);
-        setMessage("Invalid email or password");
+        setMessage(data?.error || "Unable to load your Shnoor Parking account.");
       }
-    } catch {
-      setIsLoading(false);
+    } catch (error) {
+      if (auth.currentUser) {
+        try {
+          await signOut(auth);
+        } catch (signOutError) {
+          console.error("Firebase sign-out after login failure failed:", signOutError);
+        }
+      }
+      const messages = {
+        "auth/invalid-credential": "Invalid email or password.",
+        "auth/user-disabled": "This Firebase account is disabled. Please contact an administrator.",
+        "auth/too-many-requests": "Too many login attempts. Please wait and try again.",
+        "auth/network-request-failed": "Cannot connect to Firebase. Check your internet connection."
+      };
       setIsError(true);
-      setMessage("Cannot connect to server");
+      setMessage(messages[error?.code] || error?.message || "Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -201,7 +232,6 @@ export default function Login({ setView }) {
 
           <GoogleAuthButton
             text="continue"
-            role="customer"
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
             disabled={isLoading}

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -44,7 +44,7 @@ export default function StaffEVCharging() {
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/staff/ev-charging-overview`);
+      const res = await apiFetch(`${API_BASE_URL}/api/staff/ev-charging-overview`);
       const data = await res.json();
       if (data.success && data.metrics) {
         setMetrics(data.metrics);
@@ -63,7 +63,7 @@ export default function StaffEVCharging() {
         search: searchQuery || "",
         status: statusFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging/sessions?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging/sessions?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.sessions)) {
@@ -90,7 +90,7 @@ export default function StaffEVCharging() {
     if (!sessionToStop) return;
     setIsStopping(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging/sessions/${sessionToStop.id}/stop`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging/sessions/${sessionToStop.id}/stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

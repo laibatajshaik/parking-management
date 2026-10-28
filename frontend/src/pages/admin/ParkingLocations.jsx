@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { MapPin, Search, Plus, Edit2, Trash2, X, Building, RefreshCw, Download } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -51,7 +51,7 @@ export default function ParkingLocations() {
       search: searchQuery || "",
       status: statusFilter
     });
-    fetch(`${API_BASE_URL}/api/parking-locations?${params}`)
+    apiFetch(`${API_BASE_URL}/api/parking-locations?${params}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.locations)) {
@@ -126,7 +126,7 @@ export default function ParkingLocations() {
 
   const handleDelete = (id) => {
     if (!window.confirm("Are you sure you want to delete this parking facility?")) return;
-    fetch(`${API_BASE_URL}/api/parking-locations/${id}`, { method: "DELETE" })
+    apiFetch(`${API_BASE_URL}/api/parking-locations/${id}`, { method: "DELETE" })
       .then((res) => {
         if (res.ok) {
           setActionSuccess("Location deleted successfully");
@@ -142,7 +142,7 @@ export default function ParkingLocations() {
     setFormError("");
     setIsSubmitting(true);
     if (modalMode === "create") {
-      fetch(`${API_BASE_URL}/api/parking-locations`, {
+      apiFetch(`${API_BASE_URL}/api/parking-locations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -176,7 +176,7 @@ export default function ParkingLocations() {
           setFormError(err.message || "Failed to create location");
         });
     } else if (editingLocation) {
-      fetch(`${API_BASE_URL}/api/parking-locations/${editingLocation.id}`, {
+      apiFetch(`${API_BASE_URL}/api/parking-locations/${editingLocation.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

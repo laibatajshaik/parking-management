@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { User, Car, Bike, Zap, Crown, Plus, Trash2, CheckCircle2, X, Sparkles, ArrowRight, RefreshCw, Download } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -35,7 +35,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
     if (!email) return;
     setIsLoadingVehicles(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(email)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(email)}`);
       const data = await res.json();
       setIsLoadingVehicles(false);
       if (data.success && Array.isArray(data.vehicles)) {
@@ -76,7 +76,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
     e.preventDefault();
     if (!newVehicle.plate) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/customer/vehicles`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -106,7 +106,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
 
   const handleDeleteVehicle = async (id) => {
     try {
-      await fetch(`${API_BASE_URL}/api/customer/vehicles/${id}`, {
+      await apiFetch(`${API_BASE_URL}/api/customer/vehicles/${id}`, {
         method: "DELETE"
       });
     } catch {
@@ -122,7 +122,7 @@ export default function CustomerProfile({ currentUser, isPremiumActive, premiumP
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
-      await fetch(`${API_BASE_URL}/api/customer/profile`, {
+      await apiFetch(`${API_BASE_URL}/api/customer/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

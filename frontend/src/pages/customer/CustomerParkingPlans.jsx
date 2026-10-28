@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Search, RefreshCw, Car, Bike, Zap, Crown, CheckCircle2, ArrowRight, Sparkles, Award } from "lucide-react";
 import Pagination from "../../components/Pagination.jsx";
@@ -14,7 +14,7 @@ export default function CustomerParkingPlans({ onSelectPlanAndReserve }) {
   const fetchPlans = async (initial = false) => {
     if (initial) setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
+      const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans?active=true`);
       const data = await res.json();
       if (initial) setIsLoading(false);
       if (data.success && data.plans) {

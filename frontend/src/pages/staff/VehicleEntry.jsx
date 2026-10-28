@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, LogIn, Search, CheckCircle2, X, Printer, Download, Layers, RefreshCw, Phone, ShieldCheck, CheckCircle } from "lucide-react";
@@ -43,8 +43,8 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
   const fetchSlots = async () => {
     try {
       const [res, evRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/parking-slots`),
-        fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`)
+        apiFetch(`${API_BASE_URL}/api/parking-slots`),
+        apiFetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`)
       ]);
       const slotsData = await res.json();
       const evData = await evRes.json();
@@ -87,7 +87,7 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
         search: searchQuery || "",
         type: typeFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/staff/vehicle-entries?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/staff/vehicle-entries?${params}`);
       const entriesData = await res.json();
       setIsLoading(false);
       if (entriesData.success && entriesData.entries) {
@@ -184,7 +184,7 @@ export default function VehicleEntry({ setStatusActionMessage, onEntrySuccess })
     setEntryStatusState("Processing Check-in...");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/staff/vehicle-entry`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/staff/vehicle-entry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)

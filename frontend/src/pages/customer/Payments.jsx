@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { CreditCard, Smartphone, Banknote, Globe, Receipt, Search, RefreshCw, CheckCircle2, Calendar, Clock, Layers, ArrowUpRight, Download } from "lucide-react";
@@ -44,7 +44,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
       } else {
         params.append("name", user.name);
       }
-      const res = await fetch(`${API_BASE_URL}/api/customer/payments?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.payments)) {

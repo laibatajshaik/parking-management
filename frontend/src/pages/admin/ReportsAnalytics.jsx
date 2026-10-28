@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { BarChart3, TrendingUp, Download, Car, Clock, Zap, CreditCard, Smartphone, Layers, ShieldCheck, CheckCircle2, RefreshCw, Ticket } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 
 export default function ReportsAnalytics() {
@@ -13,7 +13,7 @@ export default function ReportsAnalytics() {
   const [zoneLimit, setZoneLimit] = useState(5);
 
   const fetchAnalytics = () => {
-    return fetch(`${API_BASE_URL}/api/admin/reports-analytics?range=${encodeURIComponent(timeRange)}`)
+    return apiFetch(`${API_BASE_URL}/api/admin/reports-analytics?range=${encodeURIComponent(timeRange)}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {

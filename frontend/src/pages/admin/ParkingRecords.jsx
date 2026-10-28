@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, CalendarCheck, Eye, Printer, Download, X, Zap } from "lucide-react";
@@ -25,7 +25,7 @@ export default function ParkingRecords() {
         status: statusFilter,
         type: typeFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/admin/parking-records?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/parking-records?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.records)) {

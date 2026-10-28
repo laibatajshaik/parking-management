@@ -22,7 +22,7 @@ import {
   ChevronRight,
   Zap
 } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 
 function getActivityBadge(type) {
@@ -287,7 +287,7 @@ export default function AdminOverview({
   const fetchBookings = async () => {
     setIsBookingsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/bookings`);
+      const res = await apiFetch(`${API_BASE_URL}/api/bookings`);
       const resData = await res.json();
       setIsBookingsLoading(false);
       if (resData.success && Array.isArray(resData.bookings)) {
@@ -304,7 +304,7 @@ export default function AdminOverview({
 
   const handleUpdateBookingStatus = async (bookingId, newStatus) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/bookings/${bookingId}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/bookings/${bookingId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })

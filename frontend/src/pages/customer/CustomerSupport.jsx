@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -73,7 +73,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
         page: String(ticketPage),
         limit: String(ticketLimit)
       });
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets?${params}`);
       const data = await res.json();
       setIsLoadingTickets(false);
       if (data.success && data.tickets) {
@@ -115,7 +115,7 @@ export default function CustomerSupport({ currentUser, isPremiumActive }) {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/support-tickets`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/support-tickets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

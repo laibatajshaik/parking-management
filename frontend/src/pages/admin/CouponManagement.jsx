@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -94,7 +94,7 @@ export default function CouponManagement({ setStatusActionMessage }) {
         applicable_to: applicableFilter
       });
 
-      const res = await fetch(`${API_BASE_URL}/api/admin/coupons?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/coupons?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.coupons)) {
@@ -262,7 +262,7 @@ export default function CouponManagement({ setStatusActionMessage }) {
         : `${API_BASE_URL}/api/admin/coupons`;
       const method = isEditing ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -288,7 +288,7 @@ export default function CouponManagement({ setStatusActionMessage }) {
   const handleToggleStatus = async (coupon) => {
     try {
       const newStatus = coupon.status === "Active" ? "Inactive" : "Active";
-      const res = await fetch(`${API_BASE_URL}/api/admin/coupons/${coupon.id}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/coupons/${coupon.id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
@@ -305,7 +305,7 @@ export default function CouponManagement({ setStatusActionMessage }) {
 
   const handleDeleteCoupon = async (id, code) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/coupons/${id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/coupons/${id}`, {
         method: "DELETE"
       });
       const data = await res.json();
@@ -327,7 +327,7 @@ export default function CouponManagement({ setStatusActionMessage }) {
     setIsUsageModalOpen(true);
     setIsLoadingUsage(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/coupons/${coupon.id}/usage`);
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/coupons/${coupon.id}/usage`);
       const data = await res.json();
       setIsLoadingUsage(false);
       if (data.success && Array.isArray(data.usage)) {

@@ -2,8 +2,8 @@ import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
-import { OAuth2Client } from "google-auth-library";
 import pool from "./db.js";
+import { getFirebaseAdminAuth } from "./firebaseAdmin.js";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -57,10 +57,6 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 dotenv.config();
 
-const googleOAuthClient = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID || "265505874428-n49qnrsvk6tck6bd1bprrp13k36j8n3e.apps.googleusercontent.com"
-);
-
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -92,6 +88,249 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json());
+
+const publicApiRequests = new Set([
+  "POST /contact",
+  "POST /auth/password-login",
+  "POST /forgot-password",
+  "POST /verify-reset-otp",
+  "POST /reset-password",
+  "GET /occupancy",
+  "GET /parking-locations",
+  "GET /parking-slots",
+  "GET /pricing-plans"
+]);
+
+const firebaseIdentityOnlyPaths = new Set([
+  "/signup",
+  "/auth/google",
+  "/google-login"
+]);
+
+function getApiPath(req) {
+  return new URL(req.originalUrl, "http://localhost").pathname.replace(/^\/api/, "") || "/";
+}
+
+function getRequiredRoles(req, apiPath) {
+  const method = req.method.toUpperCase();
+
+  if (apiPath === "/admin" || apiPath.startsWith("/admin/")) {
+    return ["admin"];
+  }
+  if (apiPath === "/staff" || apiPath.startsWith("/staff/")) {
+    return ["admin", "staff"];
+  }
+  if (apiPath === "/customer" || apiPath.startsWith("/customer/")) {
+    return ["admin", "customer"];
+  }
+  if ((apiPath === "/pricing-plans" || apiPath.startsWith("/pricing-plans/")) && method !== "GET") {
+    return ["admin"];
+  }
+  if (
+    (apiPath === "/parking-locations" || apiPath.startsWith("/parking-locations/")) &&
+    method !== "GET"
+  ) {
+    return ["admin"];
+  }
+  if (apiPath === "/system-settings") {
+    return ["admin"];
+  }
+  if (
+    (apiPath === "/parking-slots" || apiPath.startsWith("/parking-slots/")) &&
+    method !== "GET"
+  ) {
+    return ["admin", "staff"];
+  }
+  if (apiPath === "/coupons/apply") {
+    return ["customer"];
+  }
+  if (apiPath === "/notifications" && method === "POST") {
+    return ["admin"];
+  }
+  if (apiPath.startsWith("/support-tickets/")) {
+    return ["admin", "staff"];
+  }
+  if (apiPath === "/coupons" && method === "GET") {
+    return ["admin", "customer"];
+  }
+  if (
+    (apiPath === "/ev-charging-slots" || apiPath.startsWith("/ev-charging-slots/")) &&
+    method !== "GET"
+  ) {
+    return ["admin"];
+  }
+  if (
+    (apiPath === "/payments" || apiPath === "/payments/today") &&
+    method === "GET"
+  ) {
+    return ["admin", "staff"];
+  }
+  if (apiPath === "/bookings" && method === "GET") {
+    return ["admin", "staff"];
+  }
+
+  return null;
+}
+
+async function findFirebaseUser(firebaseUser) {
+  const byUid = await pool.query(
+    "SELECT id, name, email, phone, role, status, google_id, firebase_uid FROM users WHERE firebase_uid = $1 LIMIT 1",
+    [firebaseUser.uid]
+  );
+  if (byUid.rowCount > 0) {
+    return { user: byUid.rows[0] };
+  }
+
+  const email = (firebaseUser.email || "").trim().toLowerCase();
+  if (!email || firebaseUser.email_verified !== true) {
+    return {
+      user: null,
+      error: "Verify your email address before linking it to an existing parking account."
+    };
+  }
+
+  const byEmail = await pool.query(
+    "SELECT id, name, email, phone, role, status, google_id, firebase_uid FROM users WHERE LOWER(email) = $1 LIMIT 1",
+    [email]
+  );
+  if (byEmail.rowCount === 0) {
+    return {
+      user: null,
+      error: "No Shnoor Parking account is linked to this Firebase sign-in."
+    };
+  }
+
+  const existingUser = byEmail.rows[0];
+  if (existingUser.firebase_uid && existingUser.firebase_uid !== firebaseUser.uid) {
+    return {
+      user: null,
+      error: "This parking account is already linked to another Firebase account."
+    };
+  }
+
+  const linked = await pool.query(
+    `UPDATE users
+     SET firebase_uid = $1
+     WHERE id = $2 AND (firebase_uid IS NULL OR firebase_uid = $1)
+     RETURNING id, name, email, phone, role, status, google_id, firebase_uid`,
+    [firebaseUser.uid, existingUser.id]
+  );
+  if (linked.rowCount > 0) {
+    return { user: linked.rows[0] };
+  }
+
+  const retry = await pool.query(
+    "SELECT id, name, email, phone, role, status, google_id, firebase_uid FROM users WHERE firebase_uid = $1 LIMIT 1",
+    [firebaseUser.uid]
+  );
+  return retry.rowCount > 0
+    ? { user: retry.rows[0] }
+    : { user: null, error: "Unable to link this Firebase account to the parking account." };
+}
+
+app.use("/api", async (req, res, next) => {
+  const apiPath = getApiPath(req);
+  const method = req.method.toUpperCase();
+  if (publicApiRequests.has(`${method} ${apiPath}`)) {
+    return next();
+  }
+
+  const authorization = req.get("authorization") || "";
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
+  if (!tokenMatch) {
+    return res.status(401).json({ error: "A Firebase ID token is required." });
+  }
+
+  let firebaseUser;
+  try {
+    firebaseUser = await getFirebaseAdminAuth().verifyIdToken(tokenMatch[1]);
+  } catch (error) {
+    if (error?.code?.startsWith("auth/")) {
+      return res.status(401).json({ error: "The Firebase ID token is invalid or expired." });
+    }
+    console.error("Firebase ID token verification failed:", error);
+    return res.status(500).json({ error: "Authentication service is unavailable." });
+  }
+
+  try {
+    await dbSchemaReady;
+  } catch (error) {
+    console.error("Database schema initialization failed:", error);
+    return res.status(500).json({ error: "The server database is unavailable." });
+  }
+
+  req.firebaseUser = firebaseUser;
+  if (firebaseIdentityOnlyPaths.has(apiPath)) {
+    return next();
+  }
+
+  try {
+    const identity = await findFirebaseUser(firebaseUser);
+    if (!identity.user) {
+      return res.status(403).json({ error: identity.error });
+    }
+    if (identity.user.status && identity.user.status.toLowerCase() === "inactive") {
+      return res.status(403).json({ error: "This account is inactive. Please contact an administrator." });
+    }
+
+    req.authUser = identity.user;
+    const allowedRoles = getRequiredRoles(req, apiPath);
+    const userRole = (identity.user.role || "").toLowerCase();
+    if (allowedRoles && !allowedRoles.includes(userRole)) {
+      return res.status(403).json({ error: "Your account role is not allowed to perform this action." });
+    }
+
+    if (userRole === "customer") {
+      const email = identity.user.email;
+      if (apiPath.startsWith("/customer/")) {
+        Object.defineProperty(req, "query", {
+          value: { ...req.query, email, user_email: email, customer_email: email },
+          configurable: true,
+          enumerable: true,
+          writable: true
+        });
+        req.body = {
+          ...(req.body || {}),
+          email,
+          user_email: email,
+          customer_email: email,
+          owner_email: email,
+          customer_name: identity.user.name,
+          owner_name: identity.user.name
+        };
+      } else if (apiPath === "/support-tickets") {
+        if (method === "GET") {
+          Object.defineProperty(req, "query", {
+            value: { ...req.query, email },
+            configurable: true,
+            enumerable: true,
+            writable: true
+          });
+        } else if (method === "POST") {
+          req.body = {
+            ...(req.body || {}),
+            customer_email: email,
+            customer_name: identity.user.name
+          };
+        }
+      } else if (apiPath === "/coupons/apply" && method === "POST") {
+        req.body = { ...(req.body || {}), customer_email: email };
+      } else if (apiPath === "/payments" && method === "POST") {
+        req.body = {
+          ...(req.body || {}),
+          customer_email: email,
+          customer_name: identity.user.name
+        };
+      }
+    }
+
+    return next();
+  } catch (error) {
+    console.error("Failed to load the authenticated PostgreSQL user:", error);
+    return res.status(500).json({ error: "Unable to load the authenticated account." });
+  }
+});
+
 app.use("/api/notifications", notificationRoutes);
 app.use("/api", evChargingRoutes);
 app.use("/api", couponRoutes);
@@ -284,15 +523,21 @@ const initDbSchema = async () => {
         id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         email VARCHAR(150) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
+        password VARCHAR(255),
         phone VARCHAR(50) DEFAULT '+91 98765 43210',
         role VARCHAR(50) DEFAULT 'customer',
         status VARCHAR(50) DEFAULT 'Active',
         google_id VARCHAR(255),
+        firebase_uid VARCHAR(128),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
+    await pool.query("ALTER TABLE users ALTER COLUMN password DROP NOT NULL");
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS firebase_uid VARCHAR(128)");
+    await pool.query(
+      "CREATE UNIQUE INDEX IF NOT EXISTS users_firebase_uid_unique ON users(firebase_uid) WHERE firebase_uid IS NOT NULL"
+    );
     await pool.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT '+91 98765 43210';
     `);
@@ -313,7 +558,7 @@ const initDbSchema = async () => {
         ('Taj', 'admin@shnoor.com', $1, '+91 98765 43212', 'admin', 'Active', '2026-04-01 08:00:00'),
         ('Laiba Taj', 'staff@shnoor.com', $2, '+91 98765 43211', 'staff', 'Active', '2026-05-14 11:20:00'),
         ('Laiba', 'customer@shnoor.com', $3, '+91 98765 43210', 'customer', 'Active', '2026-05-10 10:30:00')
-      ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, name = EXCLUDED.name, role = EXCLUDED.role, status = EXCLUDED.status;
+      ON CONFLICT (email) DO NOTHING;
     `, [adminPass, staffPass, customerPass]);
 
     await pool.query(`
@@ -1018,112 +1263,90 @@ const initDbSchema = async () => {
   }
 };
 
-initDbSchema();
+const dbSchemaReady = initDbSchema();
 
 app.post("/api/signup", async (req, res) => {
-  const { name, email, password, phone } = req.body;
+  const { name, email, phone } = req.body || {};
+  const firebaseUser = req.firebaseUser;
+  const cleanName = typeof name === "string" ? name.trim() : "";
+  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  const tokenEmail = (firebaseUser.email || "").trim().toLowerCase();
 
-  if (!name || !email || !password || !name.trim() || !email.trim() || !password.trim()) {
-    return res.status(400).json({ error: "All fields are required" });
+  if (!cleanName || !cleanEmail || !tokenEmail) {
+    return res.status(400).json({ error: "Name and email are required." });
+  }
+  if (cleanEmail !== tokenEmail) {
+    return res.status(403).json({ error: "The signup email does not match the Firebase account." });
   }
 
   const dbRole = "customer";
 
   try {
-    const userExist = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email.trim()]);
+    const userExist = await pool.query(
+      "SELECT id FROM users WHERE firebase_uid = $1 OR LOWER(email) = $2",
+      [firebaseUser.uid, cleanEmail]
+    );
     if (userExist.rowCount > 0) {
-      return res.status(400).json({ error: "Email is already registered" });
+      return res.status(409).json({
+        error: "An account with this email already exists. Please log in instead."
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
     const userPhone = phone || "";
-    await pool.query(
-      "INSERT INTO users (name, email, password, phone, role, status) VALUES ($1, $2, $3, $4, $5, 'Active')",
-      [name.trim(), email.trim(), hashedPassword, userPhone, dbRole]
+    const insertResult = await pool.query(
+      `INSERT INTO users (name, email, password, phone, role, status, firebase_uid)
+       VALUES ($1, $2, NULL, $3, $4, 'Active', $5)
+       RETURNING id, name, email, phone, role, status, google_id`,
+      [cleanName, cleanEmail, userPhone, dbRole, firebaseUser.uid]
     );
 
-    await notifyAdmins({
-      title: "New User Registered",
-      message: `New customer registered: ${email.trim()}`,
-      type: "user"
-    });
-    await notifyUser(email.trim(), {
-      title: "Welcome to Shnoor Parking",
-      message: `Welcome ${name.trim()}! Your account has been registered successfully.`,
-      type: "user"
-    });
+    const newUser = insertResult.rows[0];
+    try {
+      await notifyAdmins({
+        title: "New User Registered",
+        message: `New customer registered: ${cleanEmail}`,
+        type: "user"
+      });
+      await notifyUser(cleanEmail, {
+        title: "Welcome to Shnoor Parking",
+        message: `Welcome ${cleanName}! Your account has been registered successfully.`,
+        type: "user"
+      });
+    } catch (notificationError) {
+      console.error("New account notification error:", notificationError);
+    }
     try {
       await sendAccountCreatedEmail({
-        customerName: name.trim(),
-        customerEmail: email.trim(),
+        customerName: cleanName,
+        customerEmail: cleanEmail,
         role: dbRole,
         phone: userPhone
       });
       const adminEmails = await getActiveAdminEmails();
-      await sendNewUserAdminEmail({ customerName: name.trim(), customerEmail: email.trim(), adminEmails });
-    } catch (e) {
-      console.error(e);
+      await sendNewUserAdminEmail({ customerName: cleanName, customerEmail: cleanEmail, adminEmails });
+    } catch (emailError) {
+      console.error("New account email notification error:", emailError);
     }
 
-    res.status(201).json({ success: true, message: "User registered successfully" });
+    return res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      user: newUser
+    });
   } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({
+        error: "An account with this email already exists. Please log in instead."
+      });
+    }
     console.error(err);
     res.status(500).json({ error: "Server error during registration" });
   }
 });
 
 app.post("/api/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password || !email.trim() || !password.trim()) {
-    return res.status(400).json({ error: "Email and password are required" });
-  }
-
   try {
-    const userResult = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email.trim()]);
-    if (userResult.rowCount === 0) {
-      await logAuditEvent({
-        userName: email.trim(),
-        userEmail: email.trim(),
-        role: "Guest",
-        action: "Failed Login",
-        module: "Authentication",
-        entityType: "user",
-        description: `Failed login attempt: Email not found (${email.trim()})`,
-        severity: "Medium",
-        status: "Failed",
-        ipAddress: getAuditClientIp(req),
-        userAgent: getAuditUserAgent(req)
-      });
-      return res.status(400).json({ error: "Invalid credentials" });
-    }
-
-    const user = userResult.rows[0];
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      const userRole = (user.role || "user").charAt(0).toUpperCase() + (user.role || "user").slice(1);
-      await logAuditEvent({
-        userId: user.id,
-        userName: user.name,
-        userEmail: user.email,
-        role: userRole,
-        action: "Failed Login",
-        module: "Authentication",
-        entityType: "user",
-        entityId: String(user.id),
-        description: `Failed login attempt: Incorrect password for ${user.email}`,
-        severity: "Medium",
-        status: "Failed",
-        ipAddress: getAuditClientIp(req),
-        userAgent: getAuditUserAgent(req)
-      });
-      return res.status(400).json({ error: "Invalid credentials" });
-    }
-
-    if (user.status && user.status.toLowerCase() === "inactive") {
-      return res.status(403).json({ error: "Account is inactive. Please contact administrator." });
-    }
-
+    const user = req.authUser;
     const formattedRole = (user.role || "user").charAt(0).toUpperCase() + (user.role || "user").slice(1);
     await logAuditEvent({
       userId: user.id,
@@ -1141,136 +1364,214 @@ app.post("/api/login", async (req, res) => {
       userAgent: getAuditUserAgent(req)
     });
 
-    res.json({
+    return res.json({
       success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || "",
-        role: user.role,
-        status: user.status || "Active",
-        google_id: user.google_id || null
-      }
+      user: getAuthenticatedUserProfile(user)
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Server error during login" });
+    return res.status(500).json({ error: "Server error during login" });
   }
 });
 
-app.post("/api/logout", async (req, res) => {
-  const { email, name, role, id } = req.body || {};
-  if (email) {
-    const formattedRole = role ? (role.charAt(0).toUpperCase() + role.slice(1)) : "User";
-    await logAuditEvent({
-      userId: id || null,
-      userName: name || email,
-      userEmail: email,
-      role: formattedRole,
-      action: `${formattedRole} Logout`,
-      module: "Authentication",
-      entityType: "user",
-      entityId: id ? String(id) : null,
-      description: `${name || email} logged out`,
-      severity: "Low",
-      status: "Success",
-      ipAddress: getAuditClientIp(req),
-      userAgent: getAuditUserAgent(req)
-    });
-  }
-  res.json({ success: true, message: "Logged out successfully" });
-});
+app.post("/api/auth/password-login", async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  let authenticationStage = "PostgreSQL connection";
 
-app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
-  const { credential, access_token } = req.body;
-
-  if (!credential && !access_token) {
-    return res.status(401).json({ error: "Google token is required" });
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required." });
   }
 
   try {
-    let email = "";
-    let displayName = "";
-    let picture = "";
-    let googleId = "";
+    await dbSchemaReady;
+    authenticationStage = "PostgreSQL admin/staff account lookup";
+    const userResult = await pool.query(
+      "SELECT id, name, email, password, role, status, firebase_uid FROM users WHERE LOWER(email) = $1 LIMIT 1",
+      [email]
+    );
+    if (userResult.rowCount === 0) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
 
-    if (credential) {
+    const user = userResult.rows[0];
+    const role = (user.role || "").toLowerCase();
+    if (role === "customer") {
+      return res.status(409).json({
+        code: "CUSTOMER_LOGIN_REQUIRED",
+        error: "Please sign in with your customer Firebase account."
+      });
+    }
+    if (role !== "admin" && role !== "staff") {
+      return res.status(403).json({ error: "Only Admin and Staff accounts can use password login." });
+    }
+
+    if (!user.password || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+    if (user.status && user.status.toLowerCase() === "inactive") {
+      return res.status(403).json({ error: "This account is inactive. Please contact an administrator." });
+    }
+
+    authenticationStage = "Firebase Admin initialization";
+    const firebaseAdminAuth = getFirebaseAdminAuth();
+    let firebaseUser = null;
+    authenticationStage = "Firebase account lookup";
+    if (user.firebase_uid) {
       try {
-        const ticket = await googleOAuthClient.verifyIdToken({
-          idToken: credential,
-          audience: process.env.GOOGLE_CLIENT_ID || "265505874428-n49qnrsvk6tck6bd1bprrp13k36j8n3e.apps.googleusercontent.com"
-        });
-        const payload = ticket.getPayload();
-        if (payload) {
-          googleId = payload.sub || "";
-          email = (payload.email || "").trim().toLowerCase();
-          displayName = payload.name || payload.given_name || email.split("@")[0];
-          picture = payload.picture || "";
+        firebaseUser = await firebaseAdminAuth.getUser(user.firebase_uid);
+      } catch (error) {
+        if (error?.code !== "auth/user-not-found") {
+          throw error;
         }
-      } catch {
+      }
+    }
+
+    if (!firebaseUser) {
+      try {
+        firebaseUser = await firebaseAdminAuth.getUserByEmail(user.email);
+      } catch (error) {
+        if (error?.code !== "auth/user-not-found") {
+          throw error;
+        }
         try {
-          const gRes = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(credential));
-          if (gRes.ok) {
-            const gData = await gRes.json();
-            if (gData && gData.email) {
-              googleId = gData.sub || "";
-              email = gData.email.trim().toLowerCase();
-              displayName = gData.name || gData.given_name || email.split("@")[0];
-              picture = gData.picture || "";
-            }
+          firebaseUser = await firebaseAdminAuth.createUser({
+            ...(user.firebase_uid ? { uid: user.firebase_uid } : {}),
+            email: user.email,
+            displayName: user.name,
+            emailVerified: false
+          });
+        } catch (createError) {
+          if (createError?.code !== "auth/email-already-exists") {
+            throw createError;
           }
-        } catch {
-          void 0;
+          firebaseUser = await firebaseAdminAuth.getUserByEmail(user.email);
         }
       }
-    } else if (access_token) {
-      try {
-        const uRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${access_token}` }
-        });
-        if (uRes.ok) {
-          const uData = await uRes.json();
-          if (uData && uData.email) {
-            googleId = uData.sub || "";
-            email = uData.email.trim().toLowerCase();
-            displayName = uData.name || uData.given_name || email.split("@")[0];
-            picture = uData.picture || "";
-          }
-        }
-      } catch {
-        void 0;
+    }
+
+    authenticationStage = "PostgreSQL Firebase account linking";
+    const linkedUser = await pool.query(
+      `UPDATE users
+       SET firebase_uid = $1
+       WHERE id = $2
+       RETURNING id`,
+      [firebaseUser.uid, user.id]
+    );
+    if (linkedUser.rowCount === 0) {
+      return res.status(409).json({
+        error: "This account is linked to a different Firebase identity. Please contact an administrator."
+      });
+    }
+
+    authenticationStage = "Firebase custom-token generation";
+    const customToken = await firebaseAdminAuth.createCustomToken(firebaseUser.uid);
+    return res.json({ success: true, customToken });
+  } catch (error) {
+    const errorCode = typeof error?.code === "string" ? error.code : "UNKNOWN";
+    const errorMessage = typeof error?.message === "string" ? error.message : "Unknown error";
+    const safeErrorMessage = errorMessage
+      .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, "[redacted key]")
+      .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted token]")
+      .replace(/(authorization\s*[:=]\s*bearer\s+)[^\s,;]+/gi, "$1[redacted]")
+      .replace(/(private_key|client_secret|password|token)\s*[:=]\s*("[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1=[redacted]");
+    console.error("Admin/staff password login failed", {
+      stage: authenticationStage,
+      code: errorCode,
+      message: safeErrorMessage
+    });
+    if (
+      errorCode === "app/invalid-credential" ||
+      errorMessage.includes("Could not load the default credentials")
+    ) {
+      return res.status(503).json({
+        code: "FIREBASE_ADMIN_CREDENTIALS_UNAVAILABLE",
+        error: "Firebase Admin credentials are unavailable. Configure FIREBASE_SERVICE_ACCOUNT_JSON or Google Application Default Credentials on the backend."
+      });
+    }
+    return res.status(500).json({ error: "Unable to complete login. Please try again." });
+  }
+});
+
+function getAuthenticatedUserProfile(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone || "",
+    role: (user.role || "customer").toLowerCase(),
+    status: user.status || "Active",
+    google_id: user.google_id || null
+  };
+}
+
+app.get("/api/auth/session", (req, res) => {
+  return res.json({
+    success: true,
+    user: getAuthenticatedUserProfile(req.authUser)
+  });
+});
+
+app.post("/api/logout", async (req, res) => {
+  const user = req.authUser;
+  const formattedRole = (user.role || "user").charAt(0).toUpperCase() + (user.role || "user").slice(1);
+  await logAuditEvent({
+    userId: user.id,
+    userName: user.name || user.email,
+    userEmail: user.email,
+    role: formattedRole,
+    action: `${formattedRole} Logout`,
+    module: "Authentication",
+    entityType: "user",
+    entityId: String(user.id),
+    description: `${user.name || user.email} logged out`,
+    severity: "Low",
+    status: "Success",
+    ipAddress: getAuditClientIp(req),
+    userAgent: getAuditUserAgent(req)
+  });
+  return res.json({ success: true, message: "Logged out successfully" });
+});
+
+app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
+  try {
+    const firebaseUser = req.firebaseUser;
+    const email = (firebaseUser.email || "").trim().toLowerCase();
+    const googleIds = firebaseUser.firebase?.identities?.["google.com"] || [];
+    const googleId = googleIds[0] || null;
+    const displayName = firebaseUser.name || email.split("@")[0];
+    const picture = firebaseUser.picture || null;
+
+    if (!email || !googleId) {
+      return res.status(401).json({ error: "A valid Firebase Google sign-in is required." });
+    }
+
+    const existingByEmail = await pool.query(
+      "SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1",
+      [email]
+    );
+    if (
+      existingByEmail.rowCount > 0 &&
+      (existingByEmail.rows[0].role || "").toLowerCase() !== "customer"
+    ) {
+      return res.status(403).json({
+        error: "Google sign-in is available for customers only. Please use your account credentials."
+      });
+    }
+
+    const identity = await findFirebaseUser(firebaseUser);
+    if (identity.user) {
+      const existingUser = identity.user;
+      if (existingUser.status && existingUser.status.toLowerCase() === "inactive") {
+        return res.status(403).json({ error: "This account is inactive. Please contact an administrator." });
       }
-    }
-
-    if (!email) {
-      return res.status(401).json({ error: "Invalid or expired Google token" });
-    }
-
-    let userResult = null;
-    if (googleId) {
-      userResult = await pool.query("SELECT * FROM users WHERE google_id = $1", [googleId]);
-    }
-    if (!userResult || userResult.rowCount === 0) {
-      userResult = await pool.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
-    }
-
-    if (userResult.rowCount > 0) {
-      const existingUser = userResult.rows[0];
-
-      if (existingUser.role === "staff") {
+      if ((existingUser.role || "").toLowerCase() !== "customer") {
         return res.status(403).json({
-          error: "Google login is available for customers only. Please use your staff credentials."
+          error: "Google sign-in is available for customers only. Please use your account credentials."
         });
       }
 
-      if (existingUser.role === "admin") {
-        return res.status(403).json({
-          error: "Google login is available for customers only. Please use your admin credentials."
-        });
-      }
-
-      if (googleId && !existingUser.google_id) {
+      if (!existingUser.google_id) {
         await pool.query("UPDATE users SET google_id = $1 WHERE id = $2", [googleId, existingUser.id]);
       }
 
@@ -1282,35 +1583,41 @@ app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
           name: existingUser.name,
           email: existingUser.email,
           phone: existingUser.phone || "",
-          role: "customer",
+          role: (existingUser.role || "customer").toLowerCase(),
           status: existingUser.status || "Active",
-          google_id: googleId || existingUser.google_id,
-          picture: picture || null
+          google_id: existingUser.google_id || googleId,
+          picture
         }
       });
     }
 
-    const randomPassword = await bcrypt.hash("google_auth_" + Date.now() + "_" + Math.random(), 10);
+    if (existingByEmail.rowCount > 0) {
+      return res.status(409).json({ error: identity.error });
+    }
+
     const userPhone = "";
-
     const insertResult = await pool.query(
-      "INSERT INTO users (name, email, password, phone, role, status, google_id) VALUES ($1, $2, $3, $4, 'customer', 'Active', $5) RETURNING id, name, email, phone, role, status, google_id, created_at",
-      [displayName, email, randomPassword, userPhone, googleId || null]
+      `INSERT INTO users (name, email, password, phone, role, status, google_id, firebase_uid)
+       VALUES ($1, $2, NULL, $3, 'customer', 'Active', $4, $5)
+       RETURNING id, name, email, phone, role, status, google_id`,
+      [displayName, email, userPhone, googleId, firebaseUser.uid]
     );
-
     const newUser = insertResult.rows[0];
 
-    await notifyAdmins({
-      title: "New User Registered",
-      message: `New customer registered via Google: ${email}`,
-      type: "user"
-    });
-
-    await notifyUser(email, {
-      title: "Welcome to Shnoor Parking",
-      message: `Welcome ${displayName}! Your account has been registered successfully via Google.`,
-      type: "user"
-    });
+    try {
+      await notifyAdmins({
+        title: "New User Registered",
+        message: "New customer registered via Google: " + email,
+        type: "user"
+      });
+      await notifyUser(email, {
+        title: "Welcome to Shnoor Parking",
+        message: "Welcome " + displayName + "! Your account has been registered successfully via Google.",
+        type: "user"
+      });
+    } catch (notificationError) {
+      console.error("Google account notification error:", notificationError);
+    }
 
     try {
       await sendAccountCreatedEmail({
@@ -1320,13 +1627,9 @@ app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
         phone: userPhone
       });
       const adminEmails = await getActiveAdminEmails();
-      await sendNewUserAdminEmail({
-        customerName: displayName,
-        customerEmail: email,
-        adminEmails
-      });
-    } catch (e) {
-      console.error(e);
+      await sendNewUserAdminEmail({ customerName: displayName, customerEmail: email, adminEmails });
+    } catch (emailError) {
+      console.error("Google account email notification error:", emailError);
     }
 
     return res.status(201).json({
@@ -1337,40 +1640,23 @@ app.post(["/api/auth/google", "/api/google-login"], async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         phone: newUser.phone || userPhone,
-        role: "customer",
+        role: (newUser.role || "customer").toLowerCase(),
         status: newUser.status || "Active",
         google_id: newUser.google_id,
-        picture: picture || null
+        picture
       }
     });
-  } catch (err) {
-    console.error("Google auth server error:", err);
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ error: "This Google account is already registered." });
+    }
+    console.error("Google auth server error:", error);
     return res.status(500).json({ error: "Server error during Google authentication" });
   }
 });
 
 app.post("/api/admin/staff", async (req, res) => {
-  let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.body.adminEmail || "";
-  const authHeader = req.headers["authorization"] || "";
-  if (!adminEmail && authHeader) {
-    adminEmail = authHeader.replace(/^Bearer\s+/i, "").trim();
-  }
-
-  if (!adminEmail) {
-    return res.status(401).json({ error: "Unauthorized: Admin authentication required" });
-  }
-
   try {
-    const adminResult = await pool.query("SELECT id, name, email, role, status FROM users WHERE LOWER(email) = LOWER($1)", [adminEmail]);
-    if (adminResult.rowCount === 0 || (adminResult.rows[0].status && adminResult.rows[0].status.toLowerCase() === "inactive")) {
-      return res.status(401).json({ error: "Unauthorized: Invalid or inactive admin account" });
-    }
-
-    const adminUser = adminResult.rows[0];
-    if (adminUser.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden: Administrator privileges required" });
-    }
-
     const { name, email, password, phone, status } = req.body;
     if (!name || !email || !password || !name.trim() || !email.trim() || !password.trim()) {
       return res.status(400).json({ error: "Name, email, and password are required" });
@@ -1488,7 +1774,7 @@ app.post("/api/forgot-password", async (req, res) => {
   }
 
   try {
-    const userRes = await pool.query("SELECT * FROM users WHERE email = $1", [email.toLowerCase().trim()]);
+    const userRes = await pool.query("SELECT * FROM users WHERE LOWER(email) = $1", [email.toLowerCase().trim()]);
     if (userRes.rowCount === 0) {
       return res.status(404).json({ error: "No account found with this email address" });
     }
@@ -1556,9 +1842,24 @@ app.post("/api/reset-password", async (req, res) => {
       return res.status(400).json({ error: "Invalid or expired verification code" });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const userResult = await pool.query(
+      "SELECT firebase_uid FROM users WHERE LOWER(email) = $1",
+      [normalizedEmail]
+    );
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ error: "No account found with this email address." });
+    }
+
+    if (userResult.rows[0].firebase_uid) {
+      await getFirebaseAdminAuth().updateUser(userResult.rows[0].firebase_uid, {
+        password: newPassword
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await pool.query("UPDATE users SET password = $1 WHERE email = $2", [hashedPassword, email.toLowerCase().trim()]);
-    await pool.query("DELETE FROM password_resets WHERE email = $1", [email.toLowerCase().trim()]);
+    await pool.query("UPDATE users SET password = $1 WHERE LOWER(email) = $2", [hashedPassword, normalizedEmail]);
+    await pool.query("DELETE FROM password_resets WHERE email = $1", [normalizedEmail]);
 
     res.json({ success: true, message: "Password reset successfully. You can now login with your new password." });
   } catch (err) {
@@ -1569,42 +1870,10 @@ app.post("/api/reset-password", async (req, res) => {
 
 let cachedDashboardOverview = null;
 let lastDashboardFetch = 0;
-const DASHBOARD_CACHE_TTL = 3000; // 3 second micro-cache for high-concurrency deduplication
-const adminUserAuthCache = new Map(); // normalizedEmail -> { user, expiresAt }
+const DASHBOARD_CACHE_TTL = 3000;
 
 app.get("/api/admin/dashboard-overview", async (req, res) => {
-  let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.query.adminEmail || req.query.email || "";
-  const authHeader = req.headers["authorization"] || "";
-  if (!adminEmail && authHeader) {
-    adminEmail = authHeader.replace(/^Bearer\s+/i, "").trim();
-  }
-
-  if (!adminEmail) {
-    return res.status(401).json({ error: "Unauthorized: Admin authentication required" });
-  }
-
   try {
-    const normalizedEmail = adminEmail.trim().toLowerCase();
-    let cachedUser = adminUserAuthCache.get(normalizedEmail);
-    if (!cachedUser || cachedUser.expiresAt < Date.now()) {
-      const adminCheck = await pool.query(
-        "SELECT id, email, role, status FROM users WHERE LOWER(email) = LOWER($1)",
-        [normalizedEmail]
-      );
-      if (adminCheck.rowCount === 0) {
-        return res.status(401).json({ error: "Unauthorized: Invalid or inactive account" });
-      }
-      cachedUser = { ...adminCheck.rows[0], expiresAt: Date.now() + 60000 };
-      adminUserAuthCache.set(normalizedEmail, cachedUser);
-    }
-
-    if (cachedUser.status && cachedUser.status.toLowerCase() === "inactive") {
-      return res.status(401).json({ error: "Unauthorized: Invalid or inactive account" });
-    }
-    if ((cachedUser.role || "").toLowerCase() !== "admin") {
-      return res.status(403).json({ error: "Forbidden: Administrator privileges required" });
-    }
-
     const nowTs = Date.now();
     if (cachedDashboardOverview && (nowTs - lastDashboardFetch < DASHBOARD_CACHE_TTL)) {
       return res.json(cachedDashboardOverview);
@@ -3562,7 +3831,6 @@ app.get("/api/customer/payments", async (req, res) => {
       whereClause += ` AND LOWER(COALESCE(p.payment_status, 'completed')) = $${params.length}`;
     }
 
-    // Direct indexed count and sum without Cartesian joins
     const countRes = await pool.query(
       `SELECT COUNT(*) as count, COALESCE(SUM(p.amount), 0) as total_amount FROM payments p ${whereClause}`,
       params
@@ -3631,7 +3899,6 @@ app.get("/api/customer/payments", async (req, res) => {
       });
     }
 
-    // Default limit of 50 for unbounded requests to prevent streaming entire database into memory
     const defaultLimit = 50;
     const dataParams = [...params, defaultLimit];
     const paymentsRes = await pool.query(
@@ -3659,6 +3926,8 @@ app.get("/api/customer/payments", async (req, res) => {
 
 app.get("/api/customer/receipts/:id", async (req, res) => {
   const { id } = req.params;
+  const isCustomer = (req.authUser.role || "").toLowerCase() === "customer";
+  const ownerFilter = isCustomer ? " AND LOWER(p.customer_email) = LOWER($2)" : "";
   try {
     const receiptRes = await pool.query(
       `SELECT 
@@ -3691,9 +3960,9 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
         ORDER BY r.created_at DESC
         LIMIT 1
       ) r ON true
-      WHERE LOWER(p.transaction_id) = LOWER($1) OR p.id::text = $1
+      WHERE (LOWER(p.transaction_id) = LOWER($1) OR p.id::text = $1)${ownerFilter}
       LIMIT 1`,
-      [id.trim()]
+      isCustomer ? [id.trim(), req.authUser.email] : [id.trim()]
     );
     if (receiptRes.rowCount === 0) {
       return res.status(404).json({ success: false, error: "Receipt not found" });
@@ -5130,23 +5399,6 @@ app.get("/api/customer/reservations", async (req, res) => {
       );
     } else {
       result = await pool.query(`SELECT * ${baseWhere} ORDER BY id DESC`, params);
-    }
-
-    if (result.rowCount === 0 && (email || name) && !search && (!status || status === "ALL")) {
-      const allRes = await pool.query("SELECT * FROM reservations ORDER BY id DESC LIMIT 5");
-      return res.json({
-        success: true,
-        count: allRes.rows.length,
-        reservations: allRes.rows,
-        data: allRes.rows,
-        total: allRes.rows.length,
-        pagination: {
-          page: 1,
-          limit: 5,
-          total: allRes.rows.length,
-          totalPages: 1
-        }
-      });
     }
 
     res.json({
@@ -6797,7 +7049,7 @@ app.delete("/api/parking-locations/:id", async (req, res) => {
 
 let cachedSystemSettings = null;
 let lastSettingsFetch = 0;
-const SETTINGS_CACHE_TTL = 30000; // 30 seconds
+const SETTINGS_CACHE_TTL = 30000;
 
 app.get("/api/system-settings", async (req, res) => {
   try {
@@ -6873,26 +7125,13 @@ app.put("/api/system-settings", async (req, res) => {
 });
 
 const verifyAdminAccess = async (req) => {
-  let adminEmail = req.headers["x-admin-email"] || req.headers["x-user-email"] || req.query.admin_email || req.query.email || "";
-  const authHeader = req.headers["authorization"] || "";
-  if (!adminEmail && authHeader) {
-    adminEmail = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!req.authUser) {
+    return { error: "Unauthorized: Firebase authentication required", status: 401 };
   }
-  if (!adminEmail) {
-    return { error: "Unauthorized: Admin authentication required", status: 401 };
-  }
-  const adminResult = await pool.query(
-    "SELECT id, name, email, role, status FROM users WHERE LOWER(email) = LOWER($1)",
-    [adminEmail.trim()]
-  );
-  if (adminResult.rowCount === 0 || (adminResult.rows[0].status && adminResult.rows[0].status.toLowerCase() === "inactive")) {
-    return { error: "Unauthorized: Invalid or inactive admin account", status: 401 };
-  }
-  const adminUser = adminResult.rows[0];
-  if (adminUser.role !== "admin") {
+  if ((req.authUser.role || "").toLowerCase() !== "admin") {
     return { error: "Forbidden: Administrator privileges required", status: 403 };
   }
-  return { user: adminUser };
+  return { user: req.authUser };
 };
 
 app.get("/api/admin/audit-logs/summary", async (req, res) => {
@@ -7280,7 +7519,7 @@ app.post("/api/staff/close-shift", async (req, res) => {
 
 let cachedReportsAnalytics = {};
 let lastReportsFetch = {};
-const REPORTS_CACHE_TTL = 5000; // 5 seconds cache for heavy analytics aggregation
+const REPORTS_CACHE_TTL = 5000;
 
 app.get("/api/admin/reports-analytics", async (req, res) => {
   const { range } = req.query;
@@ -7544,7 +7783,13 @@ app.post("/api/customer/vehicles", async (req, res) => {
 app.delete("/api/customer/vehicles/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const delRes = await pool.query("DELETE FROM vehicles WHERE id = $1 RETURNING *", [id]);
+    const isCustomer = (req.authUser.role || "").toLowerCase() === "customer";
+    const delRes = await pool.query(
+      isCustomer
+        ? "DELETE FROM vehicles WHERE id = $1 AND LOWER(owner_email) = LOWER($2) RETURNING *"
+        : "DELETE FROM vehicles WHERE id = $1 RETURNING *",
+      isCustomer ? [id, req.authUser.email] : [id]
+    );
     if (delRes.rowCount === 0) {
       return res.status(404).json({ error: "Vehicle not found" });
     }
@@ -7585,7 +7830,6 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 
-  // Pre-warm database pool connection, system settings, and admin user cache
   (async () => {
     try {
       const [settingsRes, adminUserRes] = await Promise.all([
@@ -7616,4 +7860,3 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
 });
-

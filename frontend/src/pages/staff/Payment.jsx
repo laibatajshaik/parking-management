@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { CreditCard, Smartphone, Banknote, Globe, CheckCircle2, Car, Printer, Download, RotateCcw, CheckCircle, RefreshCw } from "lucide-react";
 
@@ -14,7 +14,7 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
 
   const fetchActiveSessions = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
+      const res = await apiFetch(`${API_BASE_URL}/api/parking/active-sessions`);
       const data = await res.json();
       if (data.success && data.sessions) {
         setActiveSessions(data.sessions);
@@ -79,7 +79,7 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
     };
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/staff/process-payment`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/staff/process-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

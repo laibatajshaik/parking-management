@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Calculator, Car, Clock, RotateCcw, Search, CreditCard, Printer, FileText, Calendar, MoreHorizontal, AlertCircle } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 
 export default function FeeCalculation({ onProceedToPayment, setStatusActionMessage }) {
   const [vehicleNumber, setVehicleNumber] = useState("");
@@ -33,7 +33,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
   const getPlanLabel = (p) => `${p.plan_name} (₹${parseFloat(p.rate).toFixed(0)}/${p.billing_type === "Daily" ? "day" : (p.billing_type === "Fixed Duration" || p.billing_type === "Fixed") ? `${parseFloat(p.duration_hours || 2)}h fixed` : "hour"})`;
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/pricing-plans?active=true`)
+    apiFetch(`${API_BASE_URL}/api/pricing-plans?active=true`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.plans) && data.plans.length > 0) {
@@ -46,7 +46,7 @@ export default function FeeCalculation({ onProceedToPayment, setStatusActionMess
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/admin/parking-records`)
+    apiFetch(`${API_BASE_URL}/api/admin/parking-records`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.records) {

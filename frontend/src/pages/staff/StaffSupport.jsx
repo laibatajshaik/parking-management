@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShieldAlert, PhoneCall, CheckCircle2, Lock, Unlock, Plus, X, RefreshCw, Download } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import Pagination from "../../components/Pagination.jsx";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
@@ -41,7 +41,7 @@ export default function StaffSupport() {
       page: String(page),
       limit: String(limit)
     });
-    fetch(`${API_BASE_URL}/api/staff/incidents?${params}`)
+    apiFetch(`${API_BASE_URL}/api/staff/incidents?${params}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.incidents) {
@@ -94,7 +94,7 @@ export default function StaffSupport() {
 
   const handleReportIncident = (e) => {
     e.preventDefault();
-    fetch(`${API_BASE_URL}/api/staff/incidents`, {
+    apiFetch(`${API_BASE_URL}/api/staff/incidents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

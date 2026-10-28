@@ -20,7 +20,7 @@ import {
   Filter,
   Download
 } from "lucide-react";
-import { API_BASE_URL } from "../config/api.js";
+import { API_BASE_URL, apiFetch } from "../config/api.js";
 import { exportToCsv } from "../utils/exportCsv.js";
 
 function formatExactTime(dateString) {
@@ -144,7 +144,7 @@ export default function NotificationsView({
           params.append("type", filterType);
         }
       }
-      const res = await fetch(`${API_BASE_URL}/api/notifications?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications?${params}`);
       const data = await res.json();
       if (res.ok && data && data.success && Array.isArray(data.notifications)) {
         setNotifications(data.notifications);
@@ -177,7 +177,7 @@ export default function NotificationsView({
   const handleMarkAsRead = async (id, e) => {
     if (e) e.stopPropagation();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
         method: "PUT"
       });
       if (res.ok) {
@@ -197,7 +197,7 @@ export default function NotificationsView({
     if (!email) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications/read-all`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email })

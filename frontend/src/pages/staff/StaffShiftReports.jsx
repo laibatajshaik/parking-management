@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Printer, CheckCircle2, CreditCard, Smartphone, Layers, RefreshCw, Download } from "lucide-react";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function StaffShiftReports() {
@@ -26,7 +26,7 @@ export default function StaffShiftReports() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchShiftReport = () => {
-    return fetch(`${API_BASE_URL}/api/staff/shift-report`)
+    return apiFetch(`${API_BASE_URL}/api/staff/shift-report`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.shiftData) {
@@ -84,7 +84,7 @@ export default function StaffShiftReports() {
 
   const handleCloseShift = () => {
     setIsClosingShift(true);
-    fetch(`${API_BASE_URL}/api/staff/close-shift`, {
+    apiFetch(`${API_BASE_URL}/api/staff/close-shift`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

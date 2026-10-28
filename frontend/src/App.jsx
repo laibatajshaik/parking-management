@@ -6,6 +6,7 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 const Login = lazy(() => import("./Login.jsx"));
 const SignUp = lazy(() => import("./SignUp.jsx"));
 const ForgotPassword = lazy(() => import("./ForgotPassword.jsx"));
+const SetPassword = lazy(() => import("./SetPassword.jsx"));
 const AdminDashboard = lazy(() => import("./AdminDashboard.jsx"));
 const StaffDashboard = lazy(() => import("./StaffDashboard.jsx"));
 const CustomerDashboard = lazy(() => import("./CustomerDashboard.jsx"));
@@ -28,6 +29,10 @@ export default function App() {
         <Route path="/login" element={<Login setView={setView} />} />
         <Route path="/signup" element={<SignUp setView={setView} />} />
         <Route path="/forgot-password" element={<ForgotPassword setView={setView} />} />
+        <Route
+          path="/set-password"
+          element={<SetPassword setView={setView} />}
+        />
         <Route
           path="/admin"
           element={

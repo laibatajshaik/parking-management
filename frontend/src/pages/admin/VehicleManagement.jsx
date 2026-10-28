@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -77,7 +77,7 @@ export default function VehicleManagement({
         type: vehicleTypeFilter,
         status: vehicleStatusFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/vehicles?${params}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.vehicles)) {
         setLocalVehicles(data.vehicles);
@@ -126,7 +126,7 @@ export default function VehicleManagement({
   const fetchVehicleHistory = (vehicle) => {
     setVehicleForHistory(vehicle);
     setIsLoadingHistory(true);
-    fetch(`${API_BASE_URL}/api/admin/vehicles/${encodeURIComponent(vehicle.vehicle_number)}/history`)
+    apiFetch(`${API_BASE_URL}/api/admin/vehicles/${encodeURIComponent(vehicle.vehicle_number)}/history`)
       .then((res) => res.json())
       .then((data) => {
         setIsLoadingHistory(false);
@@ -148,7 +148,7 @@ export default function VehicleManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addVehicleFormData)
@@ -204,7 +204,7 @@ export default function VehicleManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles/${editingVehicle.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/vehicles/${editingVehicle.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editVehicleFormData)
@@ -235,7 +235,7 @@ export default function VehicleManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/vehicles/${vehicleToDelete.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/vehicles/${vehicleToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

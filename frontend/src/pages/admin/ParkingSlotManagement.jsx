@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -75,7 +75,7 @@ export default function ParkingSlotManagement({
         status: slotStatusFilter,
         type: slotTypeFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/parking-slots?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/parking-slots?${params}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.slots)) {
         setPaginatedSlots(data.slots);
@@ -87,8 +87,8 @@ export default function ParkingSlotManagement({
   const fetchEvSlots = useCallback(async () => {
     try {
       const [slotsRes, sessRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`),
-        fetch(`${API_BASE_URL}/api/ev-charging/sessions?status=Active`)
+        apiFetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`),
+        apiFetch(`${API_BASE_URL}/api/ev-charging/sessions?status=Active`)
       ]);
       const sData = await slotsRes.json();
       const sessData = await sessRes.json();
@@ -123,7 +123,7 @@ export default function ParkingSlotManagement({
 
   const handleEvStatusChange = async (slotId, newStatus) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots/${slotId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots/${slotId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus })
@@ -156,7 +156,7 @@ export default function ParkingSlotManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/slots`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/slots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addSlotFormData)
@@ -206,7 +206,7 @@ export default function ParkingSlotManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/slots/${editingSlot.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/slots/${editingSlot.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editSlotFormData)
@@ -237,7 +237,7 @@ export default function ParkingSlotManagement({
     setStatusActionMessage("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/slots/${slotToDelete.id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/admin/slots/${slotToDelete.id}`, {
         method: "DELETE"
       });
       const data = await res.json();

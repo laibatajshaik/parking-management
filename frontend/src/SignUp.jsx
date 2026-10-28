@@ -1,9 +1,16 @@
-import { API_BASE_URL } from "./config/api.js";
+import { API_BASE_URL, apiFetch } from "./config/api.js";
 import ShnoorParkingLanding from "./ShnoorParkingLanding.jsx";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 import GoogleAuthButton from "./components/GoogleAuthButton.jsx";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  updateProfile
+} from "firebase/auth";
+import { auth } from "./components/firebase.js";
 
 export default function SignUp({ setView }) {
   const [name, setName] = useState("");
@@ -35,25 +42,54 @@ export default function SignUp({ setView }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/signup`, {
+      let firebaseUser = auth.currentUser;
+      if (!firebaseUser || firebaseUser.email?.toLowerCase() !== email.trim().toLowerCase()) {
+        let credential;
+        try {
+          credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        } catch (error) {
+          if (error?.code !== "auth/email-already-in-use") throw error;
+          credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        }
+        firebaseUser = credential.user;
+      }
+
+      await updateProfile(firebaseUser, { displayName: name.trim() });
+      const response = await apiFetch(`${API_BASE_URL}/api/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role: "customer" })
+        body: JSON.stringify({ name: name.trim(), email: email.trim() })
       });
       const data = await response.json();
-      setIsLoading(false);
 
-      if (response.ok) {
+      if (response.ok && data?.success) {
         setSuccess("Account created successfully!");
         setTimeout(() => {
           setView("login");
         }, 1200);
       } else {
-        setError(data.error || "Signup failed");
+        if (response.status === 409 && !firebaseUser.emailVerified) {
+          try {
+            await sendEmailVerification(firebaseUser);
+            setError(`${data.error || "This email is already registered."} Verify your email before logging in to link your existing account.`);
+          } catch (verificationError) {
+            console.error("Could not send Firebase email verification:", verificationError);
+            setError(data.error || "This email is already registered. Please log in or contact an administrator.");
+          }
+        } else {
+          setError(data.error || "Signup failed");
+        }
       }
-    } catch {
+    } catch (error) {
+      const messages = {
+        "auth/email-already-in-use": "An account with this email already exists. Please log in.",
+        "auth/invalid-email": "Enter a valid email address.",
+        "auth/weak-password": "Choose a stronger password (at least 6 characters).",
+        "auth/network-request-failed": "Cannot connect to Firebase. Check your internet connection."
+      };
+      setError(messages[error?.code] || error?.message || "Signup failed. Please try again.");
+    } finally {
       setIsLoading(false);
-      setError("Cannot connect to server");
     }
   };
 
@@ -206,7 +242,6 @@ export default function SignUp({ setView }) {
 
           <GoogleAuthButton
             text="signup"
-            role="customer"
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}
             disabled={isLoading}

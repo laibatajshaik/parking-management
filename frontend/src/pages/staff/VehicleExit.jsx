@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Search, LogOut, CheckCircle2, Printer, Download, RotateCcw, ArrowRight } from "lucide-react";
 
@@ -13,7 +13,7 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
 
   const fetchActiveVehicles = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/parking/active-sessions`);
+      const res = await apiFetch(`${API_BASE_URL}/api/parking/active-sessions`);
       const data = await res.json();
       if (data.success && data.sessions) {
         setActiveVehicles(data.sessions);
@@ -78,7 +78,7 @@ export default function VehicleExit({ onProceedToPayment, setStatusActionMessage
     };
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/staff/vehicle-exit`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/staff/vehicle-exit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

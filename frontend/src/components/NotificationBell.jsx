@@ -15,7 +15,7 @@ import {
   MapPin,
   User
 } from "lucide-react";
-import { API_BASE_URL } from "../config/api.js";
+import { API_BASE_URL, apiFetch } from "../config/api.js";
 
 function formatExactTime(dateString) {
   if (!dateString) return "";
@@ -108,7 +108,7 @@ export default function NotificationBell({ userEmail = "" }) {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications?email=${encodeURIComponent(email)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/notifications?email=${encodeURIComponent(email)}`);
       const data = await res.json();
       if (res.ok && data && data.success && Array.isArray(data.notifications)) {
         setNotifications(data.notifications);
@@ -167,7 +167,7 @@ export default function NotificationBell({ userEmail = "" }) {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
 
-      await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
+      await apiFetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
         method: "PUT"
       });
       fetchNotifications();
@@ -185,7 +185,7 @@ export default function NotificationBell({ userEmail = "" }) {
       setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
       setUnreadCount(0);
 
-      await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+      await apiFetch(`${API_BASE_URL}/api/notifications/read-all`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_email: email })

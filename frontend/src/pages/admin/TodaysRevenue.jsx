@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { TrendingUp, Search, RefreshCw, CreditCard, Smartphone, Banknote, Globe, Receipt, CheckCircle2, Calendar, Clock, Layers, Download, Zap } from "lucide-react";
@@ -31,7 +31,7 @@ export default function TodaysRevenue() {
 
   const fetchRevenueSummary = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/payments/today`);
+      const res = await apiFetch(`${API_BASE_URL}/api/payments/today`);
       const data = await res.json();
       if (data.success && data.summary) {
         setRevenueData(data);
@@ -50,7 +50,7 @@ export default function TodaysRevenue() {
         search: searchQuery || "",
         method: methodFilter
       });
-      const res = await fetch(`${API_BASE_URL}/api/payments?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/payments?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.payments)) {

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { Car, Bike, Search, RefreshCw, Clock, Layers, History, Download, Printer, X, Zap, Receipt } from "lucide-react";
@@ -42,7 +42,7 @@ export default function ParkingHistory({ loggedInUser }) {
       } else {
         params.append("name", user.name);
       }
-      const res = await fetch(`${API_BASE_URL}/api/customer/parking-history?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/parking-history?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && data.history) {

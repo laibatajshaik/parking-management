@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -57,12 +57,12 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
 
   const fetchCouponsList = useCallback(async () => {
     try {
-      let res = await fetch(`${API_BASE_URL}/api/coupons`);
+      let res = await apiFetch(`${API_BASE_URL}/api/coupons`);
       let data = null;
       if (res.ok) {
         data = await res.json();
       } else {
-        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        const fbRes = await apiFetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
         if (fbRes.ok) data = await fbRes.json();
       }
       if (data && data.success && Array.isArray(data.coupons)) {
@@ -70,7 +70,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
       }
     } catch {
       try {
-        const fbRes = await fetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
+        const fbRes = await apiFetch(`${API_BASE_URL}/api/admin/coupons?limit=100`);
         if (fbRes.ok) {
           const fbData = await fbRes.json();
           if (fbData && fbData.success && Array.isArray(fbData.coupons)) {
@@ -109,7 +109,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
   const fetchVehicles = useCallback(async () => {
     if (!userEmail) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(userEmail)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(userEmail)}`);
       const data = await res.json();
       if (data.success && Array.isArray(data.vehicles)) {
         setUserVehicles(data.vehicles);
@@ -125,7 +125,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
   const fetchSlots = useCallback(async () => {
     setIsLoadingSlots(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`);
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging-slots?all=true`);
       const data = await res.json();
       setIsLoadingSlots(false);
       if (data.success && Array.isArray(data.slots)) {
@@ -140,7 +140,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
     if (!userEmail) return;
     setIsLoadingActive(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/customer/charging/active?email=${encodeURIComponent(userEmail)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/charging/active?email=${encodeURIComponent(userEmail)}`);
       const data = await res.json();
       setIsLoadingActive(false);
       if (data.success) {
@@ -161,7 +161,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
         limit: String(historyLimit),
         search: historySearch || ""
       });
-      const res = await fetch(`${API_BASE_URL}/api/customer/charging-sessions?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/charging-sessions?${params}`);
       const data = await res.json();
       setIsLoadingHistory(false);
       if (data.success && Array.isArray(data.sessions)) {
@@ -207,7 +207,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
 
     setIsStartingSession(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging/sessions/start`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging/sessions/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -277,7 +277,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
 
     try {
       const orderAmt = getOriginalEvAmount();
-      const res = await fetch(`${API_BASE_URL}/api/coupons/apply`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/coupons/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -334,7 +334,7 @@ export default function CustomerEVCharging({ currentUser, loggedInUser, onNaviga
     if (!activeSession) return;
     setIsStoppingSession(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ev-charging/sessions/${activeSession.id}/stop`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/ev-charging/sessions/${activeSession.id}/stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

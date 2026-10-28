@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BookmarkCheck, Car, Clock, MapPin, ChevronRight, ShieldCheck, CreditCard, Zap, QrCode, Crown, Sparkles, Award, KeyRound, RefreshCw, AlertTriangle } from "lucide-react";
 import DashboardNotifications from "../../components/DashboardNotifications.jsx";
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 
 export default function CustomerOverview({ recentParkings = [], activeSession = null, activeSessions = [], onNavigate, setActiveTab, onViewReceipt, isPremiumActive, premiumPlanInfo, loggedInUser, currentUser, totalVisits, totalSpent, onRefresh, isRefreshing }) {
   const navigateTab = onNavigate || setActiveTab;
@@ -18,7 +18,7 @@ export default function CustomerOverview({ recentParkings = [], activeSession = 
 
   useEffect(() => {
     if (!userEmail) return;
-    fetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(userEmail)}`)
+    apiFetch(`${API_BASE_URL}/api/customer/vehicles?email=${encodeURIComponent(userEmail)}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.success && Array.isArray(d.vehicles)) {

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck, Zap, AlertTriangle } from "lucide-react";
 
@@ -28,12 +28,12 @@ export default function MyParking({ loggedInUser, onNavigate }) {
         return;
       }
       const queryParam = user.email ? `email=${encodeURIComponent(user.email)}` : `name=${encodeURIComponent(user.name)}`;
-      const res = await fetch(`${API_BASE_URL}/api/customer/my-parking?${queryParam}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/my-parking?${queryParam}`);
       const data = await res.json();
 
       if (user.email) {
         try {
-          const evRes = await fetch(`${API_BASE_URL}/api/customer/charging/active?email=${encodeURIComponent(user.email)}`);
+          const evRes = await apiFetch(`${API_BASE_URL}/api/customer/charging/active?email=${encodeURIComponent(user.email)}`);
           const evData = await evRes.json();
           if (evData.success && evData.session) {
             setActiveEvSession(evData.session);

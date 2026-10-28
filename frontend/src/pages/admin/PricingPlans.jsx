@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../../config/api.js";
+import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import {
@@ -66,7 +66,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
       } else if (statusFilter === "Inactive") {
         params.append("active", "false");
       }
-      const res = await fetch(`${API_BASE_URL}/api/pricing-plans?${params}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans?${params}`);
       const data = await res.json();
       setIsLoading(false);
       if (data.success && Array.isArray(data.plans)) {
@@ -174,7 +174,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
 
     try {
       if (isEditing && currentPlanId) {
-        const res = await fetch(`${API_BASE_URL}/api/pricing-plans/${currentPlanId}`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans/${currentPlanId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -191,7 +191,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
           setFormError(data.error || "Failed to update pricing plan.");
         }
       } else {
-        const res = await fetch(`${API_BASE_URL}/api/pricing-plans`, {
+        const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -217,7 +217,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
   const handleToggleStatus = async (plan) => {
     const newStatus = !plan.is_active;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/pricing-plans/${plan.id}/status`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans/${plan.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: newStatus })
@@ -234,7 +234,7 @@ export default function PricingPlans({ setStatusActionMessage }) {
 
   const handleDeletePlan = async (id) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/pricing-plans/${id}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/pricing-plans/${id}`, {
         method: "DELETE"
       });
       const data = await res.json();
