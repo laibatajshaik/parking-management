@@ -10880,3 +10880,46 @@ body.dark-theme .pw-calc-data-table th {
 body.dark-theme .pw-calc-data-table tr:hover td {
   background: #144b55 !important;
 }
+
+.pw-date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary, #64748b);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.pw-date-filter input {
+  min-height: 36px;
+  max-width: 150px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 7px;
+  color: var(--text-primary, #0f172a);
+  background: var(--bg-card, #ffffff);
+  font: inherit;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #printable-receipt,
+  #printable-receipt * {
+    visibility: visible !important;
+  }
+
+  #printable-receipt {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+}

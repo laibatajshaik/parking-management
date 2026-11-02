@@ -97,6 +97,7 @@ export default function PaymentButton({ session, onPrepareOrder, onPaymentComple
           ? `Parking fee for ${session.vehicle_number}`
           : "Parking reservation",
         order_id: order.orderId,
+        method: { upi: true },
         prefill: {
           name: session?.owner_name || "",
           email: session?.owner_email || ""
@@ -116,9 +117,13 @@ export default function PaymentButton({ session, onPrepareOrder, onPaymentComple
               const result = await postJson("/api/customer/payments/razorpay/cancel", {
                 razorpay_order_id: order.orderId
               });
-              setPaymentState(result.paymentStatus === "Cancelled"
-                ? { status: "cancelled", message: "Checkout was cancelled. No payment was confirmed." }
-                : { status: "pending", message: "Payment status is still pending. Refresh the payment list before retrying." });
+              setPaymentState(
+                result.paymentStatus === "Cancelled"
+                  ? { status: "cancelled", message: "Checkout was cancelled. No payment was confirmed." }
+                  : result.paymentStatus === "Failed"
+                    ? { status: "failure", message: "Razorpay confirmed the payment failed. You can try again." }
+                    : { status: "pending", message: "Payment status is still pending. Refresh the payment list before retrying." }
+              );
             } catch (error) {
               setPaymentState({ status: "pending", message: `Checkout closed; payment status could not be confirmed: ${error.message}` });
             } finally {
@@ -175,6 +180,9 @@ export default function PaymentButton({ session, onPrepareOrder, onPaymentComple
         <CreditCard size={15} />
         <span>{isOpening ? "Opening checkout..." : "Pay Now"}</span>
       </button>
+      <span style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.76rem" }}>
+        UPI apps and other Razorpay-enabled methods are available at checkout.
+      </span>
       {paymentState && (
         <span role="status" aria-live="polite" style={{ color: statusColor, fontSize: "0.82rem", fontWeight: 600 }}>
           {paymentState.message}

@@ -11,6 +11,43 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
   const [completedReceipt, setCompletedReceipt] = useState(null);
   const [customAmount, setCustomAmount] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [paymentRecords, setPaymentRecords] = useState([]);
+  const [paymentRecordsError, setPaymentRecordsError] = useState("");
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+
+  const fetchPaymentRecords = async () => {
+    setIsLoadingPayments(true);
+    setPaymentRecordsError("");
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/staff/payments?limit=100`);
+      const responseText = await response.text();
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.toLowerCase().includes("application/json")) {
+        const isHtml = /^\s*<!doctype html|^\s*<html/i.test(responseText);
+        const requestUrl = new URL(response.url || `${API_BASE_URL}/api/staff/payments`, window.location.href);
+        throw new Error(
+          isHtml
+            ? `The payment API returned an HTML page (HTTP ${response.status}) from ${requestUrl.origin}${requestUrl.pathname}. Set VITE_API_BASE_URL to the backend origin without an /api suffix and redeploy the frontend.`
+            : `The payment API returned an unexpected response (HTTP ${response.status}).`
+        );
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error("The payment API returned invalid JSON. Please try again or contact an administrator.");
+      }
+      if (!response.ok || !data.success || !Array.isArray(data.payments)) {
+        throw new Error(data.error || "Unable to load parking payment details.");
+      }
+      setPaymentRecords(data.payments);
+    } catch (error) {
+      setPaymentRecordsError(error.message || "Unable to load parking payment details.");
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
 
   const fetchActiveSessions = async () => {
     try {
@@ -40,6 +77,7 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
 
   useEffect(() => {
     fetchActiveSessions();
+    fetchPaymentRecords();
   }, [preselectedVehicle, selectedVehicle]);
 
   const handleRefresh = () => {
@@ -99,6 +137,7 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
         if (onPaymentSuccess) {
           onPaymentSuccess(data.receipt);
         }
+        await fetchPaymentRecords();
         window.dispatchEvent(new Event("shnoor_activity_updated"));
       } else {
         if (setStatusActionMessage) {
@@ -655,6 +694,37 @@ export default function Payment({ preselectedVehicle, selectedVehicle, onPayment
           </div>
         </div>
       )}
+      <div className="pw-payment-box-card" style={{ marginTop: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <div>
+            <h3 className="pw-box-card-title">Verified Parking Payment Details</h3>
+            <p className="pw-box-card-sub">Read-only payment status for parking sessions. Only server-verified Razorpay captures are marked verified.</p>
+          </div>
+          <button type="button" className="pw-btn-action-refresh" onClick={fetchPaymentRecords} disabled={isLoadingPayments}>
+            <RefreshCw size={14} className={isLoadingPayments ? "pw-spin" : ""} />
+            <span>{isLoadingPayments ? "Refreshing..." : "Refresh"}</span>
+          </button>
+        </div>
+        {paymentRecordsError && <p role="alert" style={{ color: "#b91c1c" }}>{paymentRecordsError}</p>}
+        <div style={{ display: "grid", gap: "10px", marginTop: "14px" }}>
+          {paymentRecords.map((record) => (
+            <div key={record.id} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "8px", padding: "12px", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "8px", fontSize: "0.8rem" }}>
+              <strong>{record.transaction_id}</strong>
+              <span>Parking record: {record.parking_session_id || "—"}</span>
+              <span>{record.vehicle_number || "—"} · Bay {record.slot_number || "—"}</span>
+              <span>{record.payment_method || "—"} · ₹{Number(record.amount || 0).toFixed(2)}</span>
+              <span>Razorpay: {record.razorpay_payment_id || "—"}</span>
+              <span>Paid: {formatDate(record.paid_at || record.created_at)}</span>
+              <span style={{ fontWeight: 700, color: record.verified ? "#047857" : "#92400e" }}>
+                {record.payment_status || "Pending"} · {record.verified ? "Verified" : "Not verified"}
+              </span>
+            </div>
+          ))}
+          {!isLoadingPayments && !paymentRecordsError && paymentRecords.length === 0 && (
+            <p style={{ color: "var(--text-secondary, #64748b)" }}>No parking-session payment records are available.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

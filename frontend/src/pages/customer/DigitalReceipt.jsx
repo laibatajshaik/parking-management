@@ -4,11 +4,22 @@ import { Printer, Download, Receipt, ShieldCheck, Calendar, Search, RefreshCw, B
 import Pagination from "../../components/Pagination.jsx";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
-export default function DigitalReceipt({ receiptData, selectedPayment, currentUser, loggedInUser, onNavigate }) {
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  })[character]);
+}
+
+export default function DigitalReceipt({ receiptData, selectedPayment, onNavigate }) {
   const initialData = receiptData || selectedPayment || null;
   const [paymentsList, setPaymentsList] = useState([]);
   const [activeReceipt, setActiveReceipt] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(5);
@@ -21,21 +32,6 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     return txn.startsWith("TXN-EV-") || slot.toUpperCase().startsWith("EV-") || plan.toLowerCase().includes("ev");
   };
 
-  const resolveEmail = useCallback(() => {
-    const user = currentUser || loggedInUser;
-    if (user && user.email) return user.email;
-    try {
-      const saved = localStorage.getItem("shnoor_current_user");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.email) return parsed.email;
-      }
-    } catch {
-      return "";
-    }
-    return "";
-  }, [currentUser, loggedInUser]);
-
   useEffect(() => {
     if (receiptData) {
       setActiveReceipt(receiptData);
@@ -46,33 +42,56 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
 
   const fetchPayments = useCallback(async () => {
     setIsLoading(true);
-    const email = resolveEmail();
-    if (!email) {
-      setIsLoading(false);
-      setPaymentsList([]);
-      return;
-    }
+    setReceiptError("");
     try {
-      const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}&status=Completed`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?limit=100`);
       const data = await res.json();
-      setIsLoading(false);
-      if (data && data.success && Array.isArray(data.payments)) {
-        setPaymentsList(data.payments);
-        if (data.payments.length > 0 && !activeReceipt) {
-          setActiveReceipt(data.payments[0]);
-        }
-      } else {
-        setPaymentsList([]);
+      if (!res.ok || !data?.success || !Array.isArray(data.payments)) {
+        throw new Error(data?.error || "Unable to load digital receipts.");
       }
-    } catch {
-      setIsLoading(false);
-      setPaymentsList([]);
+      const successfulPayments = data.payments.filter((payment) =>
+        ["completed", "successful", "paid", "success", "refunded"].includes(String(payment.payment_status || "").toLowerCase())
+      );
+      setPaymentsList(successfulPayments);
+      setActiveReceipt((current) => current || successfulPayments[0] || null);
+    } catch (error) {
+      setReceiptError(error.message || "Unable to load digital receipts.");
     }
-  }, [resolveEmail, activeReceipt]);
+    finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
+
+  useEffect(() => {
+    if (!activeReceipt?.id) {
+      return;
+    }
+    let isCurrent = true;
+    const fetchReceiptDetails = async () => {
+      try {
+        const response = await apiFetch(`${API_BASE_URL}/api/customer/payments/${activeReceipt.id}`);
+        const data = await response.json();
+        if (!response.ok || !data?.success || !data.payment) {
+          throw new Error(data?.error || "Unable to load transaction details for this receipt.");
+        }
+        if (isCurrent) {
+          setActiveReceipt((current) => current?.id === activeReceipt.id ? { ...current, ...data.payment } : current);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setReceiptError(error.message || "Unable to load transaction details for this receipt.");
+        }
+      }
+    };
+    fetchReceiptDetails();
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeReceipt?.id]);
 
   const formatDate = (isoStr) => {
     if (!isoStr) return "—";
@@ -122,7 +141,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>${isEvReceipt ? "Official EV Supercharging Receipt" : "Official Parking Slip"} - ${activeReceipt.transaction_id || "Receipt"}</title>
+  <title>${isEvReceipt ? "Official EV Supercharging Receipt" : "Official Parking Slip"} - ${escapeHtml(activeReceipt.transaction_id || "Receipt")}</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -265,65 +284,74 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
 <body>
   <div class="ticket">
     <div class="header">
-      <div class="brand">${isEvReceipt ? "PARKSAFE EV SUPERCHARGING NETWORK" : "PARKSAFE PARKING SYSTEM"}</div>
-      <span class="status-badge">${isEvReceipt ? "⚡ CHARGING COMPLETED • VERIFIED" : (activeReceipt.payment_status || "PAID • VERIFIED")}</span>
-      <div class="ticket-id">TXN: ${activeReceipt.transaction_id || "—"}</div>
+      <div class="brand">SHNOOR PARKING MANAGEMENT SYSTEM${isEvReceipt ? " · EV CHARGING" : ""}</div>
+      <span class="status-badge">${isEvReceipt ? "⚡ CHARGING COMPLETED • VERIFIED" : escapeHtml(activeReceipt.payment_status || "PAID • VERIFIED")}</span>
+      <div class="ticket-id">Receipt Number: ${escapeHtml(activeReceipt.transaction_id || "—")}</div>
       <div style="font-size: 11px; color: #475569; margin-top: 4px; font-weight: 600;">
-        ${isEvReceipt ? "Session Type: High-Speed Electric Vehicle Charging" : `Booking ID: ${activeReceipt.booking_id || "—"}`}
+        ${isEvReceipt ? "Session Type: High-Speed Electric Vehicle Charging" : `Booking ID: ${escapeHtml(activeReceipt.booking_id || "—")}`}
       </div>
       <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-        Receipt Date: ${formatDate(activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}
+        Payment Date: ${escapeHtml(formatDate(activeReceipt.paid_at || activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time))}
       </div>
     </div>
 
     <div class="plate-banner">
-      <span>${activeReceipt.vehicle_number || "—"}</span>
-      <span class="slot-pill">${isEvReceipt ? "⚡ EV Bay " : "Bay "}${activeReceipt.slot_number || "—"}</span>
+      <span>${escapeHtml(activeReceipt.vehicle_number || "—")}</span>
+      <span class="slot-pill">${isEvReceipt ? "⚡ EV Bay " : "Bay "}${escapeHtml(activeReceipt.slot_number || "—")}</span>
     </div>
 
     <div class="grid">
       <div class="item">
         <span class="label">Customer Name</span>
-        <span class="val">${activeReceipt.customer_name || "—"}</span>
+        <span class="val">${escapeHtml(activeReceipt.customer_name || "—")}</span>
       </div>
       <div class="item">
         <span class="label">Customer Email</span>
-        <span class="val">${activeReceipt.customer_email || "—"}</span>
+        <span class="val">${escapeHtml(activeReceipt.customer_email || "—")}</span>
       </div>
       <div class="item">
         <span class="label">Customer Phone</span>
-        <span class="val">${activeReceipt.customer_phone || "—"}</span>
+        <span class="val">${escapeHtml(activeReceipt.customer_phone || "—")}</span>
       </div>
       <div class="item">
         <span class="label">Vehicle Type</span>
-        <span class="val">${isEvReceipt ? "Electric Vehicle (EV)" : (activeReceipt.vehicle_type || "Car")}</span>
+        <span class="val">${isEvReceipt ? "Electric Vehicle (EV)" : escapeHtml(activeReceipt.vehicle_type || "Car")}</span>
       </div>
       <div class="item">
         <span class="label">Vehicle Model</span>
-        <span class="val">${activeReceipt.model || "—"}</span>
+        <span class="val">${escapeHtml(activeReceipt.model || "—")}</span>
       </div>
       <div class="item">
         <span class="label">${isEvReceipt ? "Service Type" : "Parking Plan"}</span>
-        <span class="val">${isEvReceipt ? "⚡ EV Supercharging" : (activeReceipt.plan_name || "Hourly Rate")}</span>
+        <span class="val">${isEvReceipt ? "⚡ EV Supercharging" : escapeHtml(activeReceipt.plan_name || "Hourly Rate")}</span>
       </div>
       <div class="item">
         <span class="label">${isEvReceipt ? "Session Start" : "Entry Time"}</span>
-        <span class="val">${formatDate(activeReceipt.entry_time)}</span>
+        <span class="val">${escapeHtml(formatDate(activeReceipt.entry_time))}</span>
       </div>
       <div class="item">
         <span class="label">${isEvReceipt ? "Session End" : "Exit Time"}</span>
-        <span class="val">${formatDate(activeReceipt.exit_time)}</span>
+        <span class="val">${escapeHtml(formatDate(activeReceipt.exit_time))}</span>
       </div>
       <div class="item">
         <span class="label">${isEvReceipt ? "Charging Duration" : "Parking Duration"}</span>
-        <span class="val">${activeReceipt.duration || "—"}</span>
+        <span class="val">${escapeHtml(activeReceipt.duration || "—")}</span>
+      </div>
+      <div class="item">
+        <span class="label">Parking Location</span>
+        <span class="val">${escapeHtml(activeReceipt.parking_location || "Shnoor Parking Facility")}</span>
+      </div>
+      <div class="item">
+        <span class="label">Parking Record ID</span>
+        <span class="val">${escapeHtml(activeReceipt.parking_session_id || "—")}</span>
       </div>
       <div class="item">
         <span class="label">Payment Method</span>
-        <span class="val">${activeReceipt.payment_method || "UPI / Card"}</span>
+        <span class="val">${escapeHtml(activeReceipt.payment_method || "UPI / Card")}</span>
       </div>
-      ${activeReceipt.razorpay_order_id ? `<div class="item"><span class="label">Razorpay Order ID</span><span class="val">${activeReceipt.razorpay_order_id}</span></div>` : ""}
-      ${activeReceipt.razorpay_payment_id ? `<div class="item"><span class="label">Razorpay Payment ID</span><span class="val">${activeReceipt.razorpay_payment_id}</span></div>` : ""}
+      ${activeReceipt.razorpay_order_id ? `<div class="item"><span class="label">Razorpay Order ID</span><span class="val">${escapeHtml(activeReceipt.razorpay_order_id)}</span></div>` : ""}
+      ${activeReceipt.razorpay_payment_id ? `<div class="item"><span class="label">Razorpay Payment ID</span><span class="val">${escapeHtml(activeReceipt.razorpay_payment_id)}</span></div>` : ""}
+      ${activeReceipt.upi_vpa ? `<div class="item"><span class="label">UPI ID</span><span class="val">${escapeHtml(activeReceipt.upi_vpa)}</span></div>` : ""}
       <div class="item">
         <span class="label">${isEvReceipt ? "Tariff Rate" : "Base Fee"}</span>
         <span class="val">${isEvReceipt ? "₹18.00 / kWh" : (activeReceipt.original_amount ? `₹${parseFloat(activeReceipt.original_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : `₹${formattedFee}`)}</span>
@@ -331,11 +359,11 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
       ${(activeReceipt.coupon_code || parseFloat(activeReceipt.discount_amount) > 0) ? `
       <div class="item">
         <span class="label">Coupon Applied</span>
-        <span class="val" style="color: #059669; font-weight: 700;">${activeReceipt.coupon_code || "PROMO"} (-₹${parseFloat(activeReceipt.discount_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })})</span>
+        <span class="val" style="color: #059669; font-weight: 700;">${escapeHtml(activeReceipt.coupon_code || "PROMO")} (-₹${parseFloat(activeReceipt.discount_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })})</span>
       </div>` : ""}
       <div class="item">
         <span class="label">Payment Status</span>
-        <span class="val">${activeReceipt.payment_status || "Completed"}</span>
+        <span class="val">${escapeHtml(activeReceipt.payment_status || "Completed")}</span>
       </div>
     </div>
 
@@ -346,12 +374,11 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
 
     <div class="barcode-box">
       <div class="barcode">||| | | |||| | || | |||</div>
-      <div class="barcode-sub">${activeReceipt.transaction_id || "PARKSAFE"} • ${activeReceipt.vehicle_number || ""}</div>
+      <div class="barcode-sub">${escapeHtml(activeReceipt.transaction_id || "SHNOOR")} • ${escapeHtml(activeReceipt.vehicle_number || "")}</div>
     </div>
 
     <div class="footer">
-      <p>Official Computer Generated ${isEvReceipt ? "EV Charging Tax Invoice & Energy Meter Slip" : "Tax Invoice & Parking Permit"}</p>
-      <p>Thank you for choosing Shnoor ParkSafe Parking Facility.</p>
+      <p>Official digital receipt from Shnoor Parking Management System.</p>
     </div>
   </div>
 </body>
@@ -361,7 +388,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Parking-Receipt-${activeReceipt.transaction_id || "slip"}.html`;
+    a.download = `Parking-Receipt-${String(activeReceipt.transaction_id || "slip").replace(/[^a-zA-Z0-9_-]/g, "_")}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -377,14 +404,17 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
     const exportData = filteredList.map((p) => {
       const isEvItem = isEv(p);
       return {
-        "Receipt / Transaction ID": p.transaction_id || p.booking_id || p.id || "",
+        "Receipt Number / Transaction ID": p.transaction_id || p.booking_id || p.id || "",
         "Vehicle": p.vehicle_number || "",
         "Bay / Slot": p.slot_number || "",
         "Plan / Type": isEvItem ? "⚡ EV Supercharging" : (p.plan_name || "Standard"),
         "Amount (₹)": parseFloat(p.amount || 0).toFixed(2),
         "Payment Method": p.payment_method || "Online",
+        "UPI ID": p.upi_vpa || "",
+        "Razorpay Payment ID": p.razorpay_payment_id || "",
         "Status": p.payment_status || "Paid",
-        "Date": formatDate(p.receipt_date || p.created_at || p.exit_time)
+        "Refund Status": p.refund_status || "",
+        "Date": formatDate(p.paid_at || p.receipt_date || p.created_at || p.exit_time)
       };
     });
     exportToCsv("customer_receipts.csv", exportData);
@@ -406,6 +436,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
 
   return (
     <div className="pw-customer-receipt-split">
+      {receiptError && <p role="alert" style={{ gridColumn: "1 / -1", color: "#b91c1c" }}>{receiptError}</p>}
       <div className="pw-receipt-list-col">
         <div className="pw-receipt-list-card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -473,7 +504,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                         {p.vehicle_number} • {itemIsEv ? "⚡ EV Bay " : "Bay "}{p.slot_number}
                       </div>
                       <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "1px" }}>
-                        {formatDate(p.receipt_date || p.created_at || p.exit_time)}
+                        {formatDate(p.paid_at || p.receipt_date || p.created_at || p.exit_time)}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -529,8 +560,8 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                   )}
                 </div>
                 <div>
-                  <h3 className="pw-receipt-company-title">{isEv(activeReceipt) ? "PARKSAFE EV" : "PARKSAFE"}</h3>
-                  <span className="pw-receipt-company-sub">{isEv(activeReceipt) ? "Smart High-Speed EV Supercharging Network" : "Smart Parking Management Systems"}</span>
+                  <h3 className="pw-receipt-company-title">SHNOOR PARKING</h3>
+                  <span className="pw-receipt-company-sub">Parking Management System{isEv(activeReceipt) ? " · EV Charging" : ""}</span>
                 </div>
               </div>
 
@@ -541,7 +572,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                 <span className="pw-receipt-number-tag">{activeReceipt.transaction_id || "TXN-XXXX"}</span>
                 <div className="pw-receipt-issue-date" style={{ fontSize: "0.78rem", color: "var(--text-secondary, #94a3b8)", marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "5px", justifyContent: "flex-end" }}>
                   <Calendar size={12} style={{ color: isEv(activeReceipt) ? "#059669" : "#0d9488" }} />
-                  <span>{formatDate(activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}</span>
+                  <span>{formatDate(activeReceipt.paid_at || activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}</span>
                 </div>
               </div>
             </div>
@@ -590,6 +621,16 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                   <span className="pw-receipt-value">{isEv(activeReceipt) ? "⚡ EV Bay " : "Bay "}{activeReceipt.slot_number || "—"}</span>
                 </div>
                 <div className="pw-receipt-row">
+                  <span className="pw-receipt-label">Parking Location</span>
+                  <span className="pw-receipt-value">{activeReceipt.parking_location || "Shnoor Parking Facility"}</span>
+                </div>
+                {activeReceipt.parking_session_id && (
+                  <div className="pw-receipt-row">
+                    <span className="pw-receipt-label">Parking Record ID</span>
+                    <span className="pw-receipt-value">{activeReceipt.parking_session_id}</span>
+                  </div>
+                )}
+                <div className="pw-receipt-row">
                   <span className="pw-receipt-label">{isEv(activeReceipt) ? "Service / Tariff Model" : "Tariff / Plan Name"}</span>
                   <span className="pw-receipt-value">{isEv(activeReceipt) ? "⚡ EV Supercharging (₹18.00 / kWh)" : (activeReceipt.plan_name || "Standard Tariff")}</span>
                 </div>
@@ -621,6 +662,12 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                     <span className="pw-receipt-value" style={{ fontFamily: "monospace" }}>{activeReceipt.razorpay_payment_id}</span>
                   </div>
                 )}
+                {activeReceipt.upi_vpa && (
+                  <div className="pw-receipt-row">
+                    <span className="pw-receipt-label">UPI ID</span>
+                    <span className="pw-receipt-value">{activeReceipt.upi_vpa}</span>
+                  </div>
+                )}
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">{isEv(activeReceipt) ? "Tariff Rate" : "Base Fee"}</span>
                   <span className="pw-receipt-value">
@@ -638,9 +685,15 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">Receipt & Payment Date</span>
                   <span className="pw-receipt-value">
-                    {formatDate(activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}
+                    {formatDate(activeReceipt.paid_at || activeReceipt.receipt_date || activeReceipt.created_at || activeReceipt.exit_time)}
                   </span>
                 </div>
+                {activeReceipt.refund_status && (
+                  <div className="pw-receipt-row">
+                    <span className="pw-receipt-label">Refund Status</span>
+                    <span className="pw-receipt-value">{activeReceipt.refund_status}{activeReceipt.refund_amount ? ` · ₹${Number(activeReceipt.refund_amount).toFixed(2)}` : ""}</span>
+                  </div>
+                )}
                 <div className="pw-receipt-row pw-receipt-total-row">
                   <span className="pw-receipt-label">{isEv(activeReceipt) ? "Total EV Amount Paid" : "Total Net Amount Paid"}</span>
                   <span className="pw-receipt-total-value" style={isEv(activeReceipt) ? { color: "#059669" } : undefined}>
@@ -651,7 +704,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
 
               <div className="pw-receipt-footer-stamp">
                 <ShieldCheck size={16} />
-                <span>Official computer-generated tax invoice & electronic parking pass issued by ParkSafe Systems.</span>
+                <span>Official digital receipt issued by Shnoor Parking Management System.</span>
               </div>
             </div>
 
@@ -662,7 +715,17 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                 onClick={handleDownloadSlip}
               >
                 <Download size={15} />
-                <span>Download Slip</span>
+                <span>Download HTML</span>
+              </button>
+
+              <button
+                type="button"
+                className="pw-btn-download-slip"
+                onClick={handlePrint}
+                title="Use the browser print dialog to save this receipt as a PDF"
+              >
+                <Download size={15} />
+                <span>Save as PDF</span>
               </button>
 
               <button

@@ -18,6 +18,10 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [methodFilter, setMethodFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [expandedPaymentId, setExpandedPaymentId] = useState(null);
 
   const fetchPayments = useCallback(async () => {
     setIsLoading(true);
@@ -43,13 +47,11 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
         page: String(page),
         limit: String(limit),
         search: searchQuery || "",
-        method: methodFilter
+        method: methodFilter,
+        status: statusFilter,
+        dateFrom,
+        dateTo
       });
-      if (user.email) {
-        params.append("email", user.email);
-      } else {
-        params.append("name", user.name);
-      }
       const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?${params}`);
       const data = await res.json();
       if (!res.ok || !data.success || !Array.isArray(data.payments)) {
@@ -66,7 +68,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
     } finally {
       setIsLoading(false);
     }
-  }, [loggedInUser, page, limit, searchQuery, methodFilter]);
+  }, [loggedInUser, page, limit, searchQuery, methodFilter, statusFilter, dateFrom, dateTo]);
 
   const fetchActiveSessions = useCallback(async () => {
     try {
@@ -99,16 +101,19 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
   };
 
   const handleExportCsv = () => {
-    const headers = ["Transaction ID", "Vehicle Plate", "Bay Slot", "Payment Method", "Date", "Time", "Amount (INR)", "Status"];
+    const headers = ["Transaction ID", "Vehicle Plate", "Bay Slot", "Payment Method", "UPI VPA", "Razorpay Payment ID", "Date", "Time", "Amount (INR)", "Status", "Refund Status"];
     const rows = payments.map((p) => [
       p.transaction_id || `TXN-${p.id}`,
       p.vehicle_number,
       p.slot_number,
       p.payment_method,
-      formatDateOnly(p.created_at || p.exit_time),
-      formatTimeOnly(p.created_at || p.exit_time),
+      p.upi_vpa || "",
+      p.razorpay_payment_id || "",
+      formatDateOnly(p.paid_at || p.created_at || p.exit_time),
+      formatTimeOnly(p.paid_at || p.created_at || p.exit_time),
       p.amount,
-      p.payment_status || "Completed"
+      p.payment_status || "Pending",
+      p.refund_status || ""
     ]);
     exportToCsv("customer_payments.csv", headers, rows);
   };
@@ -219,7 +224,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
           </span>
           <span className="pw-metric-trend positive">
             <Calendar size={11} />
-            <span>{validPayments[0] ? formatDateOnly(validPayments[0].created_at || validPayments[0].exit_time) : "No history"}</span>
+            <span>{validPayments[0] ? formatDateOnly(validPayments[0].paid_at || validPayments[0].created_at || validPayments[0].exit_time) : "No history"}</span>
           </span>
         </div>
 
@@ -264,11 +269,41 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                 <option value="UPI">UPI</option>
                 <option value="Credit Card">Credit Card</option>
                 <option value="Debit Card">Debit Card</option>
+                <option value="card">Razorpay Card</option>
                 <option value="Cash">Cash</option>
                 <option value="Net Banking">Net Banking</option>
+                <option value="netbanking">Razorpay Net Banking</option>
                 <option value="Razorpay">Razorpay</option>
+                <option value="Wallet">Wallet</option>
               </select>
             </div>
+
+            <div className="pw-filter-dropdown-wrap">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="pw-custom-select"
+                aria-label="Filter by payment status"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="Completed">Completed</option>
+                <option value="Pending">Pending</option>
+                <option value="Failed">Failed</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Refunded">Refunded</option>
+              </select>
+            </div>
+            <label className="pw-date-filter">
+              <span>From</span>
+              <input aria-label="Start date" type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} />
+            </label>
+            <label className="pw-date-filter">
+              <span>To</span>
+              <input aria-label="End date" type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} />
+            </label>
 
             <button
               type="button"
@@ -341,18 +376,18 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                     <div>
                       <span className="pw-payment-method-badge">
                         {getMethodIcon(p.payment_method)}
-                        <span>{p.payment_method}</span>
+                        <span>{p.payment_method || "Razorpay"}</span>
                       </span>
                     </div>
 
                     <div className="pw-user-card-date-col">
                       <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--text-primary, #1e293b)", fontWeight: 600, fontSize: "0.82rem" }}>
                         <Calendar size={13} style={{ color: "#0d9488" }} />
-                        <span>{formatDateOnly(p.created_at || p.exit_time)}</span>
+                        <span>{formatDateOnly(p.paid_at || p.created_at || p.exit_time)}</span>
                       </div>
                       <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--text-secondary, #94a3b8)", fontSize: "0.74rem", marginTop: "2px" }}>
                         <Clock size={11} />
-                        <span>{formatTimeOnly(p.created_at || p.exit_time)}</span>
+                        <span>{formatTimeOnly(p.paid_at || p.created_at || p.exit_time)}</span>
                       </div>
                     </div>
 
@@ -371,16 +406,40 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                       {isCompleted(p) ? <button
                         type="button"
                         className="pw-btn-action-view-receipt"
-                        onClick={() => {
-                          if (onViewReceipt) {
-                            onViewReceipt(p);
-                          }
-                        }}
+                        onClick={() => onViewReceipt?.(p)}
                       >
                         <span>Receipt</span>
                         <ArrowUpRight size={12} />
                       </button> : <span style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.78rem" }}>Not available</span>}
+                      <button
+                        type="button"
+                        className="pw-btn-action-refresh"
+                        style={{ marginTop: "6px", fontSize: "0.74rem" }}
+                        onClick={() => setExpandedPaymentId(expandedPaymentId === p.id ? null : p.id)}
+                        aria-expanded={expandedPaymentId === p.id}
+                      >
+                        {expandedPaymentId === p.id ? "Hide details" : "Details"}
+                      </button>
+                      {String(p.payment_status).toLowerCase() === "failed" && (p.parking_session_id || p.booking_id) && (
+                        <div style={{ marginTop: "6px" }}>
+                          <PaymentButton
+                            session={p}
+                            onPrepareOrder={p.booking_id ? () => ({ booking_id: p.booking_id }) : undefined}
+                            onPaymentComplete={refreshPayments}
+                          />
+                        </div>
+                      )}
                     </div>
+                    {expandedPaymentId === p.id && (
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px", padding: "12px", borderRadius: "8px", background: "var(--bg-subtle, #f8fafc)", fontSize: "0.78rem" }}>
+                        <span>Parking Record: {p.parking_session_id || "—"}</span>
+                        <span>Razorpay Payment: {p.razorpay_payment_id || "—"}</span>
+                        <span>Razorpay Order: {p.razorpay_order_id || "—"}</span>
+                        <span>UPI ID: {p.upi_vpa || "—"}</span>
+                        <span>Refund: {p.refund_status || "—"}{p.refund_amount ? ` · ₹${Number(p.refund_amount).toFixed(2)}` : ""}</span>
+                        {p.failure_reason && <span>Failure: {p.failure_reason}</span>}
+                      </div>
+                    )}
                   </div>
                 );
               })

@@ -1,9 +1,16 @@
 import { auth } from "../components/firebase.js";
 
-export const API_BASE_URL =
-  typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-    ? "http://localhost:5000"
-    : (import.meta.env.VITE_API_BASE_URL || "https://parking-management-backend-6enx.onrender.com");
+const isLocalDevelopment =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+const configuredApiBaseUrl = isLocalDevelopment
+  ? "http://localhost:5000"
+  : import.meta.env.VITE_API_BASE_URL || "https://parking-management-backend-6enx.onrender.com";
+
+export const API_BASE_URL = configuredApiBaseUrl
+  .trim()
+  .replace(/(?:\/api)+\/?$/i, "")
+  .replace(/\/+$/, "");
 
 export const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||

@@ -27,6 +27,12 @@ export default function TodaysRevenue() {
   const [paymentListError, setPaymentListError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [methodFilter, setMethodFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [expandedPaymentId, setExpandedPaymentId] = useState(null);
+  const [refundDetails, setRefundDetails] = useState(null);
+  const [refundDetailsError, setRefundDetailsError] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(5);
   const [paymentAnalytics, setPaymentAnalytics] = useState({
@@ -61,7 +67,10 @@ export default function TodaysRevenue() {
         page: String(page),
         limit: String(limit),
         search: searchQuery || "",
-        method: methodFilter
+        method: methodFilter,
+        status: statusFilter,
+        dateFrom,
+        dateTo
       });
       const res = await apiFetch(`${API_BASE_URL}/api/payments?${params}`);
       const data = await res.json();
@@ -75,7 +84,7 @@ export default function TodaysRevenue() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, limit, searchQuery, methodFilter]);
+  }, [page, limit, searchQuery, methodFilter, statusFilter, dateFrom, dateTo]);
 
   const fetchPaymentAnalytics = useCallback(async () => {
     try {
@@ -189,19 +198,39 @@ export default function TodaysRevenue() {
   const filteredPayments = paymentsList;
 
   const handleExportCsv = () => {
-    const headers = ["Transaction ID", "Vehicle Plate", "Customer Name", "Bay Slot", "Duration", "Payment Method", "Amount", "Status", "Date"];
+    const headers = ["Transaction ID", "Customer Name", "Customer Email", "Vehicle Plate", "Bay Slot", "Duration", "Payment Method", "UPI VPA", "Razorpay Order ID", "Razorpay Payment ID", "Refund ID", "Amount", "Status", "Refund Status", "Date"];
     const rows = (filteredPayments || []).map((p) => [
       p.transaction_id || `TXN-${p.id}`,
-      p.vehicle_number || "",
       p.customer_name || "",
+      p.customer_email || "",
+      p.vehicle_number || "",
       p.slot_number || "",
       p.duration || "",
-      p.payment_method || "UPI",
+      p.payment_method || p.method || "",
+      p.upi_vpa || "",
+      p.razorpay_order_id || "",
+      p.razorpay_payment_id || "",
+      p.razorpay_refund_id || "",
       `₹${parseFloat(p.amount || 0).toFixed(2)}`,
       p.payment_status || "Completed",
-      formatDate(p.created_at)
+      p.refund_status || "",
+      formatDate(p.paid_at || p.created_at)
     ]);
     exportToCsv("Revenue_Payments_Report", headers, rows);
+  };
+
+  const fetchRefundDetails = async (payment) => {
+    setRefundDetailsError("");
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/admin/payments/${payment.id}/refund`);
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Unable to load refund details.");
+      }
+      setRefundDetails(data.refund);
+    } catch (error) {
+      setRefundDetailsError(error.message || "Unable to load refund details.");
+    }
   };
   const summary = revenueData.summary || {};
   const totalRevFormatted = summary.totalRevenue || "₹0.00";
@@ -341,7 +370,7 @@ export default function TodaysRevenue() {
             <Search size={14} className="pw-search-icon" />
             <input
               type="text"
-              placeholder="Search reference, plate, customer..."
+              placeholder="Search transaction, Razorpay ID, customer name/email..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -365,11 +394,41 @@ export default function TodaysRevenue() {
                 <option value="UPI">UPI</option>
                 <option value="Credit Card">Credit Card</option>
                 <option value="Debit Card">Debit Card</option>
+                <option value="card">Razorpay Card</option>
                 <option value="Cash">Cash</option>
                 <option value="Net Banking">Net Banking</option>
+                <option value="netbanking">Razorpay Net Banking</option>
                 <option value="Razorpay">Razorpay</option>
+                <option value="Wallet">Wallet</option>
               </select>
             </div>
+
+            <div className="pw-filter-dropdown-wrap">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="pw-custom-select"
+                aria-label="Filter by payment status"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="Completed">Completed</option>
+                <option value="Pending">Pending</option>
+                <option value="Failed">Failed</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Refunded">Refunded</option>
+              </select>
+            </div>
+            <label className="pw-date-filter">
+              <span>From</span>
+              <input aria-label="Start date" type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} />
+            </label>
+            <label className="pw-date-filter">
+              <span>To</span>
+              <input aria-label="End date" type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} />
+            </label>
 
             <button
               type="button"
@@ -427,7 +486,7 @@ export default function TodaysRevenue() {
                       )}
                       <div className="pw-veh-model-sub" style={{ marginTop: "4px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
                         <Calendar size={11} style={{ color: "#0d9488" }} />
-                        <span>{formatDate(p.created_at || p.exit_time)}</span>
+                        <span>{formatDate(p.paid_at || p.created_at || p.exit_time)}</span>
                       </div>
                     </div>
 
@@ -481,6 +540,15 @@ export default function TodaysRevenue() {
                         {p.payment_status === "Failed" ? null : <CheckCircle2 size={11} />}
                         <span>{p.payment_status || "Completed"}</span>
                       </span>
+                      <button
+                        type="button"
+                        className="pw-btn-action-refresh"
+                        style={{ marginTop: "6px", fontSize: "0.72rem" }}
+                        onClick={() => setExpandedPaymentId(expandedPaymentId === p.id ? null : p.id)}
+                        aria-expanded={expandedPaymentId === p.id}
+                      >
+                        {expandedPaymentId === p.id ? "Hide details" : "Transaction details"}
+                      </button>
                       {p.payment_status === "Completed" && p.razorpay_payment_id && (
                         <div style={{ marginTop: "8px" }}>
                           <button
@@ -499,7 +567,30 @@ export default function TodaysRevenue() {
                           {refundAction.message}
                         </p>
                       )}
+                      {p.refund_status && (
+                        <button
+                          type="button"
+                          className="pw-btn-action-refresh"
+                          style={{ marginTop: "6px", fontSize: "0.72rem" }}
+                          onClick={() => fetchRefundDetails(p)}
+                        >
+                          View refund details
+                        </button>
+                      )}
                     </div>
+                    {expandedPaymentId === p.id && (
+                      <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "8px", padding: "12px", borderRadius: "8px", background: "var(--bg-subtle, #f8fafc)", fontSize: "0.78rem" }}>
+                        <span>Internal Transaction ID: {p.transaction_id || `TXN-${p.id}`}</span>
+                        <span>Customer: {p.customer_name || "—"} · {p.customer_email || "—"}</span>
+                        <span>Parking Record: {p.parking_session_id || "—"}</span>
+                        <span>Reservation: {p.booking_id || "—"}</span>
+                        <span>Razorpay Order ID: {p.razorpay_order_id || "—"}</span>
+                        <span>Razorpay Payment ID: {p.razorpay_payment_id || "—"}</span>
+                        <span>UPI ID: {p.upi_vpa || "—"}</span>
+                        <span>Refund: {p.refund_status || "—"}{p.refund_amount ? ` · ₹${Number(p.refund_amount).toFixed(2)}` : ""} · {p.razorpay_refund_id || "—"}</span>
+                        {p.failure_reason && <span>Failure: {p.failure_reason}</span>}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -514,6 +605,15 @@ export default function TodaysRevenue() {
             )}
           </div>
         </div>
+
+        {refundDetailsError && <p role="alert" style={{ color: "#b91c1c", marginTop: "12px" }}>{refundDetailsError}</p>}
+        {refundDetails && (
+          <div role="status" style={{ marginTop: "14px", padding: "12px", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "8px", fontSize: "0.82rem" }}>
+            Refund for {refundDetails.transaction_id}: {refundDetails.refund_status || "Not requested"} ·
+            {" "}₹{Number(refundDetails.refund_amount || 0).toFixed(2)} ·
+            {" "}Razorpay Refund ID: {refundDetails.razorpay_refund_id || "—"}
+          </div>
+        )}
 
         <Pagination
           currentPage={page}

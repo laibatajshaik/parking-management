@@ -178,6 +178,9 @@ function getRequiredRoles(req, apiPath) {
     (apiPath === "/payments" || apiPath === "/payments/today") &&
     method === "GET"
   ) {
+    return ["admin"];
+  }
+  if (apiPath === "/payments" && method === "POST") {
     return ["admin", "staff"];
   }
   if (apiPath === "/bookings" && method === "GET") {
@@ -756,10 +759,26 @@ const initDbSchema = async () => {
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS parking_session_id INTEGER REFERENCES vehicle_history(id);
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
+      UPDATE payments SET transaction_id = 'TXN-' || id::text
+        WHERE transaction_id IS NULL OR transaction_id = '';
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'INR';
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS upi_vpa VARCHAR(255);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      UPDATE payments SET currency = 'INR' WHERE currency IS NULL OR currency = '';
+      UPDATE payments SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL;
+      UPDATE payments p SET customer_id = u.id
+        FROM users u
+        WHERE p.customer_id IS NULL AND p.customer_email IS NOT NULL
+          AND LOWER(p.customer_email) = LOWER(u.email);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_order_id ON payments(razorpay_order_id) WHERE razorpay_order_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_payment_id ON payments(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_transaction_id ON payments(transaction_id) WHERE transaction_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_pending_parking_session ON payments(parking_session_id) WHERE parking_session_id IS NOT NULL AND payment_status = 'Pending' AND razorpay_order_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_pending_booking ON payments(booking_id) WHERE booking_id IS NOT NULL AND payment_status = 'Pending' AND razorpay_order_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_payments_customer_created_at ON payments(customer_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_payments_status_created_at ON payments(payment_status, created_at DESC);
     `);
 
     const payCountRes = await pool.query("SELECT COUNT(*) FROM payments WHERE transaction_id IS NOT NULL");
@@ -3701,14 +3720,25 @@ app.get("/api/staff/active-vehicles", handleActiveSessions);
 app.get("/api/payments/today", async (req, res) => {
   try {
     const [todayRes, allRes] = await Promise.all([
-      pool.query("SELECT * FROM payments WHERE created_at >= CURRENT_DATE AND vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC"),
-      pool.query("SELECT * FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL ORDER BY created_at DESC LIMIT 100")
+      pool.query(`SELECT * FROM payments
+        WHERE COALESCE(paid_at, created_at) >= CURRENT_DATE
+          AND transaction_id IS NOT NULL
+          AND LOWER(COALESCE(payment_status, 'completed')) IN ('completed', 'successful', 'paid', 'success')
+        ORDER BY COALESCE(paid_at, created_at) DESC`),
+      pool.query(`SELECT * FROM payments
+        WHERE transaction_id IS NOT NULL
+          AND LOWER(COALESCE(payment_status, 'completed')) IN ('completed', 'successful', 'paid', 'success')
+        ORDER BY COALESCE(paid_at, created_at) DESC LIMIT 100`)
     ]);
     const isTodayMode = req.query.range === "today" || (!req.query.range && todayRes.rows.length > 0);
     const paymentsToUse = isTodayMode ? todayRes.rows : allRes.rows;
 
     let todayRevenue = 0;
-    todayRes.rows.forEach(p => { todayRevenue += (parseFloat(p.amount) || 0); });
+    todayRes.rows.forEach((p) => {
+      const amount = parseFloat(p.amount) || 0;
+      const refund = String(p.refund_status || "").toLowerCase() === "completed" ? parseFloat(p.refund_amount) || 0 : 0;
+      todayRevenue += Math.max(0, amount - refund);
+    });
 
     let totalRevenue = 0;
     const methodsBreakdown = {
@@ -3722,7 +3752,9 @@ app.get("/api/payments/today", async (req, res) => {
     let evRevenue = 0;
     let parkingRevenue = 0;
     paymentsToUse.forEach((p) => {
-      const amt = parseFloat(p.amount) || 0;
+      const amount = parseFloat(p.amount) || 0;
+      const refund = String(p.refund_status || "").toLowerCase() === "completed" ? parseFloat(p.refund_amount) || 0 : 0;
+      const amt = Math.max(0, amount - refund);
       totalRevenue += amt;
       const isEv = (p.transaction_id && String(p.transaction_id).startsWith("TXN-EV-")) || (p.slot_number && String(p.slot_number).startsWith("EV-"));
       if (isEv) {
@@ -3731,10 +3763,16 @@ app.get("/api/payments/today", async (req, res) => {
         parkingRevenue += amt;
       }
       const method = p.payment_method || "UPI";
-      if (methodsBreakdown[method] !== undefined) {
-        methodsBreakdown[method] += amt;
+      const methodKey = {
+        upi: "UPI",
+        card: "Credit Card",
+        netbanking: "Net Banking",
+        cash: "Cash"
+      }[String(method).toLowerCase()] || method;
+      if (methodsBreakdown[methodKey] !== undefined) {
+        methodsBreakdown[methodKey] += amt;
       } else {
-        methodsBreakdown[method] = amt;
+        methodsBreakdown[methodKey] = amt;
       }
     });
 
@@ -3767,79 +3805,115 @@ app.get("/api/payments/today", async (req, res) => {
   }
 });
 
-app.get("/api/payments", async (req, res) => {
-  const { page, limit, search, method, status } = req.query;
+function appendPaymentDateFilters(whereClause, params, startDate, endDate, column) {
+  for (const [value, operator] of [[startDate, ">="], [endDate, "<"]]) {
+    if (!value) {
+      continue;
+    }
+    const date = String(value);
+    const timestamp = Date.parse(`${date}T00:00:00.000Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) {
+      return { error: "Dates must be valid YYYY-MM-DD values." };
+    }
+    params.push(date);
+    whereClause += operator === ">="
+      ? ` AND ${column} >= $${params.length}::date`
+      : ` AND ${column} < ($${params.length}::date + INTERVAL '1 day')`;
+  }
+  if (startDate && endDate && String(startDate) > String(endDate)) {
+    return { error: "The start date must not be after the end date." };
+  }
+  return { whereClause };
+}
+
+async function getPaymentList(req, res, staffView = false) {
+  const { page, limit, search, method, status, dateFrom, dateTo } = req.query;
   try {
-    let baseQuery = "FROM payments WHERE vehicle_number IS NOT NULL AND vehicle_number != '' AND slot_number IS NOT NULL AND transaction_id IS NOT NULL";
+    let whereClause = "WHERE transaction_id IS NOT NULL";
+    if (staffView) {
+      whereClause += " AND parking_session_id IS NOT NULL";
+    }
     const params = [];
 
-    if (search && search.trim()) {
-      params.push(`%${search.trim().toLowerCase()}%`);
-      baseQuery += ` AND (LOWER(vehicle_number) LIKE $${params.length} OR LOWER(COALESCE(customer_name, '')) LIKE $${params.length} OR LOWER(transaction_id) LIKE $${params.length} OR LOWER(COALESCE(slot_number, '')) LIKE $${params.length})`;
+    if (search && String(search).trim()) {
+      params.push(`%${String(search).trim().toLowerCase()}%`);
+      whereClause += ` AND (
+        LOWER(COALESCE(transaction_id, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(razorpay_order_id, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(razorpay_payment_id, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(customer_name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(customer_email, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(vehicle_number, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(slot_number, '')) LIKE $${params.length}
+      )`;
     }
 
     if (method && method !== "ALL") {
-      params.push(method);
-      baseQuery += ` AND payment_method = $${params.length}`;
+      params.push(String(method).toLowerCase());
+      whereClause += ` AND LOWER(COALESCE(payment_method, method, '')) = $${params.length}`;
     }
 
     if (status && status !== "ALL") {
-      params.push(status.toLowerCase());
-      baseQuery += ` AND LOWER(COALESCE(payment_status, 'completed')) = $${params.length}`;
+      params.push(String(status).toLowerCase());
+      whereClause += ` AND LOWER(COALESCE(payment_status, 'completed')) = $${params.length}`;
     }
 
-    const countRes = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+    const dateFilters = appendPaymentDateFilters(whereClause, params, dateFrom, dateTo, "COALESCE(paid_at, created_at)");
+    if (dateFilters.error) {
+      return res.status(400).json({ error: dateFilters.error });
+    }
+    whereClause = dateFilters.whereClause;
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM payments ${whereClause}`, params);
     const total = parseInt(countRes.rows[0].count, 10) || 0;
-
-    if (page || limit) {
-      const pageNum = Math.max(1, parseInt(page, 10) || 1);
-      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 5));
-      const offset = (pageNum - 1) * limitNum;
-      const dataParams = [...params, limitNum, offset];
-      const paymentsRes = await pool.query(
-        `SELECT * ${baseQuery} ORDER BY created_at DESC, id DESC LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
-        dataParams
-      );
-      return res.json({
-        success: true,
-        payments: paymentsRes.rows,
-        data: paymentsRes.rows,
-        total,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          totalPages: Math.ceil(total / limitNum) || 1
-        }
-      });
-    }
-
-    const paymentsRes = await pool.query(`SELECT * ${baseQuery} ORDER BY created_at DESC, id DESC`, params);
-    res.json({
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+    const offset = (pageNum - 1) * limitNum;
+    const dataParams = [...params, limitNum, offset];
+    const selectColumns = staffView
+      ? `id, transaction_id, parking_session_id, vehicle_number, slot_number,
+         amount, currency, payment_method, payment_status, razorpay_payment_id,
+         paid_at, created_at, updated_at,
+         (LOWER(COALESCE(payment_status, '')) = 'completed'
+           AND NULLIF(razorpay_payment_id, '') IS NOT NULL) AS verified`
+      : "*";
+    const paymentsRes = await pool.query(
+      `SELECT ${selectColumns} FROM payments ${whereClause}
+       ORDER BY created_at DESC, id DESC
+       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+      dataParams
+    );
+    return res.json({
       success: true,
       payments: paymentsRes.rows,
       data: paymentsRes.rows,
       total,
       pagination: {
-        page: 1,
-        limit: total || 5,
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: 1
+        totalPages: Math.ceil(total / limitNum) || 1
       }
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error fetching payments" });
+    console.error("Payment list could not be loaded:", err.message);
+    return res.status(500).json({ error: "Server error fetching payments" });
   }
-});
+}
+
+app.get("/api/payments", (req, res) => getPaymentList(req, res));
+app.get("/api/staff/payments", (req, res) => getPaymentList(req, res, true));
 
 app.get("/api/customer/payments", async (req, res) => {
-  const { email, name, search, method, status, page, limit } = req.query;
+  const { email, name, search, method, status, page, limit, dateFrom, dateTo } = req.query;
   try {
-    let whereClause = "WHERE p.vehicle_number IS NOT NULL AND p.vehicle_number != '' AND p.slot_number IS NOT NULL AND p.transaction_id IS NOT NULL";
+    let whereClause = "WHERE p.transaction_id IS NOT NULL";
     const params = [];
 
-    if (email) {
+    if ((req.authUser.role || "").toLowerCase() === "customer") {
+      params.push(req.authUser.id);
+      whereClause += ` AND p.customer_id = $${params.length}`;
+    } else if (email) {
       params.push(email.toLowerCase().trim());
       whereClause += ` AND LOWER(COALESCE(p.customer_email, '')) = $${params.length}`;
     } else if (name) {
@@ -3849,18 +3923,30 @@ app.get("/api/customer/payments", async (req, res) => {
 
     if (search) {
       params.push(`%${search.toLowerCase().trim()}%`);
-      whereClause += ` AND (LOWER(p.vehicle_number) LIKE $${params.length} OR LOWER(p.transaction_id) LIKE $${params.length} OR LOWER(p.slot_number) LIKE $${params.length})`;
+      whereClause += ` AND (
+        LOWER(COALESCE(p.vehicle_number, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.transaction_id, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.razorpay_order_id, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.razorpay_payment_id, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.slot_number, '')) LIKE $${params.length}
+      )`;
     }
 
     if (method && method !== "ALL") {
-      params.push(method);
-      whereClause += ` AND p.payment_method = $${params.length}`;
+      params.push(String(method).toLowerCase());
+      whereClause += ` AND LOWER(COALESCE(p.payment_method, p.method, '')) = $${params.length}`;
     }
 
     if (status && status !== "ALL") {
-      params.push(status.toLowerCase());
+      params.push(String(status).toLowerCase());
       whereClause += ` AND LOWER(COALESCE(p.payment_status, 'completed')) = $${params.length}`;
     }
+
+    const dateFilters = appendPaymentDateFilters(whereClause, params, dateFrom, dateTo, "COALESCE(p.paid_at, p.created_at)");
+    if (dateFilters.error) {
+      return res.status(400).json({ error: dateFilters.error });
+    }
+    whereClause = dateFilters.whereClause;
 
     const countRes = await pool.query(
       `SELECT COUNT(*) AS count,
@@ -3892,17 +3978,23 @@ app.get("/api/customer/payments", async (req, res) => {
         p.duration,
         p.amount,
         p.amount AS fee,
+        p.currency,
         p.original_amount,
         p.discount_amount,
         p.coupon_code,
-        p.payment_method,
+        COALESCE(p.payment_method, p.method) AS payment_method,
         COALESCE(p.payment_status, 'Completed') AS payment_status,
         p.razorpay_order_id,
         p.razorpay_payment_id,
         p.razorpay_refund_id,
         p.refund_amount,
         p.refund_status,
-        p.created_at AS receipt_date,
+        p.upi_vpa,
+        p.failure_reason,
+        p.parking_session_id,
+        p.paid_at,
+        p.updated_at,
+        COALESCE(p.paid_at, p.created_at) AS receipt_date,
         p.created_at
       FROM payments p
       LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
@@ -3990,14 +4082,24 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
         p.duration,
         p.amount,
         p.amount AS fee,
-        p.payment_method,
+        p.currency,
+        COALESCE(p.payment_method, p.method) AS payment_method,
         p.razorpay_order_id,
         p.razorpay_payment_id,
+        p.upi_vpa,
+        p.refund_status,
+        p.refund_amount,
+        p.razorpay_refund_id,
+        p.parking_session_id,
+        p.paid_at,
+        p.failure_reason,
+        ps.zone AS parking_location,
         COALESCE(p.payment_status, 'Completed') AS payment_status,
-        p.created_at AS receipt_date,
+        COALESCE(p.paid_at, p.created_at) AS receipt_date,
         p.created_at
       FROM payments p
       LEFT JOIN vehicles v ON LOWER(v.vehicle_number) = LOWER(p.vehicle_number)
+      LEFT JOIN parking_slots ps ON UPPER(TRIM(ps.slot_number)) = UPPER(TRIM(p.slot_number))
       LEFT JOIN LATERAL (
         SELECT r.booking_id, r.vehicle_type, r.model, r.plan_name
         FROM reservations r
@@ -4017,6 +4119,104 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching receipt" });
+  }
+});
+
+app.get("/api/customer/payments/:paymentId", async (req, res) => {
+  const paymentId = Number(req.params.paymentId);
+  if (!Number.isSafeInteger(paymentId) || paymentId <= 0) {
+    return res.status(400).json({ success: false, error: "A valid transaction is required." });
+  }
+  const isCustomer = (req.authUser.role || "").toLowerCase() === "customer";
+  try {
+    const result = await pool.query(
+      `SELECT p.*, ps.zone AS parking_location
+       FROM payments p
+       LEFT JOIN parking_slots ps ON UPPER(TRIM(ps.slot_number)) = UPPER(TRIM(p.slot_number))
+       WHERE p.id = $1${isCustomer ? " AND p.customer_id = $2" : ""}
+       LIMIT 1`,
+      isCustomer ? [paymentId, req.authUser.id] : [paymentId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Transaction not found." });
+    }
+    return res.json({ success: true, payment: result.rows[0] });
+  } catch (error) {
+    console.error("Transaction details could not be loaded:", error.message);
+    return res.status(500).json({ success: false, error: "Unable to load transaction details." });
+  }
+});
+
+app.get("/api/staff/payments/:paymentId", async (req, res) => {
+  const paymentId = Number(req.params.paymentId);
+  if (!Number.isSafeInteger(paymentId) || paymentId <= 0) {
+    return res.status(400).json({ success: false, error: "A valid transaction is required." });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.transaction_id, p.parking_session_id, p.vehicle_number,
+              p.slot_number, p.amount, p.currency, p.payment_method, p.payment_status,
+              p.razorpay_payment_id, p.paid_at, p.created_at, p.updated_at
+       FROM payments p
+       WHERE p.id = $1 AND p.parking_session_id IS NOT NULL
+       LIMIT 1`,
+      [paymentId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Parking transaction not found." });
+    }
+    return res.json({ success: true, payment: result.rows[0] });
+  } catch (error) {
+    console.error("Staff payment details could not be loaded:", error.message);
+    return res.status(500).json({ success: false, error: "Unable to load parking payment details." });
+  }
+});
+
+app.get("/api/admin/payments/:paymentId", async (req, res) => {
+  const paymentId = Number(req.params.paymentId);
+  if (!Number.isSafeInteger(paymentId) || paymentId <= 0) {
+    return res.status(400).json({ success: false, error: "A valid transaction is required." });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT p.*, u.name AS account_customer_name, u.email AS account_customer_email,
+              ps.zone AS parking_location
+       FROM payments p
+       LEFT JOIN users u ON u.id = p.customer_id
+       LEFT JOIN parking_slots ps ON UPPER(TRIM(ps.slot_number)) = UPPER(TRIM(p.slot_number))
+       WHERE p.id = $1
+       LIMIT 1`,
+      [paymentId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Transaction not found." });
+    }
+    return res.json({ success: true, payment: result.rows[0] });
+  } catch (error) {
+    console.error("Admin transaction details could not be loaded:", error.message);
+    return res.status(500).json({ success: false, error: "Unable to load transaction details." });
+  }
+});
+
+app.get("/api/admin/payments/:paymentId/refund", async (req, res) => {
+  const paymentId = Number(req.params.paymentId);
+  if (!Number.isSafeInteger(paymentId) || paymentId <= 0) {
+    return res.status(400).json({ success: false, error: "A valid transaction is required." });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT id, transaction_id, razorpay_payment_id, razorpay_refund_id,
+              amount, refund_amount, refund_status, payment_status, currency, updated_at
+       FROM payments WHERE id = $1 LIMIT 1`,
+      [paymentId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: "Transaction not found." });
+    }
+    return res.json({ success: true, refund: result.rows[0] });
+  } catch (error) {
+    console.error("Refund details could not be loaded:", error.message);
+    return res.status(500).json({ success: false, error: "Unable to load refund details." });
   }
 });
 
@@ -4049,8 +4249,16 @@ app.post("/api/staff/process-payment", async (req, res) => {
     const paymentInsert = await pool.query(
       `INSERT INTO payments (
         transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, payment_method, payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Completed', CURRENT_TIMESTAMP) RETURNING *`,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, payment_status,
+        parking_session_id, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Completed',
+        (SELECT id FROM vehicle_history
+         WHERE UPPER(vehicle_number) = UPPER($2)
+           AND (exit_time IS NULL OR LOWER(status) = 'parked')
+         ORDER BY entry_time DESC LIMIT 1),
+        CURRENT_TIMESTAMP
+      ) RETURNING *`,
       [
         txnId,
         vehicle_number.toUpperCase(),
@@ -4153,6 +4361,9 @@ app.post("/api/staff/process-payment", async (req, res) => {
 });
 
 app.post(["/api/payments", "/api/customer/process-payment"], async (req, res) => {
+  if (getApiPath(req) === "/customer/process-payment") {
+    return res.status(403).json({ error: "Customer payments must be completed through verified Razorpay Checkout." });
+  }
   const {
     vehicle_number,
     slot_number,
@@ -5163,7 +5374,7 @@ app.post("/api/customer/payments/razorpay/order", async (req, res) => {
       const existingBookingOrder = await client.query(
         `SELECT razorpay_order_id, amount
          FROM payments
-         WHERE booking_id = $1 AND customer_id = $2 AND payment_status = 'Pending'
+         WHERE booking_id = $1 AND customer_id = $2 AND payment_status IN ('Pending', 'Failed')
            AND razorpay_order_id IS NOT NULL
          ORDER BY id DESC
          LIMIT 1`,
@@ -5293,7 +5504,7 @@ app.post("/api/customer/payments/razorpay/order", async (req, res) => {
     const existingOrder = await client.query(
       `SELECT razorpay_order_id, amount
        FROM payments
-       WHERE parking_session_id = $1 AND customer_id = $2 AND payment_status = 'Pending'
+       WHERE parking_session_id = $1 AND customer_id = $2 AND payment_status IN ('Pending', 'Failed')
          AND razorpay_order_id IS NOT NULL
        ORDER BY id DESC
        LIMIT 1`,
@@ -5450,9 +5661,20 @@ app.post("/api/customer/payments/razorpay/verify", async (req, res) => {
     }
     if (providerPayment.status === "failed") {
       await pool.query(
-        `UPDATE payments SET payment_status = 'Failed'
-         WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status = 'Pending'`,
-        [orderId, req.authUser.id]
+        `UPDATE payments
+         SET payment_status = 'Failed',
+             razorpay_payment_id = $3,
+             currency = COALESCE($4, currency, 'INR'),
+             failure_reason = COALESCE($5, failure_reason),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status IN ('Pending', 'Failed')`,
+        [
+          orderId,
+          req.authUser.id,
+          paymentId,
+          providerPayment.currency,
+          providerPayment.error_description || providerPayment.error_reason || "Payment failed at Razorpay."
+        ]
       );
       return res.json({ success: true, paymentStatus: "Failed" });
     }
@@ -5492,7 +5714,10 @@ app.post("/api/customer/payments/razorpay/verify", async (req, res) => {
         transactionOpen = false;
         return res.json({ success: true, paymentStatus: "Completed", paymentId: record.id });
       }
-      if (record.payment_status === "Completed" || record.razorpay_payment_id && record.razorpay_payment_id !== paymentId) {
+      if (
+        record.payment_status === "Completed" ||
+        (record.razorpay_payment_id && record.razorpay_payment_id !== paymentId && record.payment_status !== "Failed")
+      ) {
         await client.query("ROLLBACK");
         transactionOpen = false;
         return res.status(409).json({ error: "This order has already been completed by another payment." });
@@ -5507,9 +5732,21 @@ app.post("/api/customer/payments/razorpay/verify", async (req, res) => {
         `UPDATE payments
          SET payment_status = 'Completed', razorpay_payment_id = $1,
              payment_method = $3, method = $3,
-             exit_time = CURRENT_TIMESTAMP, duration = $2
-         WHERE id = $4`,
-        [paymentId, duration, providerPayment.method || "Razorpay", record.id]
+             upi_vpa = CASE WHEN LOWER(COALESCE($3, '')) = 'upi' THEN $4 ELSE NULL END,
+             currency = COALESCE($5, currency, 'INR'),
+             paid_at = CASE WHEN $6::double precision IS NULL THEN CURRENT_TIMESTAMP ELSE TO_TIMESTAMP($6::double precision) END,
+             failure_reason = NULL, exit_time = CURRENT_TIMESTAMP, duration = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $7`,
+        [
+          paymentId,
+          duration,
+          providerPayment.method || "Razorpay",
+          providerPayment.vpa || null,
+          providerPayment.currency || "INR",
+          providerPayment.created_at || null,
+          record.id
+        ]
       );
       let verifiedReservation = null;
       if (!record.parking_session_id && record.booking_id) {
@@ -5631,7 +5868,7 @@ app.post("/api/customer/payments/razorpay/failure", async (req, res) => {
   try {
     const razorpay = createRazorpayClient();
     const record = await pool.query(
-      "SELECT id FROM payments WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status = 'Pending' LIMIT 1",
+      "SELECT id, amount FROM payments WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status IN ('Pending', 'Failed') LIMIT 1",
       [orderId, req.authUser.id]
     );
     if (record.rowCount === 0) {
@@ -5641,11 +5878,29 @@ app.post("/api/customer/payments/razorpay/failure", async (req, res) => {
     if (providerPayment.order_id !== orderId) {
       return res.status(400).json({ error: "The Razorpay payment does not belong to this order." });
     }
+    if (
+      Number(providerPayment.amount) !== Math.round(Number(record.rows[0].amount) * 100) ||
+      providerPayment.currency !== "INR"
+    ) {
+      return res.status(400).json({ error: "The Razorpay payment does not match the stored order amount." });
+    }
     const paymentStatus = providerPayment.status === "failed" ? "Failed" : "Pending";
     if (paymentStatus === "Failed") {
       await pool.query(
-        "UPDATE payments SET payment_status = 'Failed' WHERE id = $1 AND payment_status = 'Pending'",
-        [record.rows[0].id]
+        `UPDATE payments
+         SET payment_status = 'Failed', razorpay_payment_id = $1,
+             payment_method = COALESCE($2, payment_method),
+             currency = COALESCE($3, currency, 'INR'),
+             failure_reason = COALESCE($4, 'Payment failed at Razorpay.'),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5 AND payment_status IN ('Pending', 'Failed')`,
+        [
+          providerPayment.id,
+          providerPayment.method || null,
+          providerPayment.currency || "INR",
+          providerPayment.error_description || providerPayment.error_reason || null,
+          record.rows[0].id
+        ]
       );
     }
     return res.json({ success: true, paymentStatus });
@@ -5666,17 +5921,53 @@ app.post("/api/customer/payments/razorpay/cancel", async (req, res) => {
   try {
     const razorpay = createRazorpayClient();
     const record = await pool.query(
-      "SELECT id FROM payments WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status = 'Pending' LIMIT 1",
+      "SELECT id, amount FROM payments WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status IN ('Pending', 'Failed') LIMIT 1",
       [orderId, req.authUser.id]
     );
     if (record.rowCount === 0) {
       return res.status(404).json({ error: "The pending payment order was not found." });
     }
-    const order = await razorpay.orders.fetch(orderId);
-    const paymentStatus = order.status === "created" ? "Cancelled" : "Pending";
-    if (paymentStatus === "Cancelled") {
+    const [order, payments] = await Promise.all([
+      razorpay.orders.fetch(orderId),
+      razorpay.orders.fetchPayments(orderId)
+    ]);
+    const attempts = Array.isArray(payments.items) ? payments.items : [];
+    const hasCapturedPayment = attempts.some((payment) => payment.status === "captured");
+    const hasPendingPayment = attempts.some((payment) => ["created", "authorized"].includes(payment.status));
+    const failedPayment = [...attempts].reverse().find((payment) => payment.status === "failed");
+    if (
+      failedPayment &&
+      (Number(failedPayment.amount) !== Math.round(Number(record.rows[0].amount) * 100) || failedPayment.currency !== "INR")
+    ) {
+      return res.status(400).json({ error: "The Razorpay payment does not match the stored order amount." });
+    }
+    const paymentStatus = hasCapturedPayment || hasPendingPayment
+      ? "Pending"
+      : failedPayment
+        ? "Failed"
+        : order.status === "created" && attempts.length === 0
+          ? "Cancelled"
+          : "Pending";
+    if (paymentStatus === "Failed" && failedPayment) {
       await pool.query(
-        "UPDATE payments SET payment_status = 'Cancelled' WHERE id = $1 AND payment_status = 'Pending'",
+        `UPDATE payments
+         SET payment_status = 'Failed', razorpay_payment_id = $1,
+             payment_method = COALESCE($2, payment_method),
+             currency = COALESCE($3, currency, 'INR'),
+             failure_reason = COALESCE($4, 'Payment failed at Razorpay.'),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $5 AND payment_status IN ('Pending', 'Failed')`,
+        [
+          failedPayment.id,
+          failedPayment.method || null,
+          failedPayment.currency || "INR",
+          failedPayment.error_description || failedPayment.error_reason || null,
+          record.rows[0].id
+        ]
+      );
+    } else if (paymentStatus === "Cancelled") {
+      await pool.query(
+        "UPDATE payments SET payment_status = 'Cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND payment_status = 'Pending'",
         [record.rows[0].id]
       );
     }
@@ -5761,10 +6052,22 @@ app.post("/api/razorpay/webhook", async (req, res) => {
             await client.query(
               `UPDATE payments
                SET payment_status = 'Completed', razorpay_payment_id = $1,
-                   payment_method = $2, method = $2, exit_time = CURRENT_TIMESTAMP,
-                   duration = $3
-               WHERE id = $4 AND LOWER(payment_status) IN ('pending', 'failed')`,
-              [providerPayment.id, providerPayment.method || "Razorpay", duration, record.id]
+                   payment_method = $2, method = $2,
+                   upi_vpa = CASE WHEN LOWER(COALESCE($2, '')) = 'upi' THEN $3 ELSE NULL END,
+                   currency = COALESCE($4, currency, 'INR'),
+                   paid_at = CASE WHEN $5::double precision IS NULL THEN CURRENT_TIMESTAMP ELSE TO_TIMESTAMP($5::double precision) END,
+                   failure_reason = NULL, exit_time = CURRENT_TIMESTAMP, duration = $6,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $7 AND LOWER(payment_status) IN ('pending', 'failed')`,
+              [
+                providerPayment.id,
+                providerPayment.method || "Razorpay",
+                providerPayment.vpa || null,
+                providerPayment.currency || "INR",
+                providerPayment.created_at || null,
+                duration,
+                record.id
+              ]
             );
             if (record.parking_session_id) {
               await client.query(
@@ -5805,9 +6108,20 @@ app.post("/api/razorpay/webhook", async (req, res) => {
           }
         } else if (eventType === "payment.failed" && providerPayment.status === "failed") {
           await client.query(
-            `UPDATE payments SET payment_status = 'Failed', razorpay_payment_id = $1
-             WHERE id = $2 AND LOWER(payment_status) = 'pending'`,
-            [providerPayment.id, record.id]
+            `UPDATE payments
+             SET payment_status = 'Failed', razorpay_payment_id = $1,
+                 payment_method = COALESCE($2, payment_method),
+                 currency = COALESCE($3, currency, 'INR'),
+                 failure_reason = COALESCE($4, 'Payment failed at Razorpay.'),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $5 AND LOWER(payment_status) IN ('pending', 'failed')`,
+            [
+              providerPayment.id,
+              providerPayment.method || null,
+              providerPayment.currency || "INR",
+              providerPayment.error_description || providerPayment.error_reason || null,
+              record.id
+            ]
           );
         }
       }
@@ -5816,11 +6130,22 @@ app.post("/api/razorpay/webhook", async (req, res) => {
       const refundResult = await client.query(
         `UPDATE payments
          SET razorpay_refund_id = $1, refund_amount = $2,
-             refund_status = CASE WHEN refund_status IN ('Completed', 'Failed') THEN refund_status ELSE $3 END,
-             payment_status = CASE WHEN $3 = 'Completed' THEN 'Refunded' ELSE payment_status END
+             refund_status = CASE
+               WHEN refund_status = 'Completed' OR $3 = 'Completed' THEN 'Completed'
+               ELSE $3
+             END,
+             payment_status = CASE WHEN $3 = 'Completed' THEN 'Refunded' ELSE payment_status END,
+             failure_reason = CASE WHEN $3 = 'Failed' THEN COALESCE($5, failure_reason) ELSE failure_reason END,
+             updated_at = CURRENT_TIMESTAMP
          WHERE razorpay_payment_id = $4
            AND (razorpay_refund_id IS NULL OR razorpay_refund_id = $1)`,
-        [refundEntity.id, Number(refundEntity.amount) / 100, refundStatus, refundEntity.payment_id]
+        [
+          refundEntity.id,
+          Number(refundEntity.amount) / 100,
+          refundStatus,
+          refundEntity.payment_id,
+          refundEntity.error_description || refundEntity.error_reason || null
+        ]
       );
       if (refundResult.rowCount === 0) {
         throw new Error("The webhook refund did not match a recorded payment.");
@@ -5881,7 +6206,7 @@ app.post("/api/admin/payments/:paymentId/refund", async (req, res) => {
       return res.status(409).json({ error: "A refund has already been requested for this payment. Check its status before taking further action." });
     }
     await client.query(
-      "UPDATE payments SET refund_status = 'Pending', refund_amount = amount WHERE id = $1",
+      "UPDATE payments SET refund_status = 'Pending', refund_amount = amount, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [paymentId]
     );
     await client.query("COMMIT");
@@ -5901,14 +6226,29 @@ app.post("/api/admin/payments/:paymentId/refund", async (req, res) => {
       amount: Math.round(Number(payment.amount) * 100),
       notes: { payment_record_id: String(paymentId), requested_by: String(req.authUser.id) }
     });
-    const refundStatus = refund.status === "processed" ? "Completed" : "Pending";
+    const refundStatus = refund.status === "processed"
+      ? "Completed"
+      : refund.status === "failed"
+        ? "Failed"
+        : "Pending";
     await pool.query(
       `UPDATE payments
        SET razorpay_refund_id = $1, refund_amount = $2,
-           refund_status = CASE WHEN refund_status IN ('Completed', 'Failed') THEN refund_status ELSE $3 END,
-           payment_status = CASE WHEN $3 = 'Completed' THEN 'Refunded' ELSE payment_status END
+           refund_status = CASE
+             WHEN refund_status = 'Completed' OR $3 = 'Completed' THEN 'Completed'
+             ELSE $3
+           END,
+           payment_status = CASE WHEN $3 = 'Completed' THEN 'Refunded' ELSE payment_status END,
+           failure_reason = CASE WHEN $3 = 'Failed' THEN COALESCE($5, failure_reason) ELSE failure_reason END,
+           updated_at = CURRENT_TIMESTAMP
        WHERE id = $4 AND (razorpay_refund_id IS NULL OR razorpay_refund_id = $1)`,
-      [refund.id, Number(refund.amount) / 100, refundStatus, paymentId]
+      [
+        refund.id,
+        Number(refund.amount) / 100,
+        refundStatus,
+        paymentId,
+        refund.error_description || refund.error_reason || null
+      ]
     );
     return res.json({ success: true, refundId: refund.id, refundStatus });
   } catch (error) {
@@ -5923,7 +6263,11 @@ app.get("/api/admin/payments/analytics", async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        COALESCE(SUM(amount) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')), 0) AS total_revenue,
+        GREATEST(
+          COALESCE(SUM(amount) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')), 0)
+          - COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(refund_status) = 'completed'), 0),
+          0
+        ) AS total_revenue,
         COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')) AS successful_payments,
         COUNT(*) FILTER (WHERE LOWER(payment_status) = 'failed') AS failed_payments,
         COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('pending', 'refund pending')) AS pending_payments,
@@ -8624,6 +8968,27 @@ app.put("/api/customer/profile", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Server error updating profile" });
   }
+});
+
+app.use("/api", (req, res) => {
+  res.status(404).json({ success: false, error: "API route not found." });
+});
+
+app.use("/api", (error, req, res, next) => {
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  const status = Number.isInteger(error.status) && error.status >= 400 && error.status < 600
+    ? error.status
+    : 500;
+  if (status >= 500) {
+    console.error("API request failed:", error.message);
+  }
+  return res.status(status).json({
+    success: false,
+    error: status === 400 ? "Invalid API request body." : "Unable to process the API request."
+  });
 });
 
 const PORT = process.env.PORT || 5000;

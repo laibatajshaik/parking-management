@@ -35,12 +35,21 @@ CREATE TABLE IF NOT EXISTS parking_sessions (
 
 CREATE TABLE IF NOT EXISTS payments (
   id SERIAL PRIMARY KEY,
+  transaction_id VARCHAR(50),
   amount DECIMAL(10,2) NOT NULL,
   method VARCHAR(30) NOT NULL,
   payment_method VARCHAR(50),
   payment_status VARCHAR(50) DEFAULT 'Completed',
   status VARCHAR(20) DEFAULT 'Completed',
   customer_id INTEGER REFERENCES users(id),
+  customer_name VARCHAR(100),
+  customer_email VARCHAR(150),
+  customer_phone VARCHAR(50),
+  vehicle_number VARCHAR(50),
+  slot_number VARCHAR(20),
+  entry_time TIMESTAMP,
+  exit_time TIMESTAMP,
+  duration VARCHAR(50),
   booking_id VARCHAR(50),
   parking_session_id INTEGER,
   razorpay_order_id VARCHAR(100),
@@ -48,9 +57,23 @@ CREATE TABLE IF NOT EXISTS payments (
   razorpay_refund_id VARCHAR(100),
   refund_amount DECIMAL(10,2),
   refund_status VARCHAR(30),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  currency VARCHAR(3) DEFAULT 'INR',
+  upi_vpa VARCHAR(255),
+  paid_at TIMESTAMP,
+  failure_reason TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(50);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_name VARCHAR(100);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_email VARCHAR(150);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(50);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS vehicle_number VARCHAR(50);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS slot_number VARCHAR(20);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS entry_time TIMESTAMP;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS exit_time TIMESTAMP;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS duration VARCHAR(50);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES users(id);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_id VARCHAR(50);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS parking_session_id INTEGER;
@@ -61,13 +84,34 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_refund_id VARCHAR(100);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'INR';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS upi_vpa VARCHAR(255);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+UPDATE payments
+SET transaction_id = 'TXN-' || id::text
+WHERE transaction_id IS NULL OR transaction_id = '';
+UPDATE payments SET currency = 'INR' WHERE currency IS NULL OR currency = '';
+UPDATE payments SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL;
+UPDATE payments p
+SET customer_id = u.id
+FROM users u
+WHERE p.customer_id IS NULL
+  AND p.customer_email IS NOT NULL
+  AND LOWER(p.customer_email) = LOWER(u.email);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_order_id
   ON payments(razorpay_order_id) WHERE razorpay_order_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_transaction_id
+  ON payments(transaction_id) WHERE transaction_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_payment_id
   ON payments(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_refund_id
   ON payments(razorpay_refund_id) WHERE razorpay_refund_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_customer_created_at ON payments(customer_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_status_created_at ON payments(payment_status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
   event_id VARCHAR(150) PRIMARY KEY,
