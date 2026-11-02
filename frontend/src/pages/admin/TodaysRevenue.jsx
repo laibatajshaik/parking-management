@@ -24,25 +24,38 @@ export default function TodaysRevenue() {
   const [paymentsList, setPaymentsList] = useState([]);
   const [totalPayments, setTotalPayments] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [paymentListError, setPaymentListError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [methodFilter, setMethodFilter] = useState("ALL");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(5);
+  const [paymentAnalytics, setPaymentAnalytics] = useState({
+    totalRevenue: 0,
+    successfulPayments: 0,
+    failedPayments: 0,
+    pendingPayments: 0,
+    totalRefunds: 0
+  });
+  const [analyticsError, setAnalyticsError] = useState("");
+  const [refundAction, setRefundAction] = useState({ paymentId: null, message: "" });
+  const [refundingPaymentId, setRefundingPaymentId] = useState(null);
 
   const fetchRevenueSummary = async () => {
     try {
       const res = await apiFetch(`${API_BASE_URL}/api/payments/today`);
       const data = await res.json();
-      if (data.success && data.summary) {
-        setRevenueData(data);
+      if (!res.ok || !data.success || !data.summary) {
+        throw new Error(data.error || "Unable to load revenue summary.");
       }
-    } catch {
-      void 0;
+      setRevenueData(data);
+    } catch (error) {
+      setPaymentListError(error.message || "Unable to load revenue summary.");
     }
   };
 
   const fetchPayments = useCallback(async () => {
     setIsLoading(true);
+    setPaymentListError("");
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -52,24 +65,71 @@ export default function TodaysRevenue() {
       });
       const res = await apiFetch(`${API_BASE_URL}/api/payments?${params}`);
       const data = await res.json();
-      setIsLoading(false);
-      if (data.success && Array.isArray(data.payments)) {
-        setPaymentsList(data.payments);
-        setTotalPayments(data.total !== undefined ? data.total : data.payments.length);
+      if (!res.ok || !data.success || !Array.isArray(data.payments)) {
+        throw new Error(data.error || "Unable to load payments.");
       }
-    } catch {
+      setPaymentsList(data.payments);
+      setTotalPayments(data.total !== undefined ? data.total : data.payments.length);
+    } catch (error) {
+      setPaymentListError(error.message || "Unable to load payments.");
+    } finally {
       setIsLoading(false);
     }
   }, [page, limit, searchQuery, methodFilter]);
 
-  const refreshAll = () => {
-    fetchRevenueSummary();
-    fetchPayments();
+  const fetchPaymentAnalytics = useCallback(async () => {
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/admin/payments/analytics`);
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Unable to load payment analytics.");
+      }
+      setPaymentAnalytics(data);
+      setAnalyticsError("");
+    } catch (error) {
+      setAnalyticsError(error.message || "Unable to load payment analytics.");
+    }
+  }, []);
+
+  const refreshAll = async () => {
+    await Promise.all([fetchRevenueSummary(), fetchPayments(), fetchPaymentAnalytics()]);
+  };
+
+  const handleRefund = async (payment) => {
+    if (!window.confirm(`Issue a full refund of ₹${Number(payment.amount).toFixed(2)} for ${payment.transaction_id}?`)) {
+      return;
+    }
+    setRefundingPaymentId(payment.id);
+    setRefundAction({ paymentId: null, message: "" });
+    try {
+      const response = await apiFetch(`${API_BASE_URL}/api/admin/payments/${payment.id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Unable to issue the refund.");
+      }
+      setRefundAction({
+        paymentId: payment.id,
+        message: data.refundStatus === "Completed" ? "Refund completed." : "Refund requested; status will update automatically."
+      });
+      await Promise.all([fetchPayments(), fetchPaymentAnalytics(), fetchRevenueSummary()]);
+    } catch (error) {
+      setRefundAction({ paymentId: payment.id, message: error.message || "Unable to issue the refund." });
+    } finally {
+      setRefundingPaymentId(null);
+    }
   };
 
   useEffect(() => {
     fetchRevenueSummary();
   }, []);
+
+  useEffect(() => {
+    fetchPaymentAnalytics();
+  }, [fetchPaymentAnalytics]);
 
   useEffect(() => {
     fetchPayments();
@@ -157,6 +217,32 @@ export default function TodaysRevenue() {
 
   return (
     <div className="pw-todays-revenue-module">
+      <div>
+        <h3 className="pw-section-title">Payment Analytics</h3>
+        {analyticsError && <p role="alert" style={{ color: "#b91c1c" }}>{analyticsError}</p>}
+        <div className="pw-metrics-four-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: "12px" }}>
+          <div className="pw-metric-card">
+            <span className="pw-metric-label">Total Revenue</span>
+            <span className="pw-metric-value">₹{Number(paymentAnalytics.totalRevenue).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="pw-metric-card">
+            <span className="pw-metric-label">Successful Payments</span>
+            <span className="pw-metric-value">{paymentAnalytics.successfulPayments}</span>
+          </div>
+          <div className="pw-metric-card">
+            <span className="pw-metric-label">Failed Payments</span>
+            <span className="pw-metric-value">{paymentAnalytics.failedPayments}</span>
+          </div>
+          <div className="pw-metric-card">
+            <span className="pw-metric-label">Pending Payments</span>
+            <span className="pw-metric-value">{paymentAnalytics.pendingPayments}</span>
+          </div>
+          <div className="pw-metric-card">
+            <span className="pw-metric-label">Refunds</span>
+            <span className="pw-metric-value">₹{Number(paymentAnalytics.totalRefunds).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+      </div>
       <div className="pw-metrics-four-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <div className="pw-metric-card">
           <span className="pw-metric-label">Today's Total Revenue</span>
@@ -249,6 +335,7 @@ export default function TodaysRevenue() {
       </div>
 
       <div className="pw-users-panel-card" style={{ marginTop: "24px" }}>
+        {paymentListError && <p role="alert" style={{ color: "#b91c1c", margin: "0 0 12px" }}>{paymentListError}</p>}
         <div className="pw-users-toolbar-row">
           <div className="pw-search-box-pill">
             <Search size={14} className="pw-search-icon" />
@@ -280,6 +367,7 @@ export default function TodaysRevenue() {
                 <option value="Debit Card">Debit Card</option>
                 <option value="Cash">Cash</option>
                 <option value="Net Banking">Net Banking</option>
+                <option value="Razorpay">Razorpay</option>
               </select>
             </div>
 
@@ -383,10 +471,34 @@ export default function TodaysRevenue() {
                     </div>
 
                     <div style={{ textAlign: "right" }}>
-                      <span className="pw-status-pill completed">
-                        <CheckCircle2 size={11} />
-                        <span>Completed</span>
+                      <span
+                        className={`pw-status-pill ${String(p.payment_status || "Completed").toLowerCase()}`}
+                        style={{
+                          background: p.payment_status === "Failed" ? "#fee2e2" : p.payment_status === "Pending" ? "#fef3c7" : p.payment_status === "Refunded" ? "#e0e7ff" : "#dcfce7",
+                          color: p.payment_status === "Failed" ? "#991b1b" : p.payment_status === "Pending" ? "#92400e" : p.payment_status === "Refunded" ? "#3730a3" : "#166534"
+                        }}
+                      >
+                        {p.payment_status === "Failed" ? null : <CheckCircle2 size={11} />}
+                        <span>{p.payment_status || "Completed"}</span>
                       </span>
+                      {p.payment_status === "Completed" && p.razorpay_payment_id && (
+                        <div style={{ marginTop: "8px" }}>
+                          <button
+                            type="button"
+                            className="pw-btn-action-delete"
+                            onClick={() => handleRefund(p)}
+                            disabled={refundingPaymentId === p.id || ["Pending", "Completed", "Failed"].includes(p.refund_status)}
+                            title="Refund this Razorpay payment"
+                          >
+                            {refundingPaymentId === p.id ? "Processing..." : p.refund_status === "Pending" ? "Refund pending" : p.refund_status === "Completed" ? "Refunded" : p.refund_status === "Failed" ? "Refund failed" : "Refund"}
+                          </button>
+                        </div>
+                      )}
+                      {refundAction.paymentId === p.id && (
+                        <p role="status" style={{ margin: "6px 0 0", color: "var(--text-secondary, #64748b)", fontSize: "0.72rem" }}>
+                          {refundAction.message}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );

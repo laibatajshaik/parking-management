@@ -10,7 +10,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
   useEffect(() => {
     let active = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser) {
+      if (!firebaseUser || localStorage.getItem("shnoor_auth_state") !== "true") {
         if (active) setAuthState({ loading: false, user: null });
         return;
       }

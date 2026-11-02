@@ -246,12 +246,12 @@ export default function ActiveParking({ onSelectVehicleForPayment, onCheckout })
                     <div className="pw-user-card-actions-col">
                       <button
                         type="button"
-                        className="pw-btn-action-history"
+                        className="pw-btn-action-view"
                         onClick={() => setSelectedSessionModal(s)}
-                        title="View Full Session Details"
+                        aria-label="View details"
+                        title="View details"
                       >
-                        <Eye size={13} />
-                        <span>View</span>
+                        <Eye size={14} />
                       </button>
 
                       <button

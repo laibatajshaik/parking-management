@@ -3,11 +3,16 @@ import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
 import { CreditCard, Smartphone, Banknote, Globe, Receipt, Search, RefreshCw, CheckCircle2, Calendar, Clock, Layers, ArrowUpRight, Download } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
+import PaymentButton from "../../components/PaymentButton.jsx";
 
 export default function Payments({ loggedInUser, onViewReceipt }) {
   const [payments, setPayments] = useState([]);
   const [total, setTotal] = useState(0);
+  const [totalCompleted, setTotalCompleted] = useState(0);
   const [totalSpentAmount, setTotalSpentAmount] = useState(0);
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [sessionError, setSessionError] = useState("");
+  const [paymentsError, setPaymentsError] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
@@ -16,6 +21,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
 
   const fetchPayments = useCallback(async () => {
     setIsLoading(true);
+    setPaymentsError("");
     try {
       let user = loggedInUser;
       if (!user) {
@@ -27,9 +33,9 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
         }
       }
       if (!user || (!user.email && !user.name)) {
-        setIsLoading(false);
         setPayments([]);
         setTotal(0);
+        setTotalCompleted(0);
         setTotalSpentAmount(0);
         return;
       }
@@ -46,27 +52,51 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
       }
       const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?${params}`);
       const data = await res.json();
-      setIsLoading(false);
-      if (data.success && Array.isArray(data.payments)) {
-        setPayments(data.payments);
-        setTotal(data.total !== undefined ? data.total : data.payments.length);
-        if (data.totalAmount !== undefined) {
-          setTotalSpentAmount(data.totalAmount);
-        }
-      } else {
-        setPayments([]);
-        setTotal(0);
+      if (!res.ok || !data.success || !Array.isArray(data.payments)) {
+        throw new Error(data.error || "Unable to load payment history.");
       }
-    } catch {
+      setPayments(data.payments);
+      setTotal(data.total !== undefined ? data.total : data.payments.length);
+      setTotalCompleted(data.totalCompleted || 0);
+      if (data.totalAmount !== undefined) {
+        setTotalSpentAmount(data.totalAmount);
+      }
+    } catch (error) {
+      setPaymentsError(error.message || "Unable to load payment history.");
+    } finally {
       setIsLoading(false);
-      setPayments([]);
-      setTotal(0);
     }
   }, [loggedInUser, page, limit, searchQuery, methodFilter]);
+
+  const fetchActiveSessions = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/my-parking`);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Unable to load active parking sessions.");
+      }
+      const sessions = Array.isArray(data.sessions) && data.sessions.length > 0
+        ? data.sessions
+        : (data.session ? [data.session] : []);
+      setActiveSessions(sessions.filter((session) => session.parking_session_id));
+      setSessionError("");
+    } catch (error) {
+      setActiveSessions([]);
+      setSessionError(error.message);
+    }
+  }, []);
 
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
+
+  useEffect(() => {
+    fetchActiveSessions();
+  }, [fetchActiveSessions]);
+
+  const refreshPayments = async () => {
+    await Promise.all([fetchPayments(), fetchActiveSessions()]);
+  };
 
   const handleExportCsv = () => {
     const headers = ["Transaction ID", "Vehicle Plate", "Bay Slot", "Payment Method", "Date", "Time", "Amount (INR)", "Status"];
@@ -127,10 +157,43 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
   const validPayments = payments;
   const filteredPayments = payments;
 
-  const totalSpent = totalSpentAmount || validPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const totalSpent = totalSpentAmount;
+  const isCompleted = (payment) => ["completed", "successful", "paid", "success", "refunded"].includes(String(payment.payment_status || "").toLowerCase());
 
   return (
     <div className="pw-customer-payments-module">
+      <div className="pw-users-panel-card" style={{ marginBottom: "24px", padding: "20px" }}>
+        <div className="pw-section-header-row">
+          <div>
+            <h3 className="pw-section-title">Pay for Active Parking</h3>
+            <p className="pw-section-sub">Checkout uses the current parking fee calculated for each active session.</p>
+          </div>
+          <button type="button" className="pw-btn-action-refresh" onClick={refreshPayments} title="Refresh payment status">
+            <RefreshCw size={14} />
+            <span>Refresh</span>
+          </button>
+        </div>
+        {sessionError && <p role="alert" style={{ color: "#b91c1c", marginTop: "12px" }}>{sessionError}</p>}
+        {paymentsError && <p role="alert" style={{ color: "#b91c1c", marginTop: "12px" }}>{paymentsError}</p>}
+        {activeSessions.length > 0 ? (
+          <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+            {activeSessions.map((session) => (
+              <div key={session.parking_session_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap", padding: "14px", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "10px" }}>
+                <div>
+                  <strong>{session.vehicle_number}</strong>
+                  <div style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.85rem", marginTop: "4px" }}>
+                    Bay {session.current_slot} · Current balance ₹{Number(session.total_estimated_amount || 0).toFixed(2)}
+                  </div>
+                </div>
+                <PaymentButton session={session} onPaymentComplete={refreshPayments} />
+              </div>
+            ))}
+          </div>
+        ) : !sessionError ? (
+          <p style={{ color: "var(--text-secondary, #64748b)", marginTop: "14px" }}>No active parking session currently needs payment.</p>
+        ) : null}
+      </div>
+
       <div className="pw-metrics-four-grid">
         <div className="pw-metric-card">
           <span className="pw-metric-label">Total Parking Spend</span>
@@ -142,7 +205,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
 
         <div className="pw-metric-card">
           <span className="pw-metric-label">Completed Transactions</span>
-          <span className="pw-metric-value">{total}</span>
+          <span className="pw-metric-value">{totalCompleted}</span>
           <span className="pw-metric-trend positive">
             <CheckCircle2 size={12} />
             <span>Receipts available</span>
@@ -203,6 +266,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                 <option value="Debit Card">Debit Card</option>
                 <option value="Cash">Cash</option>
                 <option value="Net Banking">Net Banking</option>
+                <option value="Razorpay">Razorpay</option>
               </select>
             </div>
 
@@ -252,6 +316,9 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                         <Receipt size={12} />
                         <span>{p.transaction_id}</span>
                       </div>
+                      <span style={{ display: "inline-flex", marginTop: "5px", padding: "2px 7px", borderRadius: "999px", fontSize: "0.68rem", fontWeight: 700, background: isCompleted(p) ? "#dcfce7" : String(p.payment_status).toLowerCase() === "failed" ? "#fee2e2" : String(p.payment_status).toLowerCase() === "cancelled" ? "#e2e8f0" : "#fef3c7", color: isCompleted(p) ? "#166534" : String(p.payment_status).toLowerCase() === "failed" ? "#991b1b" : String(p.payment_status).toLowerCase() === "cancelled" ? "#334155" : "#92400e" }}>
+                        {p.payment_status || "Completed"}
+                      </span>
                     </div>
 
                     <div>
@@ -301,7 +368,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                     </div>
 
                     <div style={{ textAlign: "right" }}>
-                      <button
+                      {isCompleted(p) ? <button
                         type="button"
                         className="pw-btn-action-view-receipt"
                         onClick={() => {
@@ -312,7 +379,7 @@ export default function Payments({ loggedInUser, onViewReceipt }) {
                       >
                         <span>Receipt</span>
                         <ArrowUpRight size={12} />
-                      </button>
+                      </button> : <span style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.78rem" }}>Not available</span>}
                     </div>
                   </div>
                 );

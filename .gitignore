@@ -17,6 +17,7 @@ dist-ssr/
 .env
 .env.*
 backend/.env
+!backend/.env.example
 database/.env
 
 parking-load-summary.json

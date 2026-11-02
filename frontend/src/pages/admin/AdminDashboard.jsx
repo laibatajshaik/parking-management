@@ -1,8 +1,6 @@
 import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "../../components/firebase.js";
 import {
   LayoutDashboard,
   Car,
@@ -26,6 +24,8 @@ import AdminOverview from "./AdminOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
+import LogoutButton from "../../components/LogoutButton.jsx";
+import { logoutCurrentUser } from "../../utils/logout.js";
 
 const ParkingOccupancy = lazy(() => import("./ParkingOccupancy.jsx"));
 const ParkingSlotManagement = lazy(() => import("./ParkingSlotManagement.jsx"));
@@ -300,20 +300,12 @@ export default function AdminDashboard({ setView }) {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await logoutCurrentUser();
     } catch (error) {
-      console.error("Firebase sign-out failed:", error);
-    }
-    try {
-      localStorage.removeItem("shnoor_current_user");
-      localStorage.removeItem("shnoor_auth_state");
-    } catch {
-      void 0;
-    }
-    if (setView) {
-      setView("landing");
-    } else {
-      navigate("/");
+      console.error("Could not complete logout:", error);
+    } finally {
+      setCurrentUser(null);
+      navigate("/login", { replace: true });
     }
   };
 
@@ -423,7 +415,6 @@ export default function AdminDashboard({ setView }) {
         menuItems={ADMIN_SIDEBAR_ITEMS}
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        onLogout={handleSignOut}
         isCollapsed={isSidebarCollapsed}
         isMobileNavOpen={isMobileNavOpen}
         onCloseMobile={() => setIsMobileNavOpen(false)}
@@ -464,6 +455,7 @@ export default function AdminDashboard({ setView }) {
                 <span className="pw-user-profile-role">Super Admin</span>
               </div>
             </div>
+            <LogoutButton onLogout={handleSignOut} />
           </div>
         </header>
 

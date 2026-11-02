@@ -478,10 +478,10 @@ export default function UserManagement({
                       type="button"
                       className="pw-btn-action-view"
                       onClick={() => setSelectedUser(u)}
-                      title="View Full User Details"
+                      aria-label="View details"
+                      title="View details"
                     >
-                      <Eye size={13} />
-                      <span>View</span>
+                      <Eye size={14} />
                     </button>
 
                     <button

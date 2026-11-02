@@ -53,7 +53,7 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
       return;
     }
     try {
-      const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/customer/payments?email=${encodeURIComponent(email)}&status=Completed`);
       const data = await res.json();
       setIsLoading(false);
       if (data && data.success && Array.isArray(data.payments)) {
@@ -322,6 +322,8 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
         <span class="label">Payment Method</span>
         <span class="val">${activeReceipt.payment_method || "UPI / Card"}</span>
       </div>
+      ${activeReceipt.razorpay_order_id ? `<div class="item"><span class="label">Razorpay Order ID</span><span class="val">${activeReceipt.razorpay_order_id}</span></div>` : ""}
+      ${activeReceipt.razorpay_payment_id ? `<div class="item"><span class="label">Razorpay Payment ID</span><span class="val">${activeReceipt.razorpay_payment_id}</span></div>` : ""}
       <div class="item">
         <span class="label">${isEvReceipt ? "Tariff Rate" : "Base Fee"}</span>
         <span class="val">${isEvReceipt ? "₹18.00 / kWh" : (activeReceipt.original_amount ? `₹${parseFloat(activeReceipt.original_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : `₹${formattedFee}`)}</span>
@@ -607,6 +609,18 @@ export default function DigitalReceipt({ receiptData, selectedPayment, currentUs
                   <span className="pw-receipt-label">Payment Method</span>
                   <span className="pw-receipt-value">{activeReceipt.payment_method || "Cash / Digital"}</span>
                 </div>
+                {activeReceipt.razorpay_order_id && (
+                  <div className="pw-receipt-row">
+                    <span className="pw-receipt-label">Razorpay Order ID</span>
+                    <span className="pw-receipt-value" style={{ fontFamily: "monospace" }}>{activeReceipt.razorpay_order_id}</span>
+                  </div>
+                )}
+                {activeReceipt.razorpay_payment_id && (
+                  <div className="pw-receipt-row">
+                    <span className="pw-receipt-label">Razorpay Payment ID</span>
+                    <span className="pw-receipt-value" style={{ fontFamily: "monospace" }}>{activeReceipt.razorpay_payment_id}</span>
+                  </div>
+                )}
                 <div className="pw-receipt-row">
                   <span className="pw-receipt-label">{isEv(activeReceipt) ? "Tariff Rate" : "Base Fee"}</span>
                   <span className="pw-receipt-value">

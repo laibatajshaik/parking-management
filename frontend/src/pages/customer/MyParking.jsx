@@ -1,6 +1,7 @@
 import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect } from "react";
 import { Car, Clock, ShieldCheck, RefreshCw, Compass, BookmarkCheck, Zap, AlertTriangle } from "lucide-react";
+import PaymentButton from "../../components/PaymentButton.jsx";
 
 export default function MyParking({ loggedInUser, onNavigate }) {
   const [activeSession, setActiveSession] = useState(null);
@@ -328,6 +329,17 @@ export default function MyParking({ loggedInUser, onNavigate }) {
                     {sessionItem.scheduled_end_time ? (sessionItem.is_overstay ? sessionItem.overstay_duration : (sessionItem.remaining_time || sessionItem.duration)) : sessionItem.duration}
                   </div>
                 </div>
+                <div style={{ marginTop: "16px" }}>
+                  <PaymentButton
+  session={{
+    ...sessionItem,
+    parking_session_id: sessionItem.parking_session_id || sessionItem.id,
+    owner_name: loggedInUser?.name,
+    owner_email: loggedInUser?.email
+  }}
+  onPaymentComplete={fetchMyParking}
+/>
+                </div>
               </div>
 
               {sessionItem.is_overstay && (
@@ -372,7 +384,7 @@ export default function MyParking({ loggedInUser, onNavigate }) {
                 <div className="pw-step-num">2</div>
                 <div className="pw-step-content">
                   <h5>Checkout Procedure</h5>
-                  <p>When exiting, present your plate number at the automated gate or staff terminal. Payment is accepted via UPI, Card, or Fastag.</p>
+                  <p>Pay your calculated parking balance securely online or present your plate number at the automated gate or staff terminal.</p>
                 </div>
               </div>
 

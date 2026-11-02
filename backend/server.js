@@ -4,10 +4,10 @@ import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import pool from "./db.js";
 import { getFirebaseAdminAuth } from "./firebaseAdmin.js";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+import { loadBackendEnvironment } from "./loadEnvironment.js";
 import zlib from "zlib";
+import { createHmac, timingSafeEqual } from "crypto";
+import Razorpay from "razorpay";
 import notificationRoutes from "./modules/notifications/notificationRoutes.js";
 import evChargingRoutes from "./modules/ev/evChargingRoutes.js";
 import couponRoutes from "./modules/coupons/couponRoutes.js";
@@ -51,11 +51,7 @@ import {
   getAuditUserAgent
 } from "./modules/audit/auditLogger.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, ".env") });
-
-dotenv.config();
+loadBackendEnvironment();
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -87,7 +83,11 @@ app.use((req, res, next) => {
   };
   next();
 });
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buffer) => {
+    req.rawBody = Buffer.from(buffer);
+  }
+}));
 
 const publicApiRequests = new Set([
   "POST /contact",
@@ -95,6 +95,7 @@ const publicApiRequests = new Set([
   "POST /forgot-password",
   "POST /verify-reset-otp",
   "POST /reset-password",
+  "POST /razorpay/webhook",
   "GET /occupancy",
   "GET /parking-locations",
   "GET /parking-slots",
@@ -109,6 +110,20 @@ const firebaseIdentityOnlyPaths = new Set([
 
 function getApiPath(req) {
   return new URL(req.originalUrl, "http://localhost").pathname.replace(/^\/api/, "") || "/";
+}
+
+function getSafeAuthenticationErrorDetails(error) {
+  const message = typeof error?.message === "string" ? error.message : "Unknown error";
+  const safeMessage = message
+    .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, "[redacted key]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted token]")
+    .replace(/(authorization\s*[:=]\s*bearer\s+)[^\s,;]+/gi, "$1[redacted]")
+    .replace(/(["']?(?:private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|password|token|secret)["']?\s*[:=]\s*)(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;]+)/gi, "$1[redacted]");
+
+  return {
+    code: typeof error?.code === "string" ? error.code : "UNKNOWN",
+    message: safeMessage
+  };
 }
 
 function getRequiredRoles(req, apiPath) {
@@ -248,7 +263,10 @@ app.use("/api", async (req, res, next) => {
     if (error?.code?.startsWith("auth/")) {
       return res.status(401).json({ error: "The Firebase ID token is invalid or expired." });
     }
-    console.error("Firebase ID token verification failed:", error);
+    console.error("Firebase ID token verification failed", {
+      stage: "Firebase ID token verification",
+      ...getSafeAuthenticationErrorDetails(error)
+    });
     return res.status(500).json({ error: "Authentication service is unavailable." });
   }
 
@@ -734,6 +752,14 @@ const initDbSchema = async () => {
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS method VARCHAR(50);
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Completed';
       ALTER TABLE payments ALTER COLUMN method DROP NOT NULL;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES users(id);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS parking_session_id INTEGER REFERENCES vehicle_history(id);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_order_id ON payments(razorpay_order_id) WHERE razorpay_order_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_payment_id ON payments(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_pending_parking_session ON payments(parking_session_id) WHERE parking_session_id IS NOT NULL AND payment_status = 'Pending' AND razorpay_order_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_pending_booking ON payments(booking_id) WHERE booking_id IS NOT NULL AND payment_status = 'Pending' AND razorpay_order_id IS NOT NULL;
     `);
 
     const payCountRes = await pool.query("SELECT COUNT(*) FROM payments WHERE transaction_id IS NOT NULL");
@@ -825,6 +851,16 @@ const initDbSchema = async () => {
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_type VARCHAR(50) DEFAULT 'Parking Fee';
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS base_amount NUMERIC(10, 2) DEFAULT 0.00;
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS overstay_amount NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_refund_id VARCHAR(100);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_amount NUMERIC(10, 2);
+      ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_refund_id
+        ON payments(razorpay_refund_id) WHERE razorpay_refund_id IS NOT NULL;
+      CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
+        event_id VARCHAR(150) PRIMARY KEY,
+        event_type VARCHAR(100) NOT NULL,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
     await pool.query("UPDATE pricing_plans SET overstay_rate = rate WHERE overstay_rate IS NULL;");
 
@@ -1468,17 +1504,12 @@ app.post("/api/auth/password-login", async (req, res) => {
     const customToken = await firebaseAdminAuth.createCustomToken(firebaseUser.uid);
     return res.json({ success: true, customToken });
   } catch (error) {
-    const errorCode = typeof error?.code === "string" ? error.code : "UNKNOWN";
+    const errorDetails = getSafeAuthenticationErrorDetails(error);
+    const { code: errorCode } = errorDetails;
     const errorMessage = typeof error?.message === "string" ? error.message : "Unknown error";
-    const safeErrorMessage = errorMessage
-      .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, "[redacted key]")
-      .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted token]")
-      .replace(/(authorization\s*[:=]\s*bearer\s+)[^\s,;]+/gi, "$1[redacted]")
-      .replace(/(private_key|client_secret|password|token)\s*[:=]\s*("[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1=[redacted]");
     console.error("Admin/staff password login failed", {
       stage: authenticationStage,
-      code: errorCode,
-      message: safeErrorMessage
+      ...errorDetails
     });
     if (
       errorCode === "app/invalid-credential" ||
@@ -3809,8 +3840,8 @@ app.get("/api/customer/payments", async (req, res) => {
     const params = [];
 
     if (email) {
-      params.push(`%${email.toLowerCase().trim()}%`);
-      whereClause += ` AND (LOWER(COALESCE(p.customer_email, '')) LIKE $${params.length} OR LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length})`;
+      params.push(email.toLowerCase().trim());
+      whereClause += ` AND LOWER(COALESCE(p.customer_email, '')) = $${params.length}`;
     } else if (name) {
       params.push(`%${name.toLowerCase().trim()}%`);
       whereClause += ` AND LOWER(COALESCE(p.customer_name, '')) LIKE $${params.length}`;
@@ -3832,17 +3863,22 @@ app.get("/api/customer/payments", async (req, res) => {
     }
 
     const countRes = await pool.query(
-      `SELECT COUNT(*) as count, COALESCE(SUM(p.amount), 0) as total_amount FROM payments p ${whereClause}`,
+      `SELECT COUNT(*) AS count,
+        COUNT(*) FILTER (WHERE LOWER(COALESCE(p.payment_status, 'completed')) IN ('completed', 'successful', 'paid', 'success')) AS completed_count,
+        COALESCE(SUM(CASE WHEN LOWER(COALESCE(p.payment_status, 'completed')) IN ('completed', 'successful', 'paid', 'success', 'refunded') THEN p.amount ELSE 0 END), 0)
+          - COALESCE(SUM(p.refund_amount) FILTER (WHERE LOWER(COALESCE(p.refund_status, '')) = 'completed'), 0) AS total_amount
+       FROM payments p ${whereClause}`,
       params
     );
     const total = parseInt(countRes.rows[0].count, 10) || 0;
+    const totalCompleted = parseInt(countRes.rows[0].completed_count, 10) || 0;
     const totalAmount = parseFloat(countRes.rows[0].total_amount) || 0;
 
     const selectCols = `
       SELECT 
         p.id,
         p.transaction_id,
-        COALESCE(r.booking_id, 'BK-' || SUBSTRING(p.transaction_id FROM 5)) AS booking_id,
+        COALESCE(p.booking_id, r.booking_id, 'BK-' || SUBSTRING(p.transaction_id FROM 5)) AS booking_id,
         p.customer_name,
         p.customer_email,
         p.customer_phone,
@@ -3861,6 +3897,11 @@ app.get("/api/customer/payments", async (req, res) => {
         p.coupon_code,
         p.payment_method,
         COALESCE(p.payment_status, 'Completed') AS payment_status,
+        p.razorpay_order_id,
+        p.razorpay_payment_id,
+        p.razorpay_refund_id,
+        p.refund_amount,
+        p.refund_status,
         p.created_at AS receipt_date,
         p.created_at
       FROM payments p
@@ -3889,6 +3930,7 @@ app.get("/api/customer/payments", async (req, res) => {
         payments: paymentsRes.rows,
         data: paymentsRes.rows,
         total,
+        totalCompleted,
         totalAmount,
         pagination: {
           page: pageNum,
@@ -3910,6 +3952,7 @@ app.get("/api/customer/payments", async (req, res) => {
       payments: paymentsRes.rows,
       data: paymentsRes.rows,
       total,
+      totalCompleted,
       totalAmount,
       pagination: {
         page: 1,
@@ -3933,7 +3976,7 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
       `SELECT 
         p.id,
         p.transaction_id,
-        COALESCE(r.booking_id, 'BK-' || SUBSTRING(p.transaction_id FROM 5)) AS booking_id,
+        COALESCE(p.booking_id, r.booking_id, 'BK-' || SUBSTRING(p.transaction_id FROM 5)) AS booking_id,
         p.customer_name,
         p.customer_email,
         p.customer_phone,
@@ -3948,6 +3991,8 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
         p.amount,
         p.amount AS fee,
         p.payment_method,
+        p.razorpay_order_id,
+        p.razorpay_payment_id,
         COALESCE(p.payment_status, 'Completed') AS payment_status,
         p.created_at AS receipt_date,
         p.created_at
@@ -3961,6 +4006,7 @@ app.get("/api/customer/receipts/:id", async (req, res) => {
         LIMIT 1
       ) r ON true
       WHERE (LOWER(p.transaction_id) = LOWER($1) OR p.id::text = $1)${ownerFilter}
+        AND LOWER(COALESCE(p.payment_status, 'completed')) IN ('completed', 'successful', 'paid', 'success')
       LIMIT 1`,
       isCustomer ? [id.trim(), req.authUser.email] : [id.trim()]
     );
@@ -4270,6 +4316,7 @@ app.get("/api/customer/my-parking", async (req, res) => {
         COALESCE(v.owner_phone, '') as owner_phone,
         v.status,
         v.current_slot,
+        (SELECT id FROM vehicle_history WHERE REPLACE(UPPER(vehicle_number), ' ', '') = REPLACE(UPPER(v.vehicle_number), ' ', '') AND (exit_time IS NULL OR LOWER(status) = 'parked') ORDER BY entry_time DESC LIMIT 1) as parking_session_id,
         COALESCE(
           (SELECT entry_time FROM vehicle_history WHERE REPLACE(UPPER(vehicle_number), ' ', '') = REPLACE(UPPER(v.vehicle_number), ' ', '') ORDER BY entry_time DESC LIMIT 1),
           v.created_at,
@@ -4427,6 +4474,7 @@ app.get("/api/customer/my-parking", async (req, res) => {
 
       return {
         id: row.id || row.history_id || row.vehicle_id,
+        parking_session_id: row.parking_session_id || row.history_id || null,
         vehicle_number: row.vehicle_number,
         vehicle_type: row.vehicle_type || (String(row.current_slot || "").toUpperCase().startsWith("EV") ? "EV" : "Car"),
         model: row.model || "Standard",
@@ -5048,6 +5096,855 @@ app.post("/api/parking/calculate-fee", async (req, res) => {
   }
 });
 
+function createRazorpayClient() {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) {
+    const error = new Error("Razorpay credentials are not configured.");
+    error.status = 503;
+    throw error;
+  }
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
+
+function isValidRazorpaySignature(orderId, paymentId, signature, keySecret) {
+  if (typeof signature !== "string" || !/^[a-f0-9]{64}$/i.test(signature)) {
+    return false;
+  }
+  const expected = createHmac("sha256", keySecret).update(`${orderId}|${paymentId}`).digest();
+  const received = Buffer.from(signature, "hex");
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
+
+app.post("/api/customer/payments/razorpay/order", async (req, res) => {
+  if ((req.authUser.role || "").toLowerCase() !== "customer") {
+    return res.status(403).json({ error: "Only customers can create parking payment orders." });
+  }
+  const sessionId = Number(req.body?.parking_session_id);
+  const bookingId = String(req.body?.booking_id || "").trim();
+  const hasSessionId = req.body?.parking_session_id !== undefined;
+  if (
+    hasSessionId === Boolean(bookingId) ||
+    (hasSessionId && (!Number.isSafeInteger(sessionId) || sessionId <= 0))
+  ) {
+    return res.status(400).json({ error: "A valid parking session or reservation is required." });
+  }
+
+  let razorpay;
+  try {
+    razorpay = createRazorpayClient();
+  } catch (error) {
+    return res.status(error.status || 503).json({ error: error.message });
+  }
+
+  let client;
+  let transactionOpen = false;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    transactionOpen = true;
+    if (bookingId) {
+      const bookingResult = await client.query(
+        `SELECT booking_id, customer_name, customer_email, customer_phone, vehicle_number,
+                slot_number, start_time, end_time, duration_hours, total_amount,
+                original_amount, discount_amount, coupon_code, status
+         FROM reservations
+         WHERE booking_id = $1 AND LOWER(customer_email) = LOWER($2)
+           AND LOWER(status) = 'pending payment'
+         FOR UPDATE`,
+        [bookingId, req.authUser.email]
+      );
+      if (bookingResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return res.status(404).json({ error: "An unpaid reservation belonging to this customer was not found." });
+      }
+
+      const existingBookingOrder = await client.query(
+        `SELECT razorpay_order_id, amount
+         FROM payments
+         WHERE booking_id = $1 AND customer_id = $2 AND payment_status = 'Pending'
+           AND razorpay_order_id IS NOT NULL
+         ORDER BY id DESC
+         LIMIT 1`,
+        [bookingId, req.authUser.id]
+      );
+      if (existingBookingOrder.rowCount > 0) {
+        await client.query("COMMIT");
+        transactionOpen = false;
+        return res.json({
+          success: true,
+          keyId: process.env.RAZORPAY_KEY_ID,
+          orderId: existingBookingOrder.rows[0].razorpay_order_id,
+          amount: Math.round(Number(existingBookingOrder.rows[0].amount) * 100),
+          currency: "INR"
+        });
+      }
+
+      const booking = bookingResult.rows[0];
+      const amount = Number(booking.total_amount);
+      const amountInPaise = Math.round(amount * 100);
+      if (!Number.isSafeInteger(amountInPaise) || amountInPaise <= 0) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return res.status(400).json({ error: "This reservation does not have a payable balance." });
+      }
+
+      const order = await razorpay.orders.create({
+        amount: amountInPaise,
+        currency: "INR",
+        receipt: `booking-${booking.booking_id}-${req.authUser.id}`,
+        notes: {
+          booking_id: booking.booking_id,
+          customer_id: String(req.authUser.id)
+        }
+      });
+      await client.query(
+        `INSERT INTO payments (
+          transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+          slot_number, entry_time, exit_time, duration, amount, original_amount,
+          discount_amount, coupon_code, payment_method, method, payment_status,
+          customer_id, booking_id, razorpay_order_id, base_amount, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+          'Razorpay', 'Razorpay', 'Pending', $14, $15, $16, $17, CURRENT_TIMESTAMP)`,
+        [
+          `RZP-${order.id}`,
+          booking.vehicle_number,
+          booking.customer_name,
+          booking.customer_email,
+          booking.customer_phone || "",
+          booking.slot_number,
+          booking.start_time,
+          booking.end_time,
+          `${Number(booking.duration_hours).toFixed(2)}h`,
+          amount,
+          Number(booking.original_amount || amount),
+          Number(booking.discount_amount || 0),
+          booking.coupon_code,
+          req.authUser.id,
+          booking.booking_id,
+          order.id,
+          Number(booking.original_amount || amount)
+        ]
+      );
+      await client.query("COMMIT");
+      transactionOpen = false;
+      return res.status(201).json({
+        success: true,
+        keyId: process.env.RAZORPAY_KEY_ID,
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency
+      });
+    }
+
+    const sessionResult = await client.query(
+      `SELECT
+        vh.id,
+        vh.vehicle_number,
+        vh.slot_number,
+        vh.entry_time,
+        vh.exit_time,
+        vh.status,
+        v.owner_name,
+        v.owner_email,
+        v.owner_phone,
+        v.vehicle_type,
+        v.model,
+        COALESCE(ps.hourly_rate, 50.00) AS hourly_rate,
+        reservation.booking_id,
+        reservation.start_time AS scheduled_start_time,
+        reservation.end_time AS scheduled_end_time,
+        reservation.duration_hours AS booked_duration_hours,
+        reservation.total_amount AS prepaid_amount,
+        plan.overstay_rate
+      FROM vehicle_history vh
+      LEFT JOIN vehicles v ON REPLACE(UPPER(v.vehicle_number), ' ', '') = REPLACE(UPPER(vh.vehicle_number), ' ', '')
+      LEFT JOIN parking_slots ps ON UPPER(TRIM(ps.slot_number)) = UPPER(TRIM(vh.slot_number))
+      LEFT JOIN LATERAL (
+        SELECT r.booking_id, r.start_time, r.end_time, r.duration_hours, r.total_amount, r.plan_code, r.customer_email
+        FROM reservations r
+        WHERE REPLACE(UPPER(r.vehicle_number), ' ', '') = REPLACE(UPPER(vh.vehicle_number), ' ', '')
+          AND LOWER(r.status) IN ('checked in', 'confirmed')
+        ORDER BY r.id DESC
+        LIMIT 1
+      ) reservation ON true
+      LEFT JOIN LATERAL (
+        SELECT p.overstay_rate
+        FROM pricing_plans p
+        WHERE LOWER(p.plan_code) = LOWER(reservation.plan_code)
+        LIMIT 1
+      ) plan ON true
+      WHERE vh.id = $1
+        AND (vh.exit_time IS NULL OR LOWER(vh.status) = 'parked')
+        AND (
+          LOWER(COALESCE(v.owner_email, '')) = LOWER($2)
+          OR LOWER(COALESCE(reservation.customer_email, '')) = LOWER($2)
+        )
+      FOR UPDATE OF vh`,
+      [sessionId, req.authUser.email]
+    );
+    if (sessionResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(404).json({ error: "An active parking session belonging to this customer was not found." });
+    }
+
+    const existingOrder = await client.query(
+      `SELECT razorpay_order_id, amount
+       FROM payments
+       WHERE parking_session_id = $1 AND customer_id = $2 AND payment_status = 'Pending'
+         AND razorpay_order_id IS NOT NULL
+       ORDER BY id DESC
+       LIMIT 1`,
+      [sessionId, req.authUser.id]
+    );
+    if (existingOrder.rowCount > 0) {
+      await client.query("COMMIT");
+      transactionOpen = false;
+      return res.json({
+        success: true,
+        keyId: process.env.RAZORPAY_KEY_ID,
+        orderId: existingOrder.rows[0].razorpay_order_id,
+        amount: Math.round(Number(existingOrder.rows[0].amount) * 100),
+        currency: "INR"
+      });
+    }
+
+    const session = sessionResult.rows[0];
+    const now = new Date();
+    const entryDate = session.entry_time ? new Date(session.entry_time) : now;
+    const elapsedMinutes = Math.floor(Math.max(0, now.getTime() - entryDate.getTime()) / 60000);
+    const duration = elapsedMinutes >= 60
+      ? `${Math.floor(elapsedMinutes / 60)}h ${String(elapsedMinutes % 60).padStart(2, "0")}m`
+      : `${elapsedMinutes}m`;
+    const billedHours = Math.max(1, Math.ceil(elapsedMinutes / 60));
+    const hourlyRate = Number(session.hourly_rate) || 50;
+    const isReservation = Boolean(session.booking_id);
+    let overstayFee = 0;
+    if (isReservation && session.scheduled_end_time) {
+      const settingsResult = await client.query("SELECT value FROM system_settings WHERE key = 'general'");
+      const settings = settingsResult.rows[0]?.value || {};
+      const graceMinutes = parseInt(settings.overstayGracePeriodMinutes, 10) || 15;
+      const defaultOverstayRate = parseFloat(settings.defaultOverstayHourlyRate) || 50;
+      overstayFee = calculateOverstayDetails({
+        scheduledEndTime: session.scheduled_end_time,
+        actualOrCurrentTime: now,
+        planOverstayRate: session.overstay_rate,
+        defaultHourlyRate: defaultOverstayRate || hourlyRate,
+        graceMinutes
+      }).overstayFee;
+    }
+    const baseAmount = isReservation ? Number(session.prepaid_amount || 0) : billedHours * hourlyRate;
+    const amount = baseAmount + overstayFee;
+    const amountInPaise = Math.round(amount * 100);
+    if (!Number.isSafeInteger(amountInPaise) || amountInPaise <= 0) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(400).json({ error: "This parking session does not have a payable balance." });
+    }
+
+    const order = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: `parking-${sessionId}-${req.authUser.id}`,
+      notes: {
+        parking_session_id: String(sessionId),
+        customer_id: String(req.authUser.id)
+      }
+    });
+    await client.query(
+      `INSERT INTO payments (
+        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
+        slot_number, entry_time, exit_time, duration, amount, payment_method, method,
+        payment_status, customer_id, parking_session_id, razorpay_order_id, booking_id,
+        base_amount, overstay_amount, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Razorpay', 'Razorpay',
+        'Pending', $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)`,
+      [
+        `RZP-${order.id}`,
+        session.vehicle_number,
+        session.owner_name || req.authUser.name,
+        req.authUser.email,
+        session.owner_phone || "",
+        session.slot_number,
+        session.entry_time,
+        now,
+        duration,
+        amount,
+        req.authUser.id,
+        sessionId,
+        order.id,
+        session.booking_id || null,
+        baseAmount,
+        overstayFee
+      ]
+    );
+    await client.query("COMMIT");
+    transactionOpen = false;
+    return res.status(201).json({
+      success: true,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency
+    });
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("ROLLBACK");
+    }
+    console.error("Razorpay order creation failed:", error.message);
+    return res.status(error.status || (error.error ? 502 : 500)).json({
+      error: error.status ? error.message : "Unable to create the Razorpay test order."
+    });
+  } finally {
+    client?.release();
+  }
+});
+
+app.post("/api/customer/payments/razorpay/verify", async (req, res) => {
+  if ((req.authUser.role || "").toLowerCase() !== "customer") {
+    return res.status(403).json({ error: "Only customers can verify parking payments." });
+  }
+  const orderId = String(req.body?.razorpay_order_id || "").trim();
+  const paymentId = String(req.body?.razorpay_payment_id || "").trim();
+  const signature = req.body?.razorpay_signature;
+  if (!orderId || !paymentId || !signature) {
+    return res.status(400).json({ error: "Razorpay order, payment, and signature are required." });
+  }
+
+  let razorpay;
+  try {
+    razorpay = createRazorpayClient();
+  } catch (error) {
+    return res.status(error.status || 503).json({ error: error.message });
+  }
+  if (!isValidRazorpaySignature(orderId, paymentId, signature, process.env.RAZORPAY_KEY_SECRET)) {
+    return res.status(400).json({ error: "The Razorpay payment signature is invalid." });
+  }
+
+  try {
+    const paymentResult = await pool.query(
+      `SELECT id, amount, payment_status, razorpay_payment_id
+       FROM payments
+       WHERE razorpay_order_id = $1 AND customer_id = $2
+       LIMIT 1`,
+      [orderId, req.authUser.id]
+    );
+    if (paymentResult.rowCount === 0) {
+      return res.status(404).json({ error: "The payment order was not found for this customer." });
+    }
+    const paymentRecord = paymentResult.rows[0];
+    if (paymentRecord.payment_status === "Refunded") {
+      return res.json({ success: true, paymentStatus: "Refunded", paymentId: paymentRecord.id });
+    }
+    if (paymentRecord.payment_status === "Completed" && paymentRecord.razorpay_payment_id === paymentId) {
+      return res.json({ success: true, paymentStatus: "Completed", paymentId: paymentRecord.id });
+    }
+    const providerPayment = await razorpay.payments.fetch(paymentId);
+    if (providerPayment.order_id !== orderId) {
+      return res.status(400).json({ error: "The Razorpay payment does not belong to this order." });
+    }
+    if (Number(providerPayment.amount) !== Math.round(Number(paymentRecord.amount) * 100) || providerPayment.currency !== "INR") {
+      return res.status(400).json({ error: "The Razorpay payment amount does not match the parking balance." });
+    }
+    if (providerPayment.status === "failed") {
+      await pool.query(
+        `UPDATE payments SET payment_status = 'Failed'
+         WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status = 'Pending'`,
+        [orderId, req.authUser.id]
+      );
+      return res.json({ success: true, paymentStatus: "Failed" });
+    }
+    if (providerPayment.status !== "captured") {
+      return res.json({ success: true, paymentStatus: "Pending" });
+    }
+
+    let client;
+    let transactionOpen = false;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+      transactionOpen = true;
+      const lockedPayment = await client.query(
+        `SELECT id, amount, payment_status, razorpay_payment_id, parking_session_id,
+                vehicle_number, slot_number, entry_time, duration, booking_id, overstay_amount,
+                original_amount, discount_amount, coupon_code, customer_email, customer_name,
+                transaction_id
+         FROM payments
+         WHERE razorpay_order_id = $1 AND customer_id = $2
+         FOR UPDATE`,
+        [orderId, req.authUser.id]
+      );
+      if (lockedPayment.rowCount === 0) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return res.status(404).json({ error: "The payment order was not found for this customer." });
+      }
+      const record = lockedPayment.rows[0];
+      if (record.payment_status === "Refunded") {
+        await client.query("COMMIT");
+        transactionOpen = false;
+        return res.json({ success: true, paymentStatus: "Refunded", paymentId: record.id });
+      }
+      if (record.payment_status === "Completed" && record.razorpay_payment_id === paymentId) {
+        await client.query("COMMIT");
+        transactionOpen = false;
+        return res.json({ success: true, paymentStatus: "Completed", paymentId: record.id });
+      }
+      if (record.payment_status === "Completed" || record.razorpay_payment_id && record.razorpay_payment_id !== paymentId) {
+        await client.query("ROLLBACK");
+        transactionOpen = false;
+        return res.status(409).json({ error: "This order has already been completed by another payment." });
+      }
+      const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(record.entry_time).getTime()) / 60000));
+      const duration = record.parking_session_id
+        ? elapsedMinutes >= 60
+          ? `${Math.floor(elapsedMinutes / 60)}h ${String(elapsedMinutes % 60).padStart(2, "0")}m`
+          : `${elapsedMinutes}m`
+        : record.duration;
+      await client.query(
+        `UPDATE payments
+         SET payment_status = 'Completed', razorpay_payment_id = $1,
+             payment_method = $3, method = $3,
+             exit_time = CURRENT_TIMESTAMP, duration = $2
+         WHERE id = $4`,
+        [paymentId, duration, providerPayment.method || "Razorpay", record.id]
+      );
+      let verifiedReservation = null;
+      if (!record.parking_session_id && record.booking_id) {
+        const reservationResult = await client.query(
+          `UPDATE reservations
+           SET status = CASE
+                 WHEN LOWER(status) IN ('pending payment', 'pending') THEN 'Confirmed'
+                 ELSE status
+               END,
+               final_total_amount = $1
+           WHERE booking_id = $2 AND LOWER(customer_email) = LOWER($3)
+           RETURNING *`,
+          [record.amount, record.booking_id, req.authUser.email]
+        );
+        if (reservationResult.rowCount === 0) {
+          throw new Error("The paid reservation was not found for this customer.");
+        }
+        verifiedReservation = reservationResult.rows[0];
+        if (record.coupon_code && Number(record.discount_amount) > 0) {
+          await client.query("SAVEPOINT reservation_coupon_usage");
+          try {
+            await recordCouponUsage({
+              client,
+              couponCode: record.coupon_code,
+              customerEmail: record.customer_email,
+              customerName: record.customer_name,
+              bookingId: record.booking_id,
+              paymentId: record.transaction_id,
+              originalAmount: record.original_amount,
+              discountAmount: record.discount_amount,
+              finalAmount: record.amount,
+              serviceType: "Normal Parking",
+              req
+            });
+            await client.query("RELEASE SAVEPOINT reservation_coupon_usage");
+          } catch (couponError) {
+            await client.query("ROLLBACK TO SAVEPOINT reservation_coupon_usage");
+            await client.query("RELEASE SAVEPOINT reservation_coupon_usage");
+            console.error("Verified reservation coupon usage could not be recorded:", couponError.message);
+          }
+        }
+      } else if (record.parking_session_id) {
+        const sessionUpdate = await client.query(
+          `UPDATE vehicle_history
+           SET exit_time = COALESCE(exit_time, CURRENT_TIMESTAMP), duration = $1,
+               fee = $2, status = 'Completed'
+           WHERE id = $3 AND (exit_time IS NULL OR LOWER(status) = 'parked')
+           RETURNING id`,
+          [duration, `₹${Number(record.amount).toFixed(2)}`, record.parking_session_id]
+        );
+        if (sessionUpdate.rowCount > 0) {
+          const slotUpdate = await client.query(
+            "UPDATE parking_slots SET status = 'available', is_available = true WHERE UPPER(slot_number) = UPPER($1) RETURNING id",
+            [record.slot_number]
+          );
+          if (slotUpdate.rowCount === 0) {
+            throw new Error("The parking slot for the paid session was not found.");
+          }
+          await client.query(
+            `UPDATE vehicles
+             SET status = 'Checked Out', current_slot = NULL
+             WHERE UPPER(vehicle_number) = UPPER($1)
+               AND UPPER(current_slot) = UPPER($2)`,
+            [record.vehicle_number, record.slot_number]
+          );
+        }
+        if (record.booking_id && sessionUpdate.rowCount > 0) {
+          await client.query(
+            `UPDATE reservations
+             SET status = 'Completed', actual_exit_time = COALESCE(actual_exit_time, CURRENT_TIMESTAMP),
+                 overstay_amount = $1, final_total_amount = $2
+             WHERE booking_id = $3 AND LOWER(customer_email) = LOWER($4)
+               AND LOWER(status) IN ('checked in', 'confirmed')`,
+            [record.overstay_amount || 0, record.amount, record.booking_id, req.authUser.email]
+          );
+        }
+      }
+      await client.query("COMMIT");
+      transactionOpen = false;
+      if (verifiedReservation && ["pending payment", "pending", "confirmed"].includes(String(verifiedReservation.status).toLowerCase())) {
+        try {
+          await notifyUser(verifiedReservation.customer_email, {
+            title: "Reservation Confirmed",
+            message: `Your reservation ${verifiedReservation.booking_id} for bay ${verifiedReservation.slot_number} has been confirmed after payment verification.`,
+            type: "reservation"
+          });
+          await sendReservationConfirmedEmail({
+            reservation: verifiedReservation,
+            recipient: verifiedReservation.customer_email
+          });
+        } catch (notificationError) {
+          console.error("Verified reservation confirmation notification failed:", notificationError.message);
+        }
+      }
+      return res.json({ success: true, paymentStatus: "Completed", paymentId: record.id });
+    } catch (error) {
+      if (transactionOpen) {
+        await client.query("ROLLBACK");
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("Razorpay payment verification failed:", error.message);
+    return res.status(500).json({ error: "Unable to verify the Razorpay payment." });
+  }
+});
+
+app.post("/api/customer/payments/razorpay/failure", async (req, res) => {
+  if ((req.authUser.role || "").toLowerCase() !== "customer") {
+    return res.status(403).json({ error: "Only customers can update their payment status." });
+  }
+  const orderId = String(req.body?.razorpay_order_id || "").trim();
+  const paymentId = String(req.body?.razorpay_payment_id || "").trim();
+  if (!orderId || !paymentId) {
+    return res.status(400).json({ error: "Razorpay order and payment IDs are required." });
+  }
+  try {
+    const razorpay = createRazorpayClient();
+    const record = await pool.query(
+      "SELECT id FROM payments WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status = 'Pending' LIMIT 1",
+      [orderId, req.authUser.id]
+    );
+    if (record.rowCount === 0) {
+      return res.status(404).json({ error: "The pending payment order was not found." });
+    }
+    const providerPayment = await razorpay.payments.fetch(paymentId);
+    if (providerPayment.order_id !== orderId) {
+      return res.status(400).json({ error: "The Razorpay payment does not belong to this order." });
+    }
+    const paymentStatus = providerPayment.status === "failed" ? "Failed" : "Pending";
+    if (paymentStatus === "Failed") {
+      await pool.query(
+        "UPDATE payments SET payment_status = 'Failed' WHERE id = $1 AND payment_status = 'Pending'",
+        [record.rows[0].id]
+      );
+    }
+    return res.json({ success: true, paymentStatus });
+  } catch (error) {
+    console.error("Razorpay failure status lookup failed:", error.message);
+    return res.status(error.status || 502).json({ error: "Unable to confirm the Razorpay payment status." });
+  }
+});
+
+app.post("/api/customer/payments/razorpay/cancel", async (req, res) => {
+  if ((req.authUser.role || "").toLowerCase() !== "customer") {
+    return res.status(403).json({ error: "Only customers can update their payment status." });
+  }
+  const orderId = String(req.body?.razorpay_order_id || "").trim();
+  if (!orderId) {
+    return res.status(400).json({ error: "A Razorpay order ID is required." });
+  }
+  try {
+    const razorpay = createRazorpayClient();
+    const record = await pool.query(
+      "SELECT id FROM payments WHERE razorpay_order_id = $1 AND customer_id = $2 AND payment_status = 'Pending' LIMIT 1",
+      [orderId, req.authUser.id]
+    );
+    if (record.rowCount === 0) {
+      return res.status(404).json({ error: "The pending payment order was not found." });
+    }
+    const order = await razorpay.orders.fetch(orderId);
+    const paymentStatus = order.status === "created" ? "Cancelled" : "Pending";
+    if (paymentStatus === "Cancelled") {
+      await pool.query(
+        "UPDATE payments SET payment_status = 'Cancelled' WHERE id = $1 AND payment_status = 'Pending'",
+        [record.rows[0].id]
+      );
+    }
+    return res.json({ success: true, paymentStatus });
+  } catch (error) {
+    console.error("Razorpay cancellation status lookup failed:", error.message);
+    return res.status(error.status || 502).json({ error: "Unable to confirm the Razorpay order status." });
+  }
+});
+
+app.post("/api/razorpay/webhook", async (req, res) => {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const signature = req.get("x-razorpay-signature");
+  const eventId = req.get("x-razorpay-event-id");
+  if (!webhookSecret || !Buffer.isBuffer(req.rawBody) || !signature || !eventId) {
+    return res.status(400).json({ error: "Razorpay webhook verification is not configured correctly." });
+  }
+  const expectedSignature = createHmac("sha256", webhookSecret).update(req.rawBody).digest();
+  const receivedSignature = /^[a-f0-9]{64}$/i.test(signature) ? Buffer.from(signature, "hex") : Buffer.alloc(0);
+  if (receivedSignature.length !== expectedSignature.length || !timingSafeEqual(receivedSignature, expectedSignature)) {
+    return res.status(400).json({ error: "The Razorpay webhook signature is invalid." });
+  }
+
+  const eventType = String(req.body?.event || "");
+  const paymentEntity = req.body?.payload?.payment?.entity;
+  const refundEntity = req.body?.payload?.refund?.entity;
+  let razorpay;
+  try {
+    razorpay = createRazorpayClient();
+  } catch (error) {
+    return res.status(error.status || 503).json({ error: error.message });
+  }
+
+  const client = await pool.connect();
+  let transactionOpen = false;
+  try {
+    await client.query("BEGIN");
+    transactionOpen = true;
+    const eventInsert = await client.query(
+      `INSERT INTO razorpay_webhook_events (event_id, event_type)
+       VALUES ($1, $2) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`,
+      [eventId, eventType || "unknown"]
+    );
+    if (eventInsert.rowCount === 0) {
+      await client.query("COMMIT");
+      transactionOpen = false;
+      return res.json({ success: true, duplicate: true });
+    }
+
+    if (["payment.captured", "payment.failed"].includes(eventType) && paymentEntity?.id && paymentEntity?.order_id) {
+      const providerPayment = await razorpay.payments.fetch(paymentEntity.id);
+      if (providerPayment.order_id !== paymentEntity.order_id) {
+        throw new Error("The webhook payment does not belong to its Razorpay order.");
+      }
+      const paymentResult = await client.query(
+        `SELECT id, amount, payment_status, razorpay_payment_id, parking_session_id,
+                booking_id, vehicle_number, slot_number, duration, entry_time, overstay_amount
+         FROM payments
+         WHERE razorpay_order_id = $1
+         FOR UPDATE`,
+        [providerPayment.order_id]
+      );
+      if (paymentResult.rowCount === 0) {
+        throw new Error("The webhook payment order was not found.");
+      }
+      if (paymentResult.rowCount > 0) {
+        const record = paymentResult.rows[0];
+        const expectedPaise = Math.round(Number(record.amount) * 100);
+        if (Number(providerPayment.amount) !== expectedPaise || providerPayment.currency !== "INR") {
+          throw new Error("The webhook payment amount does not match the stored order.");
+        }
+        if (eventType === "payment.captured" && providerPayment.status === "captured") {
+          if (!["completed", "refunded"].includes(String(record.payment_status).toLowerCase())) {
+            const elapsedMinutes = record.parking_session_id
+              ? Math.max(0, Math.floor((Date.now() - new Date(record.entry_time).getTime()) / 60000))
+              : 0;
+            const duration = record.parking_session_id
+              ? elapsedMinutes >= 60
+                ? `${Math.floor(elapsedMinutes / 60)}h ${String(elapsedMinutes % 60).padStart(2, "0")}m`
+                : `${elapsedMinutes}m`
+              : record.duration;
+            await client.query(
+              `UPDATE payments
+               SET payment_status = 'Completed', razorpay_payment_id = $1,
+                   payment_method = $2, method = $2, exit_time = CURRENT_TIMESTAMP,
+                   duration = $3
+               WHERE id = $4 AND LOWER(payment_status) IN ('pending', 'failed')`,
+              [providerPayment.id, providerPayment.method || "Razorpay", duration, record.id]
+            );
+            if (record.parking_session_id) {
+              await client.query(
+                `UPDATE vehicle_history
+                 SET exit_time = COALESCE(exit_time, CURRENT_TIMESTAMP), duration = $1,
+                     status = 'Completed', fee = $2
+                 WHERE id = $3 AND (exit_time IS NULL OR LOWER(status) = 'parked')`,
+                [duration, `₹${Number(record.amount).toFixed(2)}`, record.parking_session_id]
+              );
+              await client.query(
+                "UPDATE parking_slots SET status = 'available', is_available = true WHERE UPPER(slot_number) = UPPER($1)",
+                [record.slot_number]
+              );
+              await client.query(
+                `UPDATE vehicles SET status = 'Checked Out', current_slot = NULL
+                 WHERE UPPER(vehicle_number) = UPPER($1) AND UPPER(current_slot) = UPPER($2)`,
+                [record.vehicle_number, record.slot_number]
+              );
+              if (record.booking_id) {
+                await client.query(
+                  `UPDATE reservations SET status = 'Completed',
+                     actual_exit_time = COALESCE(actual_exit_time, CURRENT_TIMESTAMP),
+                     overstay_amount = $1, final_total_amount = $2
+                   WHERE booking_id = $3`,
+                  [record.overstay_amount || 0, record.amount, record.booking_id]
+                );
+              }
+            } else if (record.booking_id) {
+              await client.query(
+                `UPDATE reservations SET status = CASE
+                   WHEN LOWER(status) IN ('pending payment', 'pending') THEN 'Confirmed'
+                   ELSE status
+                 END, final_total_amount = $1
+                 WHERE booking_id = $2`,
+                [record.amount, record.booking_id]
+              );
+            }
+          }
+        } else if (eventType === "payment.failed" && providerPayment.status === "failed") {
+          await client.query(
+            `UPDATE payments SET payment_status = 'Failed', razorpay_payment_id = $1
+             WHERE id = $2 AND LOWER(payment_status) = 'pending'`,
+            [providerPayment.id, record.id]
+          );
+        }
+      }
+    } else if (["refund.created", "refund.processed", "refund.failed"].includes(eventType) && refundEntity?.id && refundEntity?.payment_id) {
+      const refundStatus = eventType === "refund.processed" ? "Completed" : eventType === "refund.failed" ? "Failed" : "Pending";
+      const refundResult = await client.query(
+        `UPDATE payments
+         SET razorpay_refund_id = $1, refund_amount = $2,
+             refund_status = CASE WHEN refund_status IN ('Completed', 'Failed') THEN refund_status ELSE $3 END,
+             payment_status = CASE WHEN $3 = 'Completed' THEN 'Refunded' ELSE payment_status END
+         WHERE razorpay_payment_id = $4
+           AND (razorpay_refund_id IS NULL OR razorpay_refund_id = $1)`,
+        [refundEntity.id, Number(refundEntity.amount) / 100, refundStatus, refundEntity.payment_id]
+      );
+      if (refundResult.rowCount === 0) {
+        throw new Error("The webhook refund did not match a recorded payment.");
+      }
+    }
+    await client.query("COMMIT");
+    transactionOpen = false;
+    return res.json({ success: true });
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("ROLLBACK");
+    }
+    console.error("Razorpay webhook processing failed:", error.message);
+    return res.status(500).json({ error: "Unable to process the Razorpay webhook." });
+  } finally {
+    client?.release();
+  }
+});
+
+app.post("/api/admin/payments/:paymentId/refund", async (req, res) => {
+  const paymentId = Number(req.params.paymentId);
+  if (!Number.isSafeInteger(paymentId) || paymentId <= 0) {
+    return res.status(400).json({ error: "A valid payment record is required." });
+  }
+  let razorpay;
+  try {
+    razorpay = createRazorpayClient();
+  } catch (error) {
+    return res.status(error.status || 503).json({ error: error.message });
+  }
+
+  let client;
+  let transactionOpen = false;
+  let payment;
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+    transactionOpen = true;
+    const result = await client.query(
+      `SELECT id, amount, payment_status, razorpay_payment_id, refund_status
+       FROM payments WHERE id = $1 FOR UPDATE`,
+      [paymentId]
+    );
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(404).json({ error: "Payment record not found." });
+    }
+    payment = result.rows[0];
+    if (String(payment.payment_status).toLowerCase() !== "completed" || !payment.razorpay_payment_id) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(409).json({ error: "Only verified Razorpay payments can be refunded." });
+    }
+    if (["Pending", "Completed", "Failed"].includes(payment.refund_status)) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(409).json({ error: "A refund has already been requested for this payment. Check its status before taking further action." });
+    }
+    await client.query(
+      "UPDATE payments SET refund_status = 'Pending', refund_amount = amount WHERE id = $1",
+      [paymentId]
+    );
+    await client.query("COMMIT");
+    transactionOpen = false;
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("ROLLBACK");
+    }
+    console.error("Razorpay refund request could not be prepared:", error.message);
+    return res.status(500).json({ error: "Unable to prepare the refund request." });
+  } finally {
+    client?.release();
+  }
+
+  try {
+    const refund = await razorpay.payments.refund(payment.razorpay_payment_id, {
+      amount: Math.round(Number(payment.amount) * 100),
+      notes: { payment_record_id: String(paymentId), requested_by: String(req.authUser.id) }
+    });
+    const refundStatus = refund.status === "processed" ? "Completed" : "Pending";
+    await pool.query(
+      `UPDATE payments
+       SET razorpay_refund_id = $1, refund_amount = $2,
+           refund_status = CASE WHEN refund_status IN ('Completed', 'Failed') THEN refund_status ELSE $3 END,
+           payment_status = CASE WHEN $3 = 'Completed' THEN 'Refunded' ELSE payment_status END
+       WHERE id = $4 AND (razorpay_refund_id IS NULL OR razorpay_refund_id = $1)`,
+      [refund.id, Number(refund.amount) / 100, refundStatus, paymentId]
+    );
+    return res.json({ success: true, refundId: refund.id, refundStatus });
+  } catch (error) {
+    console.error("Razorpay refund request failed:", error.message);
+    return res.status(error.status || 502).json({
+      error: "The refund status could not be confirmed. It remains pending; refresh before taking further action."
+    });
+  }
+});
+
+app.get("/api/admin/payments/analytics", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COALESCE(SUM(amount) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')), 0) AS total_revenue,
+        COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')) AS successful_payments,
+        COUNT(*) FILTER (WHERE LOWER(payment_status) = 'failed') AS failed_payments,
+        COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('pending', 'refund pending')) AS pending_payments,
+        COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(refund_status) = 'completed'), 0) AS total_refunds
+      FROM payments
+    `);
+    const analytics = result.rows[0];
+    return res.json({
+      success: true,
+      totalRevenue: Number(analytics.total_revenue),
+      successfulPayments: Number(analytics.successful_payments),
+      failedPayments: Number(analytics.failed_payments),
+      pendingPayments: Number(analytics.pending_payments),
+      totalRefunds: Number(analytics.total_refunds)
+    });
+  } catch (error) {
+    console.error("Payment analytics could not be loaded:", error.message);
+    return res.status(500).json({ error: "Unable to load payment analytics." });
+  }
+});
+
 app.get("/api/customer/parking-history", async (req, res) => {
   const { email, name, search, status, page, limit } = req.query;
   try {
@@ -5433,11 +6330,9 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
     start_time,
     end_time,
     duration_hours,
-    total_amount,
     plan_code,
     plan_name,
-    coupon_code,
-    original_amount
+    coupon_code
   } = req.body;
 
   if (!customer_name || !vehicle_number || !slot_number) {
@@ -5456,7 +6351,6 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
   let sTimeFinal = sTimeStr;
   let eTimeFinal = "";
   let durHours = 1;
-  let durDisplay = "1h 00m";
 
   if (end_time) {
     const durCalc = calculateDurationBetween(sTimeStr, end_time);
@@ -5466,12 +6360,10 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
     sTimeFinal = durCalc.startStr;
     eTimeFinal = durCalc.endStr;
     durHours = durCalc.totalHours;
-    durDisplay = durCalc.durationStr;
   } else {
     durHours = Math.max(0.5, parseFloat(duration_hours) || 1);
     const calculatedEndTime = new Date(new Date(sTimeStr.replace(" ", "T")).getTime() + durHours * 3600000);
     eTimeFinal = getLocalTimestamp(calculatedEndTime);
-    durDisplay = `${durHours}h 00m`;
   }
 
   const feeCalc = await calculateBookingFeeFromPlan({
@@ -5543,7 +6435,7 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
         vehicle_type, model, slot_number, zone, start_time, end_time, duration_hours,
         total_amount, original_amount, discount_amount, coupon_code,
         status, validation_code, plan_code, plan_name, created_at, final_total_amount
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'Confirmed', $17, $18, $19, $20, $13) RETURNING *`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'Pending Payment', $17, $18, $19, $20, NULL) RETURNING *`,
       [
         bookingId,
         customer_name,
@@ -5595,51 +6487,6 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       [vPlate, vType, vModel, customer_name, customer_email || "", customer_phone || "", slot_number]
     );
 
-    const payTxnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
-    const payMethod = req.body.payment_method || "UPI";
-    await client.query(
-      `INSERT INTO payments (
-        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, original_amount, discount_amount, coupon_code,
-        payment_method, method, payment_status, created_at, booking_id, payment_type, base_amount
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Completed', $16, $17, 'Parking Fee', $10)`,
-      [
-        payTxnId,
-        vPlate,
-        customer_name,
-        customer_email || "",
-        customer_phone || "",
-        slot_number,
-        sTimeFinal,
-        eTimeFinal,
-        durDisplay,
-        finalAmount,
-        rawBaseAmount,
-        discountAmount,
-        appliedCouponCode,
-        payMethod,
-        payMethod,
-        createdAtStr,
-        bookingId
-      ]
-    );
-
-    if (appliedCouponCode && discountAmount > 0) {
-      await recordCouponUsage({
-        client,
-        couponCode: appliedCouponCode,
-        customerEmail: customer_email || "customer@parksafe.in",
-        customerName: customer_name,
-        bookingId: bookingId,
-        paymentId: payTxnId,
-        originalAmount: rawBaseAmount,
-        discountAmount: discountAmount,
-        finalAmount: finalAmount,
-        serviceType: "Normal Parking",
-        req
-      });
-    }
-
     await logAuditEvent({
       client,
       userName: customer_name,
@@ -5649,23 +6496,8 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
       module: "Bookings",
       entityType: "booking",
       entityId: bookingId,
-      description: `Slot ${slot_number} reserved for vehicle ${vPlate} (${durHours}h, ₹${finalAmount.toFixed(2)}${discountAmount > 0 ? ` with ₹${discountAmount.toFixed(2)} coupon discount [${appliedCouponCode}]` : ""})`,
-      status: "Success",
-      ipAddress: getAuditClientIp(req),
-      userAgent: getAuditUserAgent(req)
-    });
-
-    await logAuditEvent({
-      client,
-      userName: customer_name,
-      userEmail: customer_email || null,
-      role: "Customer",
-      action: "Payment Completed",
-      module: "Payments",
-      entityType: "payment",
-      entityId: payTxnId,
-      description: `Reservation advance payment of ₹${finalAmount.toFixed(2)} via ${payMethod} for ${vPlate}`,
-      status: "Success",
+      description: `Slot ${slot_number} held for vehicle ${vPlate} pending Razorpay payment (${durHours}h, ₹${finalAmount.toFixed(2)}${discountAmount > 0 ? ` with ₹${discountAmount.toFixed(2)} coupon discount [${appliedCouponCode}]` : ""})`,
+      status: "Pending",
       ipAddress: getAuditClientIp(req),
       userAgent: getAuditUserAgent(req)
     });
@@ -5673,48 +6505,9 @@ app.post("/api/customer/reserve-slot", async (req, res) => {
     await client.query("COMMIT");
     client.release();
 
-    const custEmail = customer_email || "";
-    if (custEmail) {
-      await notifyUser(custEmail, {
-        title: "Reservation Confirmed",
-        message: `Your parking slot ${slot_number} has been reserved.`,
-        type: "reservation"
-      });
-    }
-    await notifyStaff({
-      title: "New Reservation",
-      message: `New reservation #${bookingId} for vehicle ${vPlate} at slot ${slot_number}.`,
-      type: "reservation"
-    });
-    await notifyStaff({
-      title: "Reservation Requires Validation",
-      message: `Reservation #${bookingId} is scheduled and requires check-in validation upon arrival.`,
-      type: "reservation"
-    });
-    await notifyAdmins({
-      title: "New Reservation",
-      message: `New reservation #${bookingId} for vehicle ${vPlate} at slot ${slot_number}.`,
-      type: "reservation"
-    });
-    try {
-      const adminEmails = await getActiveAdminEmails();
-      await sendReservationConfirmedEmail({
-        reservation: insertRes.rows[0],
-        recipient: custEmail
-      });
-      await sendAdminReservationUpdateEmail({
-        title: "New Reservation Created",
-        message: `New reservation #${bookingId} created for vehicle ${vPlate} at slot ${slot_number}.`,
-        booking: insertRes.rows[0],
-        adminEmails
-      });
-    } catch (e) {
-      console.error(e);
-    }
-
     res.status(201).json({
       success: true,
-      message: `Reservation confirmed for ${vPlate} at slot ${slot_number}`,
+      message: `Reservation held for ${vPlate} at slot ${slot_number} pending payment verification`,
       booking: insertRes.rows[0]
     });
   } catch (err) {
@@ -6832,12 +7625,40 @@ app.post("/api/support-tickets/:id/reply", async (req, res) => {
 });
 
 app.post("/api/customer/activate-premium", async (req, res) => {
-  const { user_email, customer_name, plan_name, amount, slot, vehicle } = req.body;
-  const email = user_email || "";
-  const plan = plan_name || "Monthly VIP Priority Pass";
-  const planAmount = parseFloat(amount) || 2500.00;
+  if ((req.authUser.role || "").toLowerCase() !== "customer") {
+    return res.status(403).json({ error: "Only customers can activate a premium plan." });
+  }
+  const bookingId = String(req.body?.booking_id || "").trim();
+  if (!bookingId) {
+    return res.status(400).json({ error: "A verified reservation is required to activate a premium plan." });
+  }
 
   try {
+    const verifiedBooking = await pool.query(
+      `SELECT r.booking_id, r.customer_name, r.customer_email, r.plan_name,
+              r.slot_number, r.vehicle_number, p.amount
+       FROM reservations r
+       JOIN payments p ON p.booking_id = r.booking_id
+       WHERE r.booking_id = $1
+         AND LOWER(r.customer_email) = LOWER($2)
+         AND LOWER(r.status) = 'confirmed'
+         AND p.customer_id = $3
+         AND p.payment_status = 'Completed'
+         AND p.razorpay_payment_id IS NOT NULL
+       ORDER BY p.created_at DESC
+       LIMIT 1`,
+      [bookingId, req.authUser.email, req.authUser.id]
+    );
+    if (verifiedBooking.rowCount === 0) {
+      return res.status(409).json({ error: "The reservation has no verified Razorpay payment." });
+    }
+
+    const booking = verifiedBooking.rows[0];
+    const email = booking.customer_email;
+    const customerName = booking.customer_name;
+    const plan = booking.plan_name || "Monthly VIP Priority Pass";
+    const planAmount = Number(booking.amount);
+
     if (email) {
       await notifyUser(email, {
         title: "Premium Plan Activated",
@@ -6848,41 +7669,21 @@ app.post("/api/customer/activate-premium", async (req, res) => {
 
     await notifyAdmins({
       title: "Important System Activity",
-      message: `Customer ${customer_name || email} activated ${plan} (₹${planAmount.toFixed(2)}).`,
+      message: `Customer ${customerName || email} activated ${plan} (₹${planAmount.toFixed(2)}).`,
       type: "premium"
     });
-
-    const premTxnId = `TXN-${Math.floor(10000 + Math.random() * 90000)}`;
-    const premMethod = req.body.payment_method || "Credit Card";
-    await pool.query(
-      `INSERT INTO payments (
-        transaction_id, vehicle_number, customer_name, customer_email, customer_phone,
-        slot_number, entry_time, exit_time, duration, amount, payment_method, method, payment_status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '30 days', '30 Days', $7, $8, $9, 'Completed', CURRENT_TIMESTAMP)`,
-      [
-        premTxnId,
-        vehicle || "DL01 AB 1234",
-        customer_name || "Customer",
-        email,
-        "",
-        slot || "Zone A",
-        planAmount,
-        premMethod,
-        premMethod
-      ]
-    );
 
     try {
       const adminEmails = await getActiveAdminEmails();
       await sendPremiumActivatedEmail({
-        customerName: customer_name || "Member",
+        customerName: customerName || "Member",
         planName: plan,
         amount: planAmount,
         recipient: email
       });
       await sendAdminSystemUpdateEmail({
         title: "VIP Membership Subscription",
-        message: `Customer ${customer_name || email} subscribed to ${plan}.`,
+        message: `Customer ${customerName || email} subscribed to ${plan}.`,
         details: `Amount: ₹${planAmount.toFixed(2)}`,
         adminEmails
       });
@@ -6897,8 +7698,8 @@ app.post("/api/customer/activate-premium", async (req, res) => {
         active: true,
         plan,
         amount: planAmount,
-        slot: slot || "A-01 (VIP Zone)",
-        vehicle: vehicle || "KA01 AB 1234",
+        slot: booking.slot_number,
+        vehicle: booking.vehicle_number,
         validFrom: new Date().toISOString(),
         validUntil: new Date(Date.now() + 30 * 86400000).toISOString()
       }

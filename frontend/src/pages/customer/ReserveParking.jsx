@@ -1,7 +1,8 @@
 import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
-import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, Sparkles, CreditCard, Smartphone, Layers, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
+import { Car, Bike, Zap, Calendar, Check, ChevronDown, Crown, ArrowRight, ArrowLeft, CheckCircle2, RefreshCw, Ticket, Tag } from "lucide-react";
 import Pagination from "../../components/Pagination.jsx";
+import PaymentButton from "../../components/PaymentButton.jsx";
 
 export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActive, onActivatePremium, preselectedPlan }) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -92,8 +93,8 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
   const [selectedSlot, setSelectedSlot] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("UPI / Fastag");
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState("");
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
   const [slotsList, setSlotsList] = useState([]);
   const [plansList, setPlansList] = useState([]);
@@ -475,12 +476,13 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
     setCurrentStep(4);
   };
 
-  const handleCompletePayment = async () => {
+  const handlePrepareReservationOrder = async () => {
     if (!selectedSlot || !isCurrentSlotValidAndAvailable) {
-      setBookingError("Please select an available parking bay first.");
-      return;
+      throw new Error("Please select an available parking bay first.");
     }
-    const isMonthly = isCurrentPlanMonthly();
+    if (pendingBookingId) {
+      return { booking_id: pendingBookingId };
+    }
     const custEmail = loggedInUser?.email || "";
     const custName = loggedInUser?.name || "Customer";
 
@@ -490,7 +492,6 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
 
     setIsSubmittingBooking(true);
     setBookingError("");
-
     try {
       const res = await apiFetch(`${API_BASE_URL}/api/customer/reserve-slot`, {
         method: "POST",
@@ -516,59 +517,50 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
           total_amount: finalAmt,
           coupon_code: appliedCoupon ? appliedCoupon.code : null,
           plan_code: selectedPlanObject?.plan_code || "PLAN-STD",
-          plan_name: selectedPlanObject?.plan_name || "Standard Parking",
-          payment_method: paymentMethod || "UPI"
+          plan_name: selectedPlanObject?.plan_name || "Standard Parking"
         })
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setBookingError(data.error || "Failed to book slot. This bay is currently reserved or unavailable.");
-        setIsSubmittingBooking(false);
+        const error = new Error(data.error || "Failed to reserve this parking bay.");
+        setBookingError(error.message);
         fetchSlotsList();
-        return;
+        throw error;
       }
-    } catch {
-      setBookingError("Network error while connecting to server. Please try again.");
+      const bookingId = data.booking?.booking_id;
+      if (!bookingId) {
+        throw new Error("The reservation was created without a booking ID.");
+      }
+      setPendingBookingId(bookingId);
+      return { booking_id: bookingId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to prepare the reservation for payment.";
+      setBookingError(message);
+      throw error instanceof Error ? error : new Error(message);
+    } finally {
       setIsSubmittingBooking(false);
-      return;
     }
+  };
 
-    if (isMonthly) {
+  const handleReservationPaymentComplete = async () => {
+    if (isCurrentPlanMonthly()) {
       const nowTime = new Date();
       const validFromStr = nowTime.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
       const validUntilStr = new Date(nowTime.getTime() + 30 * 86400000).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      if (onActivatePremium) {
-        onActivatePremium({
-          active: true,
-          plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-          planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-          amount: getPlanCost(),
-          validFrom: validFromStr,
-          validUntil: validUntilStr,
-          remainingDays: 30,
-          slot: `${selectedSlot} (${selectedZone})`,
-          vehicle: vehiclePlate
-        });
-      }
-      try {
-        await apiFetch(`${API_BASE_URL}/api/customer/activate-premium`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_email: custEmail,
-            customer_name: custName,
-            plan_name: selectedPlanObject?.plan_name || "Monthly VIP Plan",
-            amount: getPlanCost(),
-            slot: `${selectedSlot} (${selectedZone})`,
-            vehicle: vehiclePlate
-          })
-        });
-      } catch (err) {
-        void err;
-      }
+      onActivatePremium?.({
+        active: true,
+        plan: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+        planName: selectedPlanObject?.plan_name || "Monthly VIP Plan",
+        amount: getPlanCost(),
+        validFrom: validFromStr,
+        validUntil: validUntilStr,
+        remainingDays: 30,
+        slot: `${selectedSlot} (${selectedZone})`,
+        vehicle: vehiclePlate,
+        bookingId: pendingBookingId
+      });
     }
-    setIsSubmittingBooking(false);
     setIsSuccessModalOpen(true);
   };
 
@@ -1090,7 +1082,7 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
                 opacity: isCurrentSlotValidAndAvailable ? 1 : 0.5
               }}
             >
-              <span>Confirm Details</span>
+              <span>Review Reservation</span>
               <ArrowRight size={16} />
             </button>
           </div>
@@ -1180,42 +1172,15 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
       {currentStep === 4 && (
         <div className="pw-calc-box-card" style={{ padding: "24px" }}>
           <div style={{ marginBottom: "18px" }}>
-            <h3 className="pw-calc-card-title">Step 4: Select Payment Method & Finalize</h3>
-            <p className="pw-calc-card-sub">Choose your secure payment mode to confirm instant reservation</p>
+            <h3 className="pw-calc-card-title">Step 4: Razorpay Test Checkout</h3>
+            <p className="pw-calc-card-sub">Continue to Razorpay Checkout to pay and confirm this reservation</p>
           </div>
 
-          <div className="pw-payment-method-selector-grid">
-            {[
-              { id: "UPI / Fastag", label: "Fastag / UPI Express", icon: Smartphone },
-              { id: "Card", label: "Credit / Debit Card", icon: CreditCard },
-              { id: "NetBanking", label: "Corporate NetBanking", icon: Layers }
-            ].map((method) => {
-              const Icon = method.icon;
-              const isSelected = paymentMethod === method.id;
-              return (
-                <button
-                  key={method.id}
-                  type="button"
-                  onClick={() => setPaymentMethod(method.id)}
-                  style={{
-                    padding: "16px",
-                    borderRadius: "10px",
-                    border: isSelected ? (isCurrentPlanMonthly() ? "2px solid #C99A2E" : "2px solid #0d9488") : "1px solid #cbd5e1",
-                    background: isSelected ? (isCurrentPlanMonthly() ? "var(--bg-sub, #FDF0CD)" : "var(--bg-teal-sub, #f0fdfa)") : "var(--bg-card, #ffffff)",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "8px"
-                  }}
-                >
-                  <Icon size={24} style={{ color: isSelected ? (isCurrentPlanMonthly() ? "#713F12" : "#0d9488") : "#64748b" }} />
-                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: isSelected ? (isCurrentPlanMonthly() ? "#713F12" : "#0f766e") : "#334155" }}>
-                    {method.label}
-                  </span>
-                </button>
-              );
-            })}
+          <div style={{ border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "10px", padding: "14px 16px", marginBottom: "18px" }}>
+            <strong>Secure Razorpay Test Checkout</strong>
+            <div style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.82rem", marginTop: "4px" }}>
+              Your reservation is confirmed only after Razorpay verifies the test payment.
+            </div>
           </div>
 
           {bookingError && (
@@ -1451,30 +1416,17 @@ export default function ReserveParking({ loggedInUser, onNavigate, isPremiumActi
               type="button"
               className="pw-calc-btn-reset"
               onClick={() => setCurrentStep(3)}
+              disabled={Boolean(pendingBookingId) || isSubmittingBooking}
             >
               <ArrowLeft size={15} />
               <span>Back to Summary</span>
             </button>
 
-            <button
-              type="button"
+            <PaymentButton
+              onPrepareOrder={handlePrepareReservationOrder}
+              onPaymentComplete={handleReservationPaymentComplete}
               disabled={isSubmittingBooking}
-              className={`pw-calc-btn-submit ${isCurrentPlanMonthly() ? "pw-btn-gold" : ""}`}
-              onClick={handleCompletePayment}
-              style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 34px", fontSize: "0.95rem", fontWeight: 800, cursor: isSubmittingBooking ? "not-allowed" : "pointer", opacity: isSubmittingBooking ? 0.7 : 1 }}
-            >
-              {isSubmittingBooking ? (
-                <>
-                  <RefreshCw size={16} className="pw-spin" />
-                  <span>Processing Reservation...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  <span>Pay ₹ {getFinalPayableCost().toLocaleString("en-IN", { minimumFractionDigits: 2 })} & Complete</span>
-                </>
-              )}
-            </button>
+            />
           </div>
         </div>
       )}

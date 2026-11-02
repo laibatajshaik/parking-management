@@ -485,10 +485,10 @@ export default function ParkingRecords() {
                         type="button"
                         className="pw-btn-action-view"
                         onClick={() => setSelectedRecordModal(r)}
-                        title="View Full Record Details"
+                        aria-label="View details"
+                        title="View details"
                       >
-                        <Eye size={13} />
-                        <span>View</span>
+                        <Eye size={14} />
                       </button>
 
                       <button

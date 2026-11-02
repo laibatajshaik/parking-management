@@ -1232,43 +1232,6 @@ img, video, canvas, svg {
   color: rgba(255, 255, 255, 0.3);
 }
 
-.pw-sidebar-footer {
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.pw-sidebar-logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.75);
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.pw-dashboard-sidebar.collapsed .pw-sidebar-logout-btn {
-  justify-content: center;
-  padding: 10px 0;
-  gap: 0;
-}
-
-.pw-dashboard-sidebar.collapsed .pw-sidebar-logout-btn .pw-sidebar-item-label {
-  display: none !important;
-}
-
-.pw-sidebar-logout-btn:hover {
-  background: rgba(229, 62, 62, 0.2);
-  color: #feb2b2;
-}
-
 .pw-dashboard-main {
   flex: 1 1 0%;
   height: 100vh;
@@ -1344,6 +1307,35 @@ img, video, canvas, svg {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.pw-topbar-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 8px;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.pw-topbar-logout-btn:hover {
+  border-color: #0d9488;
+  background: var(--bg-teal-sub, #f0fdfa);
+  color: #0f766e;
+}
+
+.pw-topbar-logout-btn:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
 }
 
 .pw-noti-container {
@@ -9190,16 +9182,6 @@ body.dark-theme .pw-topbar-menu-icon:hover {
     gap: 10px;
   }
 
-  .pw-dashboard-sidebar.collapsed .pw-sidebar-logout-btn {
-    justify-content: flex-start;
-    padding: 8px 12px;
-    gap: 10px;
-  }
-
-  .pw-dashboard-sidebar.collapsed .pw-sidebar-logout-btn .pw-sidebar-item-label {
-    display: inline-block !important;
-  }
-
   .pw-dashboard-main {
     flex: 1 1 0%;
     width: 100%;
@@ -9437,6 +9419,22 @@ body.dark-theme .pw-topbar-menu-icon:hover {
 }
 
 @media (max-width: 480px) {
+  .pw-topbar-right {
+    gap: 5px;
+  }
+
+  .pw-topbar-logout-btn {
+    min-height: 32px;
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 0.7rem;
+  }
+
+  .pw-topbar-logout-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
   .pw-landing-nav-inner {
     padding: 10px 12px;
   }

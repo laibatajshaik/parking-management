@@ -1,11 +1,10 @@
-import { LogOut, X, Crown } from "lucide-react";
+import { X, Crown } from "lucide-react";
 
 export default function Sidebar({
   role = "customer",
   menuItems = [],
   activeTab,
   onTabChange,
-  onLogout,
   isCollapsed = false,
   isMobileNavOpen = false,
   onCloseMobile,
@@ -114,21 +113,6 @@ export default function Sidebar({
         </div>
       )}
 
-      <div className="pw-sidebar-footer" style={{ marginTop: "auto" }}>
-        <button
-          type="button"
-          className="pw-sidebar-logout-btn"
-          onClick={() => {
-            if (onCloseMobile) onCloseMobile();
-            onLogout();
-          }}
-          title="Logout"
-          aria-label="Logout"
-        >
-          <LogOut size={18} />
-          <span className="pw-sidebar-item-label">Logout</span>
-        </button>
-      </div>
     </aside>
   );
 }

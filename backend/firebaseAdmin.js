@@ -23,6 +23,16 @@ export function getFirebaseAdminAuth() {
     } catch (error) {
       throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON", { cause: error });
     }
+    if (!serviceAccount || typeof serviceAccount !== "object" || Array.isArray(serviceAccount)) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON must contain a JSON object.");
+    }
+    if (typeof serviceAccount.private_key === "string") {
+      serviceAccount.private_key = serviceAccount.private_key
+        .replace(/\\r\\n/g, "\n")
+        .replace(/\\n/g, "\n")
+        .replace(/\\r/g, "\r")
+        .replace(/\r\n?/g, "\n");
+    }
     if (serviceAccount.project_id && serviceAccount.project_id !== projectId) {
       throw new Error(`Firebase service account project must match ${projectId}.`);
     }

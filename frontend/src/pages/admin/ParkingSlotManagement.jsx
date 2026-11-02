@@ -482,10 +482,10 @@ export default function ParkingSlotManagement({
                       type="button"
                       className="pw-btn-action-view"
                       onClick={() => setSelectedSlotModal(s)}
-                      title="View Slot Details"
+                      aria-label="View details"
+                      title="View details"
                     >
-                      <Eye size={13} />
-                      <span>Details</span>
+                      <Eye size={14} />
                     </button>
 
                     <button

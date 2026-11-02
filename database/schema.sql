@@ -37,8 +37,42 @@ CREATE TABLE IF NOT EXISTS payments (
   id SERIAL PRIMARY KEY,
   amount DECIMAL(10,2) NOT NULL,
   method VARCHAR(30) NOT NULL,
+  payment_method VARCHAR(50),
+  payment_status VARCHAR(50) DEFAULT 'Completed',
   status VARCHAR(20) DEFAULT 'Completed',
+  customer_id INTEGER REFERENCES users(id),
+  booking_id VARCHAR(50),
+  parking_session_id INTEGER,
+  razorpay_order_id VARCHAR(100),
+  razorpay_payment_id VARCHAR(100),
+  razorpay_refund_id VARCHAR(100),
+  refund_amount DECIMAL(10,2),
+  refund_status VARCHAR(30),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES users(id);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS booking_id VARCHAR(50);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS parking_session_id INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Completed';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS razorpay_refund_id VARCHAR(100);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_order_id
+  ON payments(razorpay_order_id) WHERE razorpay_order_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_payment_id
+  ON payments(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_refund_id
+  ON payments(razorpay_refund_id) WHERE razorpay_refund_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
+  event_id VARCHAR(150) PRIMARY KEY,
+  event_type VARCHAR(100) NOT NULL,
+  processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS parking_activities (

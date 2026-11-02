@@ -1,7 +1,7 @@
 import { API_BASE_URL, apiFetch } from "../../config/api.js";
 import { useState, useEffect, useCallback } from "react";
 import Pagination from "../../components/Pagination.jsx";
-import { Car, Bike, Search, RefreshCw, Clock, Layers, History, Download, Printer, X, Zap, Receipt } from "lucide-react";
+import { Car, Bike, Search, RefreshCw, Clock, Layers, History, Download, Printer, X, Zap, Eye } from "lucide-react";
 import { exportToCsv } from "../../utils/exportCsv.js";
 
 export default function ParkingHistory({ loggedInUser }) {
@@ -437,10 +437,10 @@ export default function ParkingHistory({ loggedInUser }) {
                           type="button"
                           className="pw-btn-action-view"
                           onClick={() => setSelectedSessionModal(item)}
-                          title="View Trip Summary"
+                          aria-label="View details"
+                          title="View details"
                         >
-                          <Receipt size={13} />
-                          <span>Details</span>
+                          <Eye size={14} />
                         </button>
 
                         <button

@@ -24,9 +24,9 @@ import CustomerOverview from "./CustomerOverview.jsx";
 import Sidebar from "../../components/Sidebar.jsx";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
 import NotificationBell from "../../components/NotificationBell.jsx";
+import LogoutButton from "../../components/LogoutButton.jsx";
 import { API_BASE_URL, apiFetch } from "../../config/api.js";
-import { signOut } from "firebase/auth";
-import { auth } from "../../components/firebase.js";
+import { logoutCurrentUser } from "../../utils/logout.js";
 
 const MyParking = lazy(() => import("./MyParking.jsx"));
 const Payments = lazy(() => import("./Payments.jsx"));
@@ -216,7 +216,8 @@ export default function CustomerDashboard({ setView }) {
             plan_name: info.planName || info.plan || "Monthly VIP Plan",
             amount: info.amount || 2500,
             slot: info.slot,
-            vehicle: info.vehicle
+            vehicle: info.vehicle,
+            booking_id: info.bookingId
           })
         }).catch(() => {});
       }
@@ -322,20 +323,12 @@ export default function CustomerDashboard({ setView }) {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await logoutCurrentUser();
     } catch (error) {
-      console.error("Firebase sign-out failed:", error);
-    }
-    try {
-      localStorage.removeItem("shnoor_current_user");
-      localStorage.removeItem("shnoor_auth_state");
-    } catch {
-      void 0;
-    }
-    if (setView) {
-      setView("landing");
-    } else {
-      navigate("/");
+      console.error("Could not complete logout:", error);
+    } finally {
+      setCurrentUser(null);
+      navigate("/login", { replace: true });
     }
   };
 
@@ -399,7 +392,6 @@ export default function CustomerDashboard({ setView }) {
         menuItems={CUSTOMER_SIDEBAR_ITEMS}
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        onLogout={handleSignOut}
         isCollapsed={isSidebarCollapsed}
         isMobileNavOpen={isMobileNavOpen}
         onCloseMobile={() => setIsMobileNavOpen(false)}
@@ -453,6 +445,7 @@ export default function CustomerDashboard({ setView }) {
               </div>
               <ChevronDown size={14} style={{ color: "#94a3b8", marginLeft: "2px" }} />
             </div>
+            <LogoutButton onLogout={handleSignOut} />
           </div>
         </header>
 
