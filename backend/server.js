@@ -1314,7 +1314,8 @@ const initDbSchema = async () => {
         AND status != 'occupied'
     `);
   } catch (err) {
-    console.error("Schema init error:", err);
+    console.error("Schema init error:", err.message);
+    throw err;
   }
 };
 
@@ -8993,30 +8994,42 @@ app.use("/api", (error, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+async function startServer() {
+  await dbSchemaReady;
+  await pool.query("SELECT 1");
 
-  (async () => {
-    try {
-      const [settingsRes, adminUserRes] = await Promise.all([
-        pool.query("SELECT value FROM system_settings WHERE key = 'general'"),
-        pool.query("SELECT id, email, role, status FROM users WHERE LOWER(email) = 'admin@shnoorparking.com'"),
-        pool.query("SELECT 1"),
-        pool.query("SELECT 1"),
-        pool.query("SELECT 1")
-      ]);
-      if (settingsRes && settingsRes.rowCount > 0) {
-        cachedSystemSettings = settingsRes.rows[0].value;
-        lastSettingsFetch = Date.now();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+
+    (async () => {
+      try {
+        const [settingsRes, adminUserRes] = await Promise.all([
+          pool.query("SELECT value FROM system_settings WHERE key = 'general'"),
+          pool.query("SELECT id, email, role, status FROM users WHERE LOWER(email) = 'admin@shnoorparking.com'"),
+          pool.query("SELECT 1"),
+          pool.query("SELECT 1"),
+          pool.query("SELECT 1")
+        ]);
+        if (settingsRes && settingsRes.rowCount > 0) {
+          cachedSystemSettings = settingsRes.rows[0].value;
+          lastSettingsFetch = Date.now();
+        }
+        if (adminUserRes && adminUserRes.rowCount > 0) {
+          adminUserAuthCache.set('admin@shnoorparking.com', { ...adminUserRes.rows[0], expiresAt: Date.now() + 600000 });
+        }
+        console.log("[Pool] Database pool pre-warmed, system settings and admin cache initialized.");
+      } catch (err) {
+        console.warn("[Pool] Database warm-up notice:", err.message);
       }
-      if (adminUserRes && adminUserRes.rowCount > 0) {
-        adminUserAuthCache.set('admin@shnoorparking.com', { ...adminUserRes.rows[0], expiresAt: Date.now() + 600000 });
-      }
-      console.log("[Pool] Database pool pre-warmed, system settings and admin cache initialized.");
-    } catch (err) {
-      console.warn("[Pool] Database warm-up notice:", err.message);
-    }
-  })();
+    })();
+  });
+}
+
+startServer().catch((error) => {
+  console.error("Backend startup failed before the database was ready:", {
+    code: error?.code || "DATABASE_STARTUP_FAILED"
+  });
+  process.exitCode = 1;
 });
 
 process.on("unhandledRejection", (reason) => {
