@@ -1,0 +1,252 @@
+{
+  "testDate": "2026-11-04T16:14:34.611Z",
+  "environment": {
+    "targetUrl": "http://localhost:5000",
+    "stage": "baseline",
+    "maxVirtualUsers": 5,
+    "actualDurationSeconds": 100
+  },
+  "performanceKPIs": {
+    "thresholdStatus": "FAILED",
+    "totalRequests": 3600,
+    "successfulRequests": 720,
+    "successPercentage": "20.00%",
+    "failedRequests": 2880,
+    "failurePercentage": "80.00%",
+    "requestsPerSecond": "36.00",
+    "latencyMs": {
+      "average": 1.61,
+      "median": 1.22,
+      "p90": 3.44,
+      "p95": 4.69,
+      "maximum": 40.94
+    }
+  },
+  "endpointBreakdown": [
+    {
+      "name": "Health",
+      "category": "System",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 144,
+      "failedCalls": 0,
+      "successPercentage": "100.00"
+    },
+    {
+      "name": "Admin occupancy",
+      "category": "Occupancy",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Occupancy",
+      "category": "Occupancy",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 144,
+      "failedCalls": 0,
+      "successPercentage": "100.00"
+    },
+    {
+      "name": "Parking slots",
+      "category": "Parking Slots",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 144,
+      "failedCalls": 0,
+      "successPercentage": "100.00"
+    },
+    {
+      "name": "Parking locations",
+      "category": "Parking Locations",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 144,
+      "failedCalls": 0,
+      "successPercentage": "100.00"
+    },
+    {
+      "name": "System settings",
+      "category": "System Settings",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Staff dashboard",
+      "category": "Staff Dashboard",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Staff vehicle entries",
+      "category": "Staff Operations",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Staff active vehicles",
+      "category": "Staff Operations",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Staff parking records",
+      "category": "Parking Records",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Staff shift report",
+      "category": "Staff Reports",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Staff incidents",
+      "category": "Incidents",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Active parking sessions",
+      "category": "Active Sessions",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Payments",
+      "category": "Payments",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Today payments",
+      "category": "Payments",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Customer payments",
+      "category": "Customer Dashboard",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Customer parking",
+      "category": "Customer Dashboard",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Customer parking history",
+      "category": "Customer Dashboard",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Customer vehicles",
+      "category": "Customer Dashboard",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Bookings",
+      "category": "Bookings",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Customer reservations",
+      "category": "Reservations",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Pricing plans",
+      "category": "Pricing Plans",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 144,
+      "failedCalls": 0,
+      "successPercentage": "100.00"
+    },
+    {
+      "name": "Support tickets",
+      "category": "Support Tickets",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "EV charging slots",
+      "category": "EV Charging",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    },
+    {
+      "name": "Coupons",
+      "category": "Coupons",
+      "authRequired": false,
+      "totalCalls": 144,
+      "successfulCalls": 0,
+      "failedCalls": 144,
+      "successPercentage": "0.00"
+    }
+  ]
+}

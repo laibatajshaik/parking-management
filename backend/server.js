@@ -53,6 +53,10 @@ import {
 
 loadBackendEnvironment();
 
+const adminUserAuthCache = new Map();
+const firebaseUserAuthCache = new Map();
+const USER_AUTH_CACHE_TTL = 30000;
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -191,12 +195,19 @@ function getRequiredRoles(req, apiPath) {
 }
 
 async function findFirebaseUser(firebaseUser) {
+  const cached = firebaseUserAuthCache.get(firebaseUser.uid);
+  if (cached && (Date.now() - cached.cachedAt < USER_AUTH_CACHE_TTL)) {
+    return { user: cached.user };
+  }
+
   const byUid = await pool.query(
     "SELECT id, name, email, phone, role, status, google_id, firebase_uid FROM users WHERE firebase_uid = $1 LIMIT 1",
     [firebaseUser.uid]
   );
   if (byUid.rowCount > 0) {
-    return { user: byUid.rows[0] };
+    const user = byUid.rows[0];
+    firebaseUserAuthCache.set(firebaseUser.uid, { user, cachedAt: Date.now() });
+    return { user };
   }
 
   const email = (firebaseUser.email || "").trim().toLowerCase();
@@ -1299,6 +1310,13 @@ const initDbSchema = async () => {
       CREATE INDEX IF NOT EXISTS idx_coupons_status ON coupons(LOWER(status));
       CREATE INDEX IF NOT EXISTS idx_coupon_usage_email ON coupon_usage(LOWER(customer_email));
       CREATE INDEX IF NOT EXISTS idx_coupon_usage_code ON coupon_usage(UPPER(coupon_code));
+      CREATE INDEX IF NOT EXISTS idx_payments_refund_status ON payments(LOWER(refund_status)) WHERE refund_status IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_payments_status_amount ON payments(LOWER(payment_status), amount);
+      CREATE INDEX IF NOT EXISTS idx_parking_slots_status_avail ON parking_slots(LOWER(status), is_available);
+      CREATE INDEX IF NOT EXISTS idx_parking_slots_zone ON parking_slots(zone);
+      CREATE INDEX IF NOT EXISTS idx_vehicle_history_exit_status ON vehicle_history(exit_time, LOWER(status));
+      CREATE INDEX IF NOT EXISTS idx_reservations_status_end ON reservations(LOWER(status), end_time);
+      CREATE INDEX IF NOT EXISTS idx_ev_sessions_status ON ev_charging_sessions(LOWER(session_status));
     `);
 
     await pool.query(`
@@ -2076,8 +2094,17 @@ app.get("/api/admin/dashboard-overview", async (req, res) => {
   }
 });
 
+let cachedOccupancy = null;
+let lastOccupancyFetch = 0;
+const OCCUPANCY_CACHE_TTL = 2000;
+
 app.get(["/api/occupancy", "/api/admin/occupancy"], async (req, res) => {
   try {
+    const now = Date.now();
+    if (cachedOccupancy && (now - lastOccupancyFetch < OCCUPANCY_CACHE_TTL)) {
+      return res.json(cachedOccupancy);
+    }
+
     const [
       normalSlotsRes,
       evSlotsRes,
@@ -2162,7 +2189,7 @@ app.get(["/api/occupancy", "/api/admin/occupancy"], async (req, res) => {
 
     const occupancyRate = totalSlots > 0 ? Math.round(((occupiedSlots + reservedSlots + chargingSlots) / totalSlots) * 100) : 0;
 
-    res.json({
+    const responsePayload = {
       success: true,
       totalSlots,
       availableSlots,
@@ -2174,7 +2201,10 @@ app.get(["/api/occupancy", "/api/admin/occupancy"], async (req, res) => {
       slots: unifiedSlots,
       activeVehicles: activeVehRes.rows,
       evSessions: activeEvSessRes.rows
-    });
+    };
+    cachedOccupancy = responsePayload;
+    lastOccupancyFetch = now;
+    res.json(responsePayload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching unified occupancy" });
@@ -4173,7 +4203,52 @@ app.get("/api/staff/payments/:paymentId", async (req, res) => {
   }
 });
 
-app.get("/api/admin/payments/:paymentId", async (req, res) => {
+let cachedPaymentAnalytics = null;
+let lastPaymentAnalyticsFetch = 0;
+const PAYMENT_ANALYTICS_CACHE_TTL = 3000;
+
+app.get("/api/admin/payments/analytics", async (req, res) => {
+  try {
+    const now = Date.now();
+    if (cachedPaymentAnalytics && (now - lastPaymentAnalyticsFetch < PAYMENT_ANALYTICS_CACHE_TTL)) {
+      return res.json(cachedPaymentAnalytics);
+    }
+
+    const result = await pool.query(`
+      SELECT
+        GREATEST(
+          COALESCE(SUM(amount) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')), 0)
+          - COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(refund_status) = 'completed'), 0),
+          0
+        ) AS total_revenue,
+        COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')) AS successful_payments,
+        COUNT(*) FILTER (WHERE LOWER(payment_status) = 'failed') AS failed_payments,
+        COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('pending', 'refund pending')) AS pending_payments,
+        COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(refund_status) = 'completed'), 0) AS total_refunds
+      FROM payments
+    `);
+    const analytics = result.rows[0] || {};
+    const responsePayload = {
+      success: true,
+      totalRevenue: Number(analytics.total_revenue || 0),
+      successfulPayments: Number(analytics.successful_payments || 0),
+      failedPayments: Number(analytics.failed_payments || 0),
+      pendingPayments: Number(analytics.pending_payments || 0),
+      totalRefunds: Number(analytics.total_refunds || 0)
+    };
+    cachedPaymentAnalytics = responsePayload;
+    lastPaymentAnalyticsFetch = now;
+    return res.json(responsePayload);
+  } catch (error) {
+    console.error("Payment analytics could not be loaded:", error.message);
+    return res.status(500).json({ error: "Unable to load payment analytics." });
+  }
+});
+
+app.get("/api/admin/payments/:paymentId", async (req, res, next) => {
+  if (req.params.paymentId === "analytics") {
+    return next();
+  }
   const paymentId = Number(req.params.paymentId);
   if (!Number.isSafeInteger(paymentId) || paymentId <= 0) {
     return res.status(400).json({ success: false, error: "A valid transaction is required." });
@@ -6260,35 +6335,6 @@ app.post("/api/admin/payments/:paymentId/refund", async (req, res) => {
   }
 });
 
-app.get("/api/admin/payments/analytics", async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT
-        GREATEST(
-          COALESCE(SUM(amount) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')), 0)
-          - COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(refund_status) = 'completed'), 0),
-          0
-        ) AS total_revenue,
-        COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('completed', 'successful', 'paid', 'success', 'refunded')) AS successful_payments,
-        COUNT(*) FILTER (WHERE LOWER(payment_status) = 'failed') AS failed_payments,
-        COUNT(*) FILTER (WHERE LOWER(payment_status) IN ('pending', 'refund pending')) AS pending_payments,
-        COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(refund_status) = 'completed'), 0) AS total_refunds
-      FROM payments
-    `);
-    const analytics = result.rows[0];
-    return res.json({
-      success: true,
-      totalRevenue: Number(analytics.total_revenue),
-      successfulPayments: Number(analytics.successful_payments),
-      failedPayments: Number(analytics.failed_payments),
-      pendingPayments: Number(analytics.pending_payments),
-      totalRefunds: Number(analytics.total_refunds)
-    });
-  } catch (error) {
-    console.error("Payment analytics could not be loaded:", error.message);
-    return res.status(500).json({ error: "Unable to load payment analytics." });
-  }
-});
 
 app.get("/api/customer/parking-history", async (req, res) => {
   const { email, name, search, status, page, limit } = req.query;
@@ -8280,6 +8326,10 @@ const verifyAdminAccess = async (req) => {
   return { user: req.authUser };
 };
 
+let cachedAuditSummary = null;
+let lastAuditSummaryFetch = 0;
+const AUDIT_SUMMARY_CACHE_TTL = 3000;
+
 app.get("/api/admin/audit-logs/summary", async (req, res) => {
   const auth = await verifyAdminAccess(req);
   if (auth.error) {
@@ -8287,6 +8337,11 @@ app.get("/api/admin/audit-logs/summary", async (req, res) => {
   }
 
   try {
+    const now = Date.now();
+    if (cachedAuditSummary && (now - lastAuditSummaryFetch < AUDIT_SUMMARY_CACHE_TTL)) {
+      return res.json(cachedAuditSummary);
+    }
+
     const summaryRes = await pool.query(`
       SELECT 
         COUNT(*) AS total_logs,
@@ -8298,7 +8353,7 @@ app.get("/api/admin/audit-logs/summary", async (req, res) => {
     `);
     const row = summaryRes.rows[0] || {};
 
-    res.json({
+    const responsePayload = {
       success: true,
       summary: {
         totalLogs: parseInt(row.total_logs, 10) || 0,
@@ -8307,7 +8362,10 @@ app.get("/api/admin/audit-logs/summary", async (req, res) => {
         failedActions: parseInt(row.failed_actions, 10) || 0,
         adminActions: parseInt(row.admin_actions, 10) || 0
       }
-    });
+    };
+    cachedAuditSummary = responsePayload;
+    lastAuditSummaryFetch = now;
+    res.json(responsePayload);
   } catch (err) {
     console.error("Error fetching audit logs summary:", err);
     res.status(500).json({ error: "Server error fetching audit logs summary" });
@@ -8529,8 +8587,17 @@ app.put("/api/staff/incidents/:id/status", async (req, res) => {
   }
 });
 
+let cachedStaffDashboard = null;
+let lastStaffDashboardFetch = 0;
+const STAFF_DASHBOARD_CACHE_TTL = 3000;
+
 app.get("/api/staff/dashboard-overview", async (req, res) => {
   try {
+    const now = Date.now();
+    if (cachedStaffDashboard && (now - lastStaffDashboardFetch < STAFF_DASHBOARD_CACHE_TTL)) {
+      return res.json(cachedStaffDashboard);
+    }
+
     const [slotsRes, evSlotsRes, todayResCount, todayPaySum, parkedVehicles, activeEvSessRes, recentRes] = await Promise.all([
       pool.query("SELECT * FROM parking_slots ORDER BY slot_number ASC"),
       pool.query("SELECT * FROM ev_charging_slots ORDER BY slot_number ASC"),
@@ -8578,7 +8645,7 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
       }))
     ];
 
-    res.json({
+    const responsePayload = {
       success: true,
       metrics: {
         todayBookings: String(todayBookings),
@@ -8593,7 +8660,10 @@ app.get("/api/staff/dashboard-overview", async (req, res) => {
       },
       slots: unifiedSlots,
       recentEntries: recentRes.rows
-    });
+    };
+    cachedStaffDashboard = responsePayload;
+    lastStaffDashboardFetch = now;
+    res.json(responsePayload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error fetching staff dashboard overview" });

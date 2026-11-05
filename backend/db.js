@@ -45,10 +45,11 @@ pg.types.setTypeParser(1114, (str) => {
   return str || null;
 });
 
-const poolMax = parseInt(process.env.DB_POOL_MAX || "80", 10);
-const poolMin = parseInt(process.env.DB_POOL_MIN || "5", 10);
-const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || "120000", 10);
-const poolConnectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || "20000", 10);
+const poolMax = parseInt(process.env.DB_POOL_MAX || "20", 10);
+const poolMin = parseInt(process.env.DB_POOL_MIN || "2", 10);
+const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || "30000", 10);
+const poolConnectionTimeout = parseInt(process.env.DB_CONNECTION_TIMEOUT || "10000", 10);
+const poolStatementTimeout = parseInt(process.env.DB_STATEMENT_TIMEOUT || "15000", 10);
 
 const poolConfig = databaseUrl
   ? {
@@ -60,6 +61,8 @@ const poolConfig = databaseUrl
       min: poolMin,
       idleTimeoutMillis: poolIdleTimeout,
       connectionTimeoutMillis: poolConnectionTimeout,
+      statement_timeout: poolStatementTimeout,
+      query_timeout: poolStatementTimeout,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     }
@@ -74,6 +77,8 @@ const poolConfig = databaseUrl
       min: poolMin,
       idleTimeoutMillis: poolIdleTimeout,
       connectionTimeoutMillis: poolConnectionTimeout,
+      statement_timeout: poolStatementTimeout,
+      query_timeout: poolStatementTimeout,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     };
@@ -81,9 +86,13 @@ const poolConfig = databaseUrl
 console.log("Database connection config:", {
   host: poolConfig.host || "from DATABASE_URL",
   port: poolConfig.port || "from DATABASE_URL",
-  database: poolConfig.database || "from DATABASE_URL"
+  database: poolConfig.database || "from DATABASE_URL",
+  maxConnections: poolConfig.max,
+  minConnections: poolConfig.min,
+  connectionTimeoutMs: poolConfig.connectionTimeoutMillis,
+  statementTimeoutMs: poolConfig.statement_timeout
 });
-   
+
 const pool = new Pool(poolConfig);
 
 pool.on("error", (err) => {
@@ -97,16 +106,18 @@ pool.on("error", (err) => {
       err.message.includes("socket closed")
     ));
   if (!isIgnorableIdleError) {
-    console.error("Postgres pool error:", err.message);
+    console.error("Postgres pool error:", {
+      code: err.code || "UNKNOWN",
+      message: err.message,
+      detail: err.detail || null
+    });
   }
 });
-
 
 setInterval(async () => {
   try {
     await pool.query("SELECT 1");
   } catch (err) {
-   
   }
 }, 25000).unref();
 

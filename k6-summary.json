@@ -1,13 +1,236 @@
 {
+  "state": {
+    "isStdOutTTY": true,
+    "isStdErrTTY": true,
+    "testRunDurationMs": 100328.4286
+  },
   "metrics": {
-    "http_req_duration": {
+    "http_req_sending": {
+      "contains": "time",
+      "values": {
+        "p(95)": 0,
+        "avg": 0.02082955555555553,
+        "min": 0,
+        "med": 0,
+        "max": 2.4141,
+        "p(90)": 0
+      },
+      "type": "trend"
+    },
+    "endpoint_success_rate": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0.2,
+        "passes": 720,
+        "fails": 2880
+      }
+    },
+    "endpoint_failures": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "rate": 28.705722198463697,
+        "count": 2880
+      }
+    },
+    "iterations": {
+      "values": {
+        "count": 144,
+        "rate": 1.4352861099231848
+      },
+      "type": "counter",
+      "contains": "default"
+    },
+    "vus_max": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 5,
+        "min": 5,
+        "max": 5
+      }
+    },
+    "http_req_failed": {
+      "contains": "default",
+      "values": {
+        "rate": 0.8,
+        "passes": 2880,
+        "fails": 720
+      },
+      "thresholds": {
+        "rate<0.10": {
+          "ok": false
+        }
+      },
+      "type": "rate"
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.2881828611111111,
+        "min": 0,
+        "med": 0,
+        "max": 9.2392,
+        "p(90)": 0.7746299999999998,
+        "p(95)": 0.9988149999999999
+      }
+    },
+    "endpoint_requests": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 3600,
+        "rate": 35.88215274807962
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 1,
+        "min": 1,
+        "max": 5
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "count": 561600,
+        "rate": 5597.615828700421
+      }
+    },
+    "endpoint_latency_ms": {
+      "values": {
+        "p(95)": 4.691689999999998,
+        "avg": 1.610386527777779,
+        "min": 0,
+        "med": 1.21595,
+        "max": 40.9368,
+        "p(90)": 3.439209999999999
+      },
+      "type": "trend",
+      "contains": "default"
+    },
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "max": 2938.8709,
+        "p(90)": 2868.24754,
+        "p(95)": 2872.9581049999997,
+        "avg": 2861.1117479166674,
+        "min": 2837.3359,
+        "med": 2860.09915
+      }
+    },
+    "http_req_blocked": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.010115027777777777,
+        "min": 0,
+        "med": 0,
+        "max": 7.1936,
+        "p(90)": 0,
+        "p(95)": 0
+      }
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
       "values": {
         "min": 0,
-        "med": 17.422,
-        "max": 730.2704,
-        "p(90)": 93.1172,
-        "p(95)": 125.16408499999997,
-        "avg": 34.59660913729289
+        "med": 0,
+        "max": 1.4789,
+        "p(90)": 0,
+        "p(95)": 0,
+        "avg": 0.0014345555555555555
+      }
+    },
+    "checks": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "fails": 2880,
+        "rate": 0.2,
+        "passes": 720
+      }
+    },
+    "group_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "med": 2559.545,
+        "max": 2638.2202,
+        "p(90)": 2567.48775,
+        "p(95)": 2572.64123,
+        "avg": 2560.501455555557,
+        "min": 2536.5347
+      }
+    },
+    "data_received": {
+      "contains": "data",
+      "values": {
+        "rate": 38926.3945872267,
+        "count": 3905424
+      },
+      "type": "counter"
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 3600,
+        "rate": 35.88215274807962
+      }
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 3.3823954166666637,
+        "min": 0,
+        "med": 3.4377,
+        "max": 40.9368,
+        "p(90)": 5.782950000000001,
+        "p(95)": 6.387104999999999
+      }
+    },
+    "http_req_tls_handshaking": {
+      "contains": "time",
+      "values": {
+        "avg": 0,
+        "min": 0,
+        "med": 0,
+        "max": 0,
+        "p(90)": 0,
+        "p(95)": 0
+      },
+      "type": "trend"
+    },
+    "http_req_waiting": {
+      "values": {
+        "min": 0,
+        "med": 1.00765,
+        "max": 40.3214,
+        "p(90)": 2.5998899999999994,
+        "p(95)": 4.096564999999999,
+        "avg": 1.3013741111111143
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "http_req_duration": {
+      "values": {
+        "avg": 1.610386527777779,
+        "min": 0,
+        "med": 1.21595,
+        "max": 40.9368,
+        "p(90)": 3.439209999999999,
+        "p(95)": 4.691689999999998
       },
       "thresholds": {
         "p(95)<3000": {
@@ -16,402 +239,198 @@
       },
       "type": "trend",
       "contains": "time"
-    },
-    "http_req_connecting": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "p(95)": 0,
-        "avg": 0.0006535345988977352,
-        "min": 0,
-        "med": 0,
-        "max": 4.0877,
-        "p(90)": 0
-      }
-    },
-    "http_req_failed": {
-      "values": {
-        "rate": 0,
-        "passes": 0,
-        "fails": 408250
-      },
-      "thresholds": {
-        "rate<0.10": {
-          "ok": true
-        }
-      },
-      "type": "rate",
-      "contains": "default"
-    },
-    "iteration_duration": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "max": 7385.121,
-        "p(90)": 3628.49402,
-        "p(95)": 3764.9781350000003,
-        "avg": 3408.3871360337785,
-        "min": 2943.4178,
-        "med": 3326.352
-      }
-    },
-    "checks": {
-      "contains": "default",
-      "values": {
-        "fails": 0,
-        "rate": 1,
-        "passes": 408250
-      },
-      "type": "rate"
-    },
-    "data_received": {
-      "type": "counter",
-      "contains": "data",
-      "values": {
-        "rate": 9509016.373523604,
-        "count": 2302476750
-      }
-    },
-    "endpoint_success_rate": {
-      "contains": "default",
-      "values": {
-        "passes": 408250,
-        "fails": 0,
-        "rate": 1
-      },
-      "type": "rate"
-    },
-    "vus": {
-      "contains": "default",
-      "values": {
-        "value": 226,
-        "min": 226,
-        "max": 250
-      },
-      "type": "gauge"
-    },
-    "iterations": {
-      "type": "counter",
-      "contains": "default",
-      "values": {
-        "count": 17750,
-        "rate": 73.30586101685672
-      }
-    },
-    "http_reqs": {
-      "type": "counter",
-      "contains": "default",
-      "values": {
-        "rate": 1686.0348033877049,
-        "count": 408250
-      }
-    },
-    "vus_max": {
-      "type": "gauge",
-      "contains": "default",
-      "values": {
-        "value": 250,
-        "min": 250,
-        "max": 250
-      }
-    },
-    "data_sent": {
-      "type": "counter",
-      "contains": "data",
-      "values": {
-        "count": 63829000,
-        "rate": 263607.87621661683
-      }
-    },
-    "group_duration": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "avg": 3107.9053117126764,
-        "min": 2643.405,
-        "med": 3025.9109,
-        "max": 7084.9707,
-        "p(90)": 3328.10136,
-        "p(95)": 3464.0945
-      }
-    },
-    "http_req_tls_handshaking": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "med": 0,
-        "max": 0,
-        "p(90)": 0,
-        "p(95)": 0,
-        "avg": 0,
-        "min": 0
-      }
-    },
-    "http_req_sending": {
-      "values": {
-        "avg": 0.005549319779546839,
-        "min": 0,
-        "med": 0,
-        "max": 29.4225,
-        "p(90)": 0,
-        "p(95)": 0
-      },
-      "type": "trend",
-      "contains": "time"
-    },
-    "endpoint_failures": {
-      "values": {
-        "count": 0,
-        "rate": 0
-      },
-      "type": "counter",
-      "contains": "default"
-    },
-    "endpoint_requests": {
-      "values": {
-        "count": 408250,
-        "rate": 1686.0348033877049
-      },
-      "type": "counter",
-      "contains": "default"
-    },
-    "http_req_waiting": {
-      "values": {
-        "min": 0,
-        "med": 17.3477,
-        "max": 730.2704,
-        "p(90)": 93.01458000000014,
-        "p(95)": 125.06155999999999,
-        "avg": 34.52030096068557
-      },
-      "type": "trend",
-      "contains": "time"
-    },
-    "http_req_duration{expected_response:true}": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "p(95)": 125.16408499999997,
-        "avg": 34.59660913729289,
-        "min": 0,
-        "med": 17.422,
-        "max": 730.2704,
-        "p(90)": 93.1172
-      }
-    },
-    "endpoint_latency_ms": {
-      "type": "trend",
-      "contains": "default",
-      "values": {
-        "p(95)": 125.16408499999997,
-        "avg": 34.59660913729289,
-        "min": 0,
-        "med": 17.422,
-        "max": 730.2704,
-        "p(90)": 93.1172
-      }
-    },
-    "http_req_blocked": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "min": 0,
-        "med": 0,
-        "max": 39.989,
-        "p(90)": 0,
-        "p(95)": 0,
-        "avg": 0.017862372565829714
-      }
-    },
-    "http_req_receiving": {
-      "type": "trend",
-      "contains": "time",
-      "values": {
-        "avg": 0.07075885682792289,
-        "min": 0,
-        "med": 0,
-        "max": 24.9197,
-        "p(90)": 0.5053,
-        "p(95)": 0.5299
-      }
     }
   },
   "root_group": {
-    "checks": [],
-    "name": "",
     "path": "",
     "id": "d41d8cd98f00b204e9800998ecf8427e",
     "groups": [
-        {
-          "name": "Read-only API tests",
-          "path": "::Read-only API tests",
-          "id": "9d38c974495b0242f2dace220362b17b",
-          "groups": [],
-          "checks": [
-              {
-                "name": "Health: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Health: HTTP 2xx/3xx",
-                "id": "722c1196720de3b371616148b2263890",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Admin occupancy: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Admin occupancy: HTTP 2xx/3xx",
-                "id": "dad367e1029c35841012d6589743d980",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "passes": 17750,
-                "fails": 0,
-                "name": "Occupancy: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Occupancy: HTTP 2xx/3xx",
-                "id": "f44bc4a34a2bc50b882a8f4aece3e6ae"
-              },
-              {
-                "name": "Parking slots: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Parking slots: HTTP 2xx/3xx",
-                "id": "be209e8c3dc0896bd629f3fd7d190dec",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "path": "::Read-only API tests::Parking locations: HTTP 2xx/3xx",
-                "id": "a3180c3e4ab77c6db4d3a027ca43c5d3",
-                "passes": 17750,
-                "fails": 0,
-                "name": "Parking locations: HTTP 2xx/3xx"
-              },
-              {
-                "name": "System settings: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::System settings: HTTP 2xx/3xx",
-                "id": "58c86a9efb48b1ec9b94a4e1c993b94d",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "id": "930b40435415bee1edaeb0d4eeb6e7c5",
-                "passes": 17750,
-                "fails": 0,
-                "name": "Staff dashboard: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Staff dashboard: HTTP 2xx/3xx"
-              },
-              {
-                "name": "Staff vehicle entries: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Staff vehicle entries: HTTP 2xx/3xx",
-                "id": "f90746721dbc63bc033162adcc1ce1ea",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Staff active vehicles: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Staff active vehicles: HTTP 2xx/3xx",
-                "id": "206f9fd9d1cce81ad9cc73a1aae20b9b",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Staff parking records: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Staff parking records: HTTP 2xx/3xx",
-                "id": "77a19318681b268a51900a30a6e4090c",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "path": "::Read-only API tests::Staff shift report: HTTP 2xx/3xx",
-                "id": "0e4e0a84d2a036c7a83d0ad05d4f0b55",
-                "passes": 17750,
-                "fails": 0,
-                "name": "Staff shift report: HTTP 2xx/3xx"
-              },
-              {
-                "path": "::Read-only API tests::Staff incidents: HTTP 2xx/3xx",
-                "id": "87399e88319e18738984d3c14c50b2c9",
-                "passes": 17750,
-                "fails": 0,
-                "name": "Staff incidents: HTTP 2xx/3xx"
-              },
-              {
-                "passes": 17750,
-                "fails": 0,
-                "name": "Active parking sessions: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Active parking sessions: HTTP 2xx/3xx",
-                "id": "8da1b092e29cde1866a956e6ebc4e6cf"
-              },
-              {
-                "fails": 0,
-                "name": "Payments: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Payments: HTTP 2xx/3xx",
-                "id": "daeb0a82926bdac3c6aaf02babea1d22",
-                "passes": 17750
-              },
-              {
-                "name": "Today payments: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Today payments: HTTP 2xx/3xx",
-                "id": "15060c8c53e49f196153efdc1f18d628",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Customer payments: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Customer payments: HTTP 2xx/3xx",
-                "id": "39cbb8bcc6c17868ed2d136ee176c51f",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Customer parking: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Customer parking: HTTP 2xx/3xx",
-                "id": "8ad277c07f340271027fae44dd4aee11",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Customer parking history: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Customer parking history: HTTP 2xx/3xx",
-                "id": "f85148ea3ac5abada0193b3235ac90c3",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "path": "::Read-only API tests::Customer vehicles: HTTP 2xx/3xx",
-                "id": "08abd3ac758d352ce32c652d8e2de542",
-                "passes": 17750,
-                "fails": 0,
-                "name": "Customer vehicles: HTTP 2xx/3xx"
-              },
-              {
-                "name": "Bookings: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Bookings: HTTP 2xx/3xx",
-                "id": "4df4052e6957e5a25b95e7dc708fef94",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Customer reservations: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Customer reservations: HTTP 2xx/3xx",
-                "id": "fa3fcef5bf3468ef4005f2bc46985b31",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "name": "Pricing plans: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Pricing plans: HTTP 2xx/3xx",
-                "id": "fab035cc6b98cae5773f7b305412a8bc",
-                "passes": 17750,
-                "fails": 0
-              },
-              {
-                "fails": 0,
-                "name": "Support tickets: HTTP 2xx/3xx",
-                "path": "::Read-only API tests::Support tickets: HTTP 2xx/3xx",
-                "id": "94b128b36612201af50c929a41109383",
-                "passes": 17750
-              }
-            ]
-        }
-      ]
+      {
+        "id": "9d38c974495b0242f2dace220362b17b",
+        "groups": [],
+        "checks": [
+            {
+              "passes": 144,
+              "fails": 0,
+              "name": "Health: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Health: HTTP 2xx/3xx",
+              "id": "722c1196720de3b371616148b2263890"
+            },
+            {
+              "fails": 144,
+              "name": "Admin occupancy: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Admin occupancy: HTTP 2xx/3xx",
+              "id": "dad367e1029c35841012d6589743d980",
+              "passes": 0
+            },
+            {
+              "passes": 144,
+              "fails": 0,
+              "name": "Occupancy: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Occupancy: HTTP 2xx/3xx",
+              "id": "f44bc4a34a2bc50b882a8f4aece3e6ae"
+            },
+            {
+              "passes": 144,
+              "fails": 0,
+              "name": "Parking slots: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Parking slots: HTTP 2xx/3xx",
+              "id": "be209e8c3dc0896bd629f3fd7d190dec"
+            },
+            {
+              "name": "Parking locations: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Parking locations: HTTP 2xx/3xx",
+              "id": "a3180c3e4ab77c6db4d3a027ca43c5d3",
+              "passes": 144,
+              "fails": 0
+            },
+            {
+              "passes": 0,
+              "fails": 144,
+              "name": "System settings: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::System settings: HTTP 2xx/3xx",
+              "id": "58c86a9efb48b1ec9b94a4e1c993b94d"
+            },
+            {
+              "name": "Staff dashboard: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Staff dashboard: HTTP 2xx/3xx",
+              "id": "930b40435415bee1edaeb0d4eeb6e7c5",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "fails": 144,
+              "name": "Staff vehicle entries: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Staff vehicle entries: HTTP 2xx/3xx",
+              "id": "f90746721dbc63bc033162adcc1ce1ea",
+              "passes": 0
+            },
+            {
+              "name": "Staff active vehicles: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Staff active vehicles: HTTP 2xx/3xx",
+              "id": "206f9fd9d1cce81ad9cc73a1aae20b9b",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Staff parking records: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Staff parking records: HTTP 2xx/3xx",
+              "id": "77a19318681b268a51900a30a6e4090c",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Staff shift report: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Staff shift report: HTTP 2xx/3xx",
+              "id": "0e4e0a84d2a036c7a83d0ad05d4f0b55",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "path": "::Read-only API tests::Staff incidents: HTTP 2xx/3xx",
+              "id": "87399e88319e18738984d3c14c50b2c9",
+              "passes": 0,
+              "fails": 144,
+              "name": "Staff incidents: HTTP 2xx/3xx"
+            },
+            {
+              "passes": 0,
+              "fails": 144,
+              "name": "Active parking sessions: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Active parking sessions: HTTP 2xx/3xx",
+              "id": "8da1b092e29cde1866a956e6ebc4e6cf"
+            },
+            {
+              "name": "Payments: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Payments: HTTP 2xx/3xx",
+              "id": "daeb0a82926bdac3c6aaf02babea1d22",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Today payments: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Today payments: HTTP 2xx/3xx",
+              "id": "15060c8c53e49f196153efdc1f18d628",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Customer payments: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Customer payments: HTTP 2xx/3xx",
+              "id": "39cbb8bcc6c17868ed2d136ee176c51f",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Customer parking: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Customer parking: HTTP 2xx/3xx",
+              "id": "8ad277c07f340271027fae44dd4aee11",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "id": "f85148ea3ac5abada0193b3235ac90c3",
+              "passes": 0,
+              "fails": 144,
+              "name": "Customer parking history: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Customer parking history: HTTP 2xx/3xx"
+            },
+            {
+              "name": "Customer vehicles: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Customer vehicles: HTTP 2xx/3xx",
+              "id": "08abd3ac758d352ce32c652d8e2de542",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Bookings: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Bookings: HTTP 2xx/3xx",
+              "id": "4df4052e6957e5a25b95e7dc708fef94",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Customer reservations: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Customer reservations: HTTP 2xx/3xx",
+              "id": "fa3fcef5bf3468ef4005f2bc46985b31",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "name": "Pricing plans: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Pricing plans: HTTP 2xx/3xx",
+              "id": "fab035cc6b98cae5773f7b305412a8bc",
+              "passes": 144,
+              "fails": 0
+            },
+            {
+              "name": "Support tickets: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Support tickets: HTTP 2xx/3xx",
+              "id": "94b128b36612201af50c929a41109383",
+              "passes": 0,
+              "fails": 144
+            },
+            {
+              "fails": 144,
+              "name": "EV charging slots: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::EV charging slots: HTTP 2xx/3xx",
+              "id": "c7206acf7bbd39475e98fb4a7c788188",
+              "passes": 0
+            },
+            {
+              "name": "Coupons: HTTP 2xx/3xx",
+              "path": "::Read-only API tests::Coupons: HTTP 2xx/3xx",
+              "id": "6e3b2c7cd8cac07e9f108ff434883dd1",
+              "passes": 0,
+              "fails": 144
+            }
+          ],
+        "name": "Read-only API tests",
+        "path": "::Read-only API tests"
+      }
+    ],
+    "checks": [],
+    "name": ""
   },
   "options": {
     "summaryTrendStats": [
@@ -424,10 +443,5 @@
     ],
     "summaryTimeUnit": "",
     "noColor": false
-  },
-  "state": {
-    "testRunDurationMs": 242136.1642,
-    "isStdOutTTY": true,
-    "isStdErrTTY": true
   }
 }

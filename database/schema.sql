@@ -112,6 +112,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_razorpay_refund_id
   ON payments(razorpay_refund_id) WHERE razorpay_refund_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payments_customer_created_at ON payments(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payments_status_created_at ON payments(payment_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_refund_status ON payments(LOWER(refund_status)) WHERE refund_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_status_amount ON payments(LOWER(payment_status), amount);
+CREATE INDEX IF NOT EXISTS idx_parking_slots_status_avail ON parking_slots(LOWER(status), is_available);
+CREATE INDEX IF NOT EXISTS idx_parking_slots_zone ON parking_slots(zone);
+CREATE INDEX IF NOT EXISTS idx_vehicle_history_exit_status ON vehicle_history(exit_time, LOWER(status));
+CREATE INDEX IF NOT EXISTS idx_reservations_status_end ON reservations(LOWER(status), end_time);
+CREATE INDEX IF NOT EXISTS idx_ev_sessions_status ON ev_charging_sessions(LOWER(session_status));
 
 CREATE TABLE IF NOT EXISTS razorpay_webhook_events (
   event_id VARCHAR(150) PRIMARY KEY,
